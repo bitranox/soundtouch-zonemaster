@@ -62,6 +62,7 @@ __all__ = [
     "RunService",
     "RunZone",
     "SelectStation",
+    "ServiceCommands",
     "SetVolume",
     "SpeakerWatch",
     "StationSource",
@@ -420,3 +421,15 @@ class PrototypePorts:
 
     open_master: OpenPrototypeMaster
     station_source: StationSource
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ServiceCommands:
+    """What the service's CLI group is handed: the run, and the opener its store verbs use.
+
+    The verbs cannot import the file adapter (the adapter families are independent), so the
+    opener arrives the way the run does.
+    """
+
+    run: RunService
+    open_store: OpenHouseStore

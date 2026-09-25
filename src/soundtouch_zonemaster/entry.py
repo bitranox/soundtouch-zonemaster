@@ -16,10 +16,11 @@ from .__init__conf__ import service_command, shell_command
 from .adapters.cli import main as cli_main
 from .adapters.cli.prototype import cli as prototype_command
 from .adapters.cli.service.root import cli as service_command_group
-from .composition import hold_the_zone, run_prototype
+from .application.ports import ServiceCommands
+from .composition import hold_the_zone, open_house_store, run_prototype
 
 if TYPE_CHECKING:
-    from .application.ports import RunService, RunZone
+    from .application.ports import OpenHouseStore, RunService, RunZone
 
 __all__ = ["prototype_main", "service_main"]
 
@@ -29,6 +30,7 @@ def prototype_main(*, run_zone: RunZone | None = None) -> int:
     return cli_main.run(prototype_command, services=run_zone or run_prototype, prog_name=shell_command)
 
 
-def service_main(*, run_service: RunService | None = None) -> int:
-    """Parse argv and hold the house. ``run_service`` is the seam a test substitutes."""
-    return cli_main.run(service_command_group, services=run_service or hold_the_zone, prog_name=service_command)
+def service_main(*, run_service: RunService | None = None, open_store: OpenHouseStore | None = None) -> int:
+    """Parse argv and hold the house, or run a store verb. Both keywords are seams a test substitutes."""
+    commands = ServiceCommands(run=run_service or hold_the_zone, open_store=open_store or open_house_store)
+    return cli_main.run(service_command_group, services=commands, prog_name=service_command)

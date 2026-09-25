@@ -36,17 +36,18 @@ from ...config.errors import ConfigInputError
 from ...logging.narration import LogRouting, log
 from .. import safe_console
 from ..boundary import configured_settings, parse_service_options
-from ..context import Shared, config_for
+from ..context import Shared, config_for, remember_store_opener
 from ..envelope import Envelope, OutputMode, report_crash, report_failure, write_envelope
 from ..typed_click import option
 from .config_cmd import cli_config
 from .deploy_cmd import cli_config_deploy
+from .store_cmd import cli_channels, cli_switch
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ....application.options import ServiceOptions
-    from ....application.ports import RunService
+    from ....application.ports import ServiceCommands
 
 __all__ = ["ServiceReport", "VersionReport", "cli", "service_options"]
 
@@ -159,13 +160,18 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
 ) -> None:
     """Hold the zone for the house: take in the speakers that belong, and leave the rest alone."""
     shared = Shared(
-        mode=OutputMode.of(as_json=as_json, as_json_bare=as_json_bare), profile=profile, overrides=set_overrides
+        mode=OutputMode.of(as_json=as_json, as_json_bare=as_json_bare),
+        profile=profile,
+        overrides=set_overrides,
+        database=database,
     )
     LogRouting.to_stderr = shared.mode.machine
-    # Read before it is replaced: main.run hands the callback the run to perform as ``ctx.obj``,
-    # and the group then puts what the subcommands need in the same slot.
-    run_service = cast("RunService", ctx.obj)
+    # Read before it is replaced: main.run hands the callback the commands to perform as
+    # ``ctx.obj``, and the group then puts what the subcommands need in the same slot.
+    commands = cast("ServiceCommands", ctx.obj)
+    run_service = commands.run
     ctx.obj = shared
+    remember_store_opener(ctx, commands.open_store)
     if show_version:
         # A plain flag handled here rather than click's eager version option: that one runs
         # before --json is parsed, and could then only ever print prose.
@@ -253,3 +259,5 @@ def _report(options: ServiceOptions, rc: int, *, mode: OutputMode) -> None:
 
 cli.add_command(cli_config)
 cli.add_command(cli_config_deploy)
+cli.add_command(cli_switch)
+cli.add_command(cli_channels)
