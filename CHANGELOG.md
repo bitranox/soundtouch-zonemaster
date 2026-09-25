@@ -6,8 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.8] 2026-09-25 19:53:39
+
 ### Changed
 
+- One public repository instead of a private working copy plus a redacted export. A machine's own
+  values live in gitignored `9N-<scope>-rnhome.toml` override files beside the public default they
+  override - the package's `defaultconfig.d/`, the research scripts' new `research/defaultconfig.d/`
+  and the hardware tests' `tests/e2e_defaults.d/` - with a tracked `.example` beside each. The
+  wheel and sdist exclude every `*-rnhome.*` file, and a test builds the wheel to prove it.
+- `config --redact` masks every value a private `-rnhome` file set, not only what came from a
+  `.env`: such a file reports the defaults layer, so masking by layer alone printed it in full.
+- The hardware tests read typed settings from `tests/e2e_defaults.d/90-e2e-rnhome.toml`; a `.env`
+  still layers above it.
+- The research scripts read the capture host's `never_touch`, the ssh user, the golden-check
+  inputs and the MPD A/B paths from their own layered settings instead of constants.
+- Both commands answer `--version`.
 - The private name list is `tools/public_redactions-rnhome.txt`, gitignored like every other
   `*-rnhome.*` file, with `tools/public_redactions.example.txt` tracked to show its format. Its
   rules map the rooms to `Room1`..`Room6`, the machines to `service-host` and `capture-host`, and
@@ -17,6 +31,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- CI on every push (the default_cicd_public workflows, Linux only), a Quickstart notebook the CI
+  executes, and publishing to PyPI on a version tag.
 - A name guard in the gate: `tests/test_no_private_names.py` fails, naming the file and the literal,
   when any tracked file holds a literal from the private name list in any case. It skips with its
   reason where the list is absent, as in CI and a fresh clone.

@@ -41,7 +41,7 @@ name = "soundtouch_zonemaster"
 #: Human-readable summary shown in CLI help output.
 title = "A software zone master for Bose SoundTouch speakers, and the protocol research behind it"
 #: Current release version pulled from ``pyproject.toml`` by automation.
-version = "0.4.7"
+version = "0.4.8"
 #: Repository homepage presented to users.
 homepage = "https://github.com/bitranox/soundtouch-zonemaster"
 #: Author attribution surfaced in CLI output.
