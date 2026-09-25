@@ -43,15 +43,17 @@ if TYPE_CHECKING:
     from ..domain.speakers import Speaker
     from ..domain.state import Place, ZoneState
     from ..domain.station import Station, StationRequest
-    from .options import ChannelPolicy, Options, ServiceOptions
+    from .options import ChannelPolicy, LegacyFiles, Options, ServiceOptions
 
 __all__ = [
     "AddressOf",
     "AskNowPlaying",
     "FetchSpeakers",
+    "HouseStore",
     "LoadChannels",
     "LoadState",
     "MpdControlPort",
+    "OpenHouseStore",
     "OpenMpdControl",
     "OpenPrototypeMaster",
     "OpenSwitch",
@@ -115,6 +117,45 @@ class OpenSwitch(Protocol):
     """Open the switch over one path. Built once, in the constructor, and then watched."""
 
     def __call__(self, path: Path, *, log: LogFn, poll_s: float = ...) -> SwitchReader: ...
+
+
+class HouseStore(Protocol):
+    """The house database: the state, the channel list and the switch, in one file.
+
+    ``open`` comes first and ``close`` last. ``exclusive`` takes the one-writer lock: the service
+    and a channel import take it, a switch flip and an export do not. Every method refuses with
+    ``StoreError`` while the store is not open.
+    """
+
+    def open(self, *, exclusive: bool) -> None: ...
+
+    def close(self) -> None: ...
+
+    def import_legacy(self, files: LegacyFiles) -> None: ...
+
+    def load_state(self) -> ZoneState: ...
+
+    def save_state(self, state: ZoneState) -> None: ...
+
+    def load_channels(self) -> ChannelList: ...
+
+    def save_channels(self, channels: ChannelList) -> None: ...
+
+    def export_channels(self) -> str: ...
+
+    def import_channels(self, path: Path) -> ChannelList: ...
+
+    def is_on(self) -> bool: ...
+
+    def set_switch(self, *, on: bool) -> bool: ...
+
+    def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader: ...
+
+
+class OpenHouseStore(Protocol):
+    """A store over one database file, not yet opened. Opening it is the first thing that touches disk."""
+
+    def __call__(self, database: Path, *, log: LogFn) -> HouseStore: ...
 
 
 # --- the speakers, and the service next door --------------------------------------------------

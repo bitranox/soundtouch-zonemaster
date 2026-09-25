@@ -39,6 +39,7 @@ __all__ = [
     "REGISTRY_POLL_S",
     "WS_PORT",
     "ChannelPolicy",
+    "LegacyFiles",
     "Options",
     "ServiceOptions",
     "default_device_id",
@@ -139,6 +140,21 @@ class Options:
         where the configuration is read, with the same message and the same exit code.
         """
         device_id_or_refuse(self.device_id)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LegacyFiles:
+    """The three files the service kept before the house database, read once each and set aside.
+
+    Each is imported only into a part of the database that is still EMPTY, and renamed to
+    ``<name>.imported`` afterwards. A file whose part already has something in it is left where it
+    is and named at every start, because nothing reads it any more and a person may still be
+    writing it.
+    """
+
+    state_file: Path | None = None
+    channel_file: Path | None = None
+    switch_file: Path | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
