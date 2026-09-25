@@ -26,9 +26,9 @@ the one place that already names both sides.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     import asyncio
@@ -374,11 +374,14 @@ StationSource = Callable[[str, int], "Awaitable[StationRequest]"]
 # --- what a command runs ------------------------------------------------------------------------
 
 
-RunService = Callable[["ServiceOptions"], "Awaitable[int]"]
-"""Hold the house until stopped. The seam the service command's tests substitute."""
+RunService = Callable[["ServiceOptions"], "Coroutine[Any, Any, int]"]
+"""Hold the house until stopped. The seam the service command's tests substitute. A coroutine
+rather than any awaitable, because the command hands it to ``asyncio.run``, which the 3.12 and
+3.13 stubs type as taking a coroutine."""
 
-RunZone = Callable[["Options"], "Awaitable[int]"]
-"""One whole run of the prototype. The seam the run-loop tests substitute."""
+RunZone = Callable[["Options"], "Coroutine[Any, Any, int]"]
+"""One whole run of the prototype. The seam the run-loop tests substitute. A coroutine for the
+same reason as :data:`RunService`."""
 
 
 # --- the two bundles ------------------------------------------------------------------------------

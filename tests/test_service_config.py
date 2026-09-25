@@ -24,10 +24,10 @@ from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, clear_confi
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ServiceOptions
+    from soundtouch_zonemaster.application.ports import RunService
 
 DEPLOYED_ARGV = (
     "--bind-ip",
@@ -44,7 +44,7 @@ on 2026-09-11. Only the paths are rewritten below, because ``/var/lib/zonemaster
 on a development host and the state file's directory is checked at startup."""
 
 
-def _capture() -> tuple[list[ServiceOptions], Callable[[ServiceOptions], Awaitable[int]]]:
+def _capture() -> tuple[list[ServiceOptions], RunService]:
     """A stand-in run that records what it was handed instead of holding a zone."""
     seen: list[ServiceOptions] = []
 
