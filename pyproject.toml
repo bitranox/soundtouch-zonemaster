@@ -440,4 +440,4 @@ system-dependencies-ubuntu = []
 system-dependencies-macos = []
 system-dependencies-windows-pip = []
 system-dependencies-windows-choco = []
-os = ["ubuntu-latest", "windows-latest", "macos-latest"]
+os = ["ubuntu-latest"] # the service runs on Linux only (asyncio signal handling, fixed ports)
