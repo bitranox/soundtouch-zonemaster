@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-46A3FF?logo=ruff&labelColor=000)](https://docs.astral.sh/ruff/)
 [![Types: pyright strict](https://img.shields.io/badge/types-pyright%20strict-2A6DB2.svg)](https://microsoft.github.io/pyright/)
-[![codecov](https://codecov.io/gh/bitranox/soundtouch-zonemaster/graph/badge.svg)](https://codecov.io/gh/bitranox/soundtouch-zonemaster)
+[![codecov](https://codecov.io/gh/bitranox/soundtouch-zonemaster/branch/main/graph/badge.svg?token=e6FXPF11l5)](https://codecov.io/gh/bitranox/soundtouch-zonemaster)
 [![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 
 **A software zone master for Bose SoundTouch speakers, and the measured protocol description behind it**
