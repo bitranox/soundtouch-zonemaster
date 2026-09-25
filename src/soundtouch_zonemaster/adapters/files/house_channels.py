@@ -11,6 +11,7 @@ copy of something a person built, and an empty start would let the next save ove
 
 from __future__ import annotations
 
+import sqlite3
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -19,7 +20,6 @@ from ...application.errors import StoreError
 from .channel_file import ChannelDocument, ChannelListDocument
 
 if TYPE_CHECKING:
-    import sqlite3
     from pathlib import Path
 
     from ...domain.channellist import Channel, ChannelList
@@ -50,9 +50,37 @@ def read_channels(connection: sqlite3.Connection, *, database: Path) -> ChannelL
 
 
 def write_channels(connection: sqlite3.Connection, channels: ChannelList) -> None:
-    """Replace the whole list, keeping its order. The caller holds the transaction."""
+    """Replace the whole list, keeping its order. The caller holds the transaction.
+
+    ``channel.number`` is UNIQUE, and nothing in the domain refuses two channels sharing one: a
+    legacy ``channels.json`` a person hand-edited can hold a duplicate, and the first-start import
+    would otherwise hit SQLite's raw :class:`sqlite3.IntegrityError` and crash rather than name the
+    problem. The caller's ``transaction`` rolls this write back on any exception, this one included,
+    so a refused write leaves whatever list was there before it untouched.
+    """
     connection.execute("DELETE FROM channel")
-    connection.executemany(_INSERT, [_row(one) for one in channels.channels])
+    try:
+        connection.executemany(_INSERT, [_row(one) for one in channels.channels])
+    except sqlite3.IntegrityError as exc:
+        database = connection.execute("PRAGMA database_list").fetchone()[2]
+        numbers = ", ".join(_duplicated_numbers(channels))
+        message = f"{database}: the channel list has a duplicate number ({numbers})"
+        raise StoreError(message) from exc
+
+
+def _duplicated_numbers(channels: ChannelList) -> tuple[str, ...]:
+    """Every number that names more than one channel, sorted and named once each.
+
+    Computed from the list itself rather than parsed out of SQLite's own text, so the message is
+    deterministic and does not depend on which duplicate the UNIQUE index happened to reject.
+    """
+    seen: set[str] = set()
+    duplicated: set[str] = set()
+    for channel in channels.channels:
+        if channel.number in seen:
+            duplicated.add(channel.number)
+        seen.add(channel.number)
+    return tuple(sorted(duplicated))
 
 
 def _document(row: sqlite3.Row) -> dict[str, object]:

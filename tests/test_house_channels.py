@@ -66,3 +66,24 @@ def test_the_export_is_the_channel_file_byte_for_byte(tmp_path: Path) -> None:
     written = tmp_path / "channels.json"
     save_channels(written, HOUSE)
     assert channels_json(HOUSE) == written.read_text(encoding="utf-8")
+
+
+def test_a_duplicate_channel_number_is_a_named_refusal(tmp_path: Path) -> None:
+    database = tmp_path / "house.sqlite"
+    connection = connect(database)
+    with transaction(connection):
+        write_channels(connection, HOUSE)
+    duplicated = ChannelList(
+        channels=(
+            Channel(number="1", name="Station one", kind=ChannelKind.RADIO, url="http://radio.example/1"),
+            Channel(number="1", name="Station one again", kind=ChannelKind.RADIO, url="http://radio.example/1b"),
+        )
+    )
+    with (
+        pytest.raises(StoreError, match=rf"{database}: the channel list has a duplicate number \(1\)"),
+        transaction(connection),
+    ):
+        write_channels(connection, duplicated)
+    # The failed write must not have overwritten the list that was there before it.
+    assert read_channels(connection, database=database) == HOUSE
+    assert channel_count(connection) == 3
