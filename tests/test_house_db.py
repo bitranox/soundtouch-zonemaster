@@ -84,3 +84,10 @@ def test_a_second_writer_is_refused_while_the_first_holds_the_lock(tmp_path: Pat
 
 def test_releasing_a_lock_never_taken_is_harmless(tmp_path: Path) -> None:
     WriterLock(tmp_path / "house.sqlite").release()
+
+
+def test_a_lock_in_a_directory_that_does_not_exist_is_refused_by_name(tmp_path: Path) -> None:
+    lock = WriterLock(tmp_path / "nope" / "house.sqlite")
+    with pytest.raises(StoreError, match=str(lock.path)) as caught:
+        lock.acquire()
+    assert not isinstance(caught.value, StoreBusyError)

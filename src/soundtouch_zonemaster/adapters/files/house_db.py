@@ -76,6 +76,9 @@ def connect(database: Path) -> sqlite3.Connection:
     except StoreError:
         connection.close()
         raise
+    except BaseException:
+        connection.close()
+        raise
     return connection
 
 
@@ -117,7 +120,11 @@ class WriterLock:
 
     def acquire(self) -> None:
         """Take the lock or refuse at once. A service that waited would look like one that hung."""
-        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        except OSError as exc:
+            message = f"{self.path}: could not be opened ({type(exc).__name__})"
+            raise StoreError(message) from exc
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
