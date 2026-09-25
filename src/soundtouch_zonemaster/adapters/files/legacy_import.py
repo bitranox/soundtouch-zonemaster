@@ -1,12 +1,17 @@
 """The three files the service kept before, read once each into an empty part of the database.
 
 Everything is READ first and written in ONE transaction, and only then are the files renamed. So
-a channel file that is unusable refuses the start with nothing imported and nothing renamed, which
-is how it refused before there was a database, and a crash between the commit and the rename
-leaves files that the next start names as "not read" instead of importing them a second time.
+a channel file OR a state file that is unusable refuses the start with nothing imported and
+nothing renamed - the state file is no longer the one that quietly starts empty here, because this
+is the only place its bytes are turned into the sole copy the database will ever hold. That is how
+the channel file already refused before there was a database, and a crash between the commit and
+the rename leaves files that the next start names as "not read" instead of importing them a
+second time.
 
 Only into an EMPTY part. A database that already holds a state, a list or a switch is newer than
-any of these files, whoever wrote it, and an import over it would undo that without a word.
+any of these files, whoever wrote it, and an import over it would undo that without a word - which
+is also why an unusable file over an ALREADY-HELD part must not refuse: nothing was ever going to
+read it.
 """
 
 from __future__ import annotations
@@ -19,7 +24,7 @@ from .house_channels import channel_count, write_channels
 from .house_db import transaction
 from .house_state import read_state, write_state
 from .house_switch import read_switch, write_switch
-from .state_file import load_state
+from .state_file import StateFileError, load_state_strict
 from .switch_file import Switch
 
 if TYPE_CHECKING:
@@ -39,31 +44,26 @@ IMPORTED_SUFFIX = ".imported"
 def import_legacy(connection: sqlite3.Connection, files: LegacyFiles, *, database: Path, log: LogFn) -> None:
     """Import every old file that exists into its empty part, then set the imported ones aside.
 
-    The channel file is the one part whose parse can RAISE (an unusable ``channels.json``), so it
-    is read only after the channel part is confirmed empty, and only inside the same IMMEDIATE
-    transaction that makes that check and the write atomic - a database that already holds a list
-    must never even attempt to parse a legacy file it is not going to read. The state and the
-    switch files never raise on a bad read (``state_file.load_state``, ``Switch.is_on``), so
-    reading them ahead of the transaction changes nothing observable and keeps the transaction
-    itself short.
+    The channel file and the state file are the two parts whose parse can RAISE (an unusable
+    ``channels.json`` or ``zone-state.json``), so each is read only after ITS OWN part is confirmed
+    empty, and only inside the same IMMEDIATE transaction that makes that check and the write
+    atomic - a database that already holds a list or a state must never even attempt to parse a
+    legacy file it is not going to read, and a database that is missing only one of the two must
+    still refuse the whole start rather than half-import. ``load_state_strict`` is the strict
+    sibling of ``state_file.load_state``, which the ordinary service still uses and which never
+    raises. The switch file never raises on a bad read (``Switch.is_on``), so reading it ahead of
+    the transaction changes nothing observable and keeps the transaction itself short.
     """
-    state = _read_state(files.state_file, log=log)
     switch = _read_switch(files.switch_file, log=log)
     with transaction(connection):
         taken = [
             _take_channels(connection, files.channel_file, database=database, log=log),
-            _take_state(connection, files.state_file, state, database=database, log=log),
+            _take_state(connection, files.state_file, database=database, log=log),
             _take_switch(connection, files.switch_file, on=switch, database=database, log=log),
         ]
     for path in taken:
         if path is not None:
             _set_aside(path, log=log)
-
-
-def _read_state(path: Path | None, *, log: LogFn) -> ZoneState | None:
-    if path is None or not path.exists():
-        return None
-    return load_state(path, log=log)
 
 
 def _read_switch(path: Path | None, *, log: LogFn) -> bool | None:
@@ -79,6 +79,13 @@ def _read_channels(path: Path, *, log: LogFn) -> ChannelList:
         raise StoreError(str(exc)) from exc
 
 
+def _read_state(path: Path) -> ZoneState:
+    try:
+        return load_state_strict(path)
+    except StateFileError as exc:
+        raise StoreError(str(exc)) from exc
+
+
 def _take_channels(connection: sqlite3.Connection, path: Path | None, *, database: Path, log: LogFn) -> Path | None:
     if path is None or not path.exists():
         return None
@@ -91,14 +98,13 @@ def _take_channels(connection: sqlite3.Connection, path: Path | None, *, databas
     return path
 
 
-def _take_state(
-    connection: sqlite3.Connection, path: Path | None, state: ZoneState | None, *, database: Path, log: LogFn
-) -> Path | None:
-    if path is None or state is None:
+def _take_state(connection: sqlite3.Connection, path: Path | None, *, database: Path, log: LogFn) -> Path | None:
+    if path is None or not path.exists():
         return None
     if read_state(connection) is not None:
         _not_read(path, what="a state", database=database, log=log)
         return None
+    state = _read_state(path)
     write_state(connection, state)
     log("store", f"{path}: imported the state into {database}")
     return path

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
     from ...domain.logfn import LogFn
 
-__all__ = ["PlaceDocument", "StateDocument", "load_state", "save_state"]
+__all__ = ["PlaceDocument", "StateDocument", "StateFileError", "load_state", "load_state_strict", "save_state"]
 
 
 class PlaceDocument(BaseModel):
@@ -143,3 +143,33 @@ def load_state(path: Path, *, log: LogFn) -> ZoneState:
 def save_state(path: Path, state: ZoneState) -> None:
     """Write the state so that no reader can ever see half of it."""
     write_atomic(path, StateDocument.of(state).model_dump_json(indent=2) + "\n")
+
+
+class StateFileError(RuntimeError):
+    """The state file exists and could not be read, in any of the ways that can happen.
+
+    ``load_state`` never raises this - a state a person never edits is always safe to start
+    empty, because everything in it can be asked again. The one-time import into the house
+    database is a different reader with a different cost of being wrong: writing an empty state
+    there looks exactly like a real, if empty, file, and the file that caused it is then renamed
+    and never looked at again. So the import reads through :func:`load_state_strict` instead,
+    which refuses rather than guesses. It shares :class:`StateDocument` with ``load_state``, so a
+    file either one accepts is read the same way by both, and only the reaction to a bad one
+    differs.
+    """
+
+
+def load_state_strict(path: Path) -> ZoneState:
+    """Read the state, or REFUSE naming the file. The caller checks the file exists first.
+
+    Bytes are decoded as ``utf-8-sig``, the same rule ``load_state`` applies, so a file either
+    reader accepts loads identically under both.
+    """
+    try:
+        written = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise StateFileError(f"{path}: could not be read ({type(exc).__name__})") from exc
+    try:
+        return StateDocument.model_validate_json(written).to_state()
+    except ValidationError as exc:
+        raise StateFileError(f"{path}: unusable ({exc.error_count()} problem(s))") from exc
