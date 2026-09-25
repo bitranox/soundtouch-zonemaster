@@ -41,7 +41,15 @@ class SqliteHouseStore:
         self._exclusive = False
 
     def open(self, *, exclusive: bool) -> None:
-        """Connect, taking the writer lock first when asked. Nothing is left held on a refusal."""
+        """Connect, taking the writer lock first when asked. Nothing is left held on a refusal.
+
+        Refuses by name when the store already holds a connection, rather than silently replacing
+        it: a second ``connect()`` would leak the first connection (never closed, its own place in
+        WAL) while every method after it quietly started talking to a different one.
+        """
+        if self._connection is not None:
+            message = f"{self.database}: the house store is already open"
+            raise StoreError(message)
         if exclusive:
             self._lock.acquire()
         try:
@@ -59,6 +67,7 @@ class SqliteHouseStore:
         self._exclusive = False
 
     def import_legacy(self, files: LegacyFiles) -> None:
+        self._require_exclusive(what="importing the old files")
         import_legacy(self._db, files, database=self.database, log=self.log)
 
     def load_state(self) -> ZoneState:
@@ -82,9 +91,7 @@ class SqliteHouseStore:
 
     def import_channels(self, path: Path) -> ChannelList:
         """Replace the list with a file's, under the writer lock, or refuse naming what is wrong."""
-        if not self._exclusive:
-            message = f"{self.database}: an import needs the store opened exclusive"
-            raise StoreError(message)
+        self._require_exclusive(what="an import")
         try:
             channels = load_channels(path, log=self.log)
         except ChannelFileError as exc:
@@ -106,6 +113,12 @@ class SqliteHouseStore:
 
     def switch(self, *, poll_s: float, ignored_file: Path | None) -> DbSwitch:
         return DbSwitch(self.is_on, where=str(self.database), log=self.log, poll_s=poll_s, ignored_file=ignored_file)
+
+    def _require_exclusive(self, *, what: str) -> None:
+        """Refuse an action that writes over what an unrelated reader might be reading right now."""
+        if not self._exclusive:
+            message = f"{self.database}: {what} needs the store opened exclusive"
+            raise StoreError(message)
 
     @property
     def _db(self) -> sqlite3.Connection:

@@ -81,13 +81,15 @@ def test_an_unusable_channel_file_refuses_the_start_and_imports_nothing(tmp_path
     legacy = _legacy(tmp_path)
     state_file = _require(legacy.state_file)
     save_state(state_file, STATE)
-    _require(legacy.channel_file).write_text('{"channels": [{"number": "x"}]}', encoding="utf-8")
+    channel_file = _require(legacy.channel_file)
+    channel_file.write_text('{"channels": [{"number": "x"}]}', encoding="utf-8")
     store = _store(tmp_path)
     store.open(exclusive=True)
     with pytest.raises(StoreError, match=r"channels\.json"):
         store.import_legacy(legacy)
     assert store.load_state() == ZoneState()
     assert state_file.exists()
+    assert channel_file.exists()
     store.close()
 
 
@@ -109,12 +111,63 @@ def test_a_duplicate_channel_number_in_the_legacy_file_refuses_and_imports_nothi
     )
     store = _store(tmp_path)
     store.open(exclusive=True)
-    with pytest.raises(StoreError, match="duplicate number"):
+    with pytest.raises(StoreError, match=r"zonemaster\.sqlite.*duplicate number"):
         store.import_legacy(legacy)
     assert store.load_state() == ZoneState()
     assert store.load_channels() == ChannelList()
     assert state_file.exists()
     assert channel_file.exists()
+    store.close()
+
+
+def test_an_unusable_channel_file_is_not_even_read_when_the_part_is_already_held(tmp_path: Path) -> None:
+    """The channel part is checked BEFORE the file is parsed: a garbage channels.json must not stop
+    a start that was never going to read it anyway."""
+    lines: list[str] = []
+    store = _store(tmp_path, lines)
+    store.open(exclusive=True)
+    store.save_channels(LIST)
+    legacy = LegacyFiles(channel_file=tmp_path / "channels.json")
+    channel_file = _require(legacy.channel_file)
+    channel_file.write_text('{"channels": [{"number": "x"}]}', encoding="utf-8")
+    store.import_legacy(legacy)
+    assert store.load_channels() == LIST
+    assert channel_file.exists()
+    assert any("not imported" in line and "channels.json" in line for line in lines), lines
+    store.close()
+
+
+def test_a_channel_list_already_held_is_not_overwritten_and_its_file_is_named(tmp_path: Path) -> None:
+    lines: list[str] = []
+    store = _store(tmp_path, lines)
+    store.open(exclusive=True)
+    store.save_channels(LIST)
+    legacy = LegacyFiles(channel_file=tmp_path / "channels.json")
+    channel_file = _require(legacy.channel_file)
+    other = ChannelList(
+        channels=(Channel(number="2", name="Other", kind=ChannelKind.RADIO, url="http://radio.example/2"),)
+    )
+    save_channels(channel_file, other)
+    store.import_legacy(legacy)
+    assert store.load_channels() == LIST
+    assert channel_file.exists()
+    assert any("not imported" in line and "channels.json" in line for line in lines), lines
+    store.close()
+
+
+def test_a_state_already_held_is_not_overwritten_and_its_file_is_named(tmp_path: Path) -> None:
+    lines: list[str] = []
+    store = _store(tmp_path, lines)
+    store.open(exclusive=True)
+    held = ZoneState(channel="2")
+    store.save_state(held)
+    legacy = LegacyFiles(state_file=tmp_path / "zone-state.json")
+    state_file = _require(legacy.state_file)
+    save_state(state_file, STATE)
+    store.import_legacy(legacy)
+    assert store.load_state() == held
+    assert state_file.exists()
+    assert any("not imported" in line and "zone-state.json" in line for line in lines), lines
     store.close()
 
 
@@ -187,3 +240,22 @@ def test_close_twice_is_harmless(tmp_path: Path) -> None:
     store.open(exclusive=True)
     store.close()
     store.close()
+
+
+def test_opening_an_already_open_store_refuses_without_leaking_the_connection(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    store.open(exclusive=False)
+    with pytest.raises(StoreError, match=r"zonemaster\.sqlite.*already open"):
+        store.open(exclusive=False)
+    # The first connection must still be the one in use, not silently replaced by a leaked second.
+    store.save_state(STATE)
+    assert store.load_state() == STATE
+    store.close()
+
+
+def test_import_legacy_needs_the_writer_lock(tmp_path: Path) -> None:
+    reader = _store(tmp_path)
+    reader.open(exclusive=False)
+    with pytest.raises(StoreError, match="exclusive"):
+        reader.import_legacy(LegacyFiles())
+    reader.close()

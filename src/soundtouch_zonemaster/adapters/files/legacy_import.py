@@ -37,13 +37,21 @@ IMPORTED_SUFFIX = ".imported"
 
 
 def import_legacy(connection: sqlite3.Connection, files: LegacyFiles, *, database: Path, log: LogFn) -> None:
-    """Import every old file that exists into its empty part, then set the imported ones aside."""
-    channels = _read_channels(files.channel_file, log=log)
+    """Import every old file that exists into its empty part, then set the imported ones aside.
+
+    The channel file is the one part whose parse can RAISE (an unusable ``channels.json``), so it
+    is read only after the channel part is confirmed empty, and only inside the same IMMEDIATE
+    transaction that makes that check and the write atomic - a database that already holds a list
+    must never even attempt to parse a legacy file it is not going to read. The state and the
+    switch files never raise on a bad read (``state_file.load_state``, ``Switch.is_on``), so
+    reading them ahead of the transaction changes nothing observable and keeps the transaction
+    itself short.
+    """
     state = _read_state(files.state_file, log=log)
     switch = _read_switch(files.switch_file, log=log)
     with transaction(connection):
         taken = [
-            _take_channels(connection, files.channel_file, channels, database=database, log=log),
+            _take_channels(connection, files.channel_file, database=database, log=log),
             _take_state(connection, files.state_file, state, database=database, log=log),
             _take_switch(connection, files.switch_file, on=switch, database=database, log=log),
         ]
@@ -52,35 +60,32 @@ def import_legacy(connection: sqlite3.Connection, files: LegacyFiles, *, databas
             _set_aside(path, log=log)
 
 
-def _exists(path: Path | None) -> bool:
-    return path is not None and path.exists()
-
-
-def _read_channels(path: Path | None, *, log: LogFn) -> ChannelList | None:
+def _read_state(path: Path | None, *, log: LogFn) -> ZoneState | None:
     if path is None or not path.exists():
         return None
+    return load_state(path, log=log)
+
+
+def _read_switch(path: Path | None, *, log: LogFn) -> bool | None:
+    if path is None or not path.exists():
+        return None
+    return Switch(path, log=log).is_on()
+
+
+def _read_channels(path: Path, *, log: LogFn) -> ChannelList:
     try:
         return load_channels(path, log=log)
     except ChannelFileError as exc:
         raise StoreError(str(exc)) from exc
 
 
-def _read_state(path: Path | None, *, log: LogFn) -> ZoneState | None:
-    return load_state(path, log=log) if path is not None and _exists(path) else None
-
-
-def _read_switch(path: Path | None, *, log: LogFn) -> bool | None:
-    return Switch(path, log=log).is_on() if path is not None and _exists(path) else None
-
-
-def _take_channels(
-    connection: sqlite3.Connection, path: Path | None, channels: ChannelList | None, *, database: Path, log: LogFn
-) -> Path | None:
-    if path is None or channels is None:
+def _take_channels(connection: sqlite3.Connection, path: Path | None, *, database: Path, log: LogFn) -> Path | None:
+    if path is None or not path.exists():
         return None
     if channel_count(connection) > 0:
         _not_read(path, what="a channel list", database=database, log=log)
         return None
+    channels = _read_channels(path, log=log)
     write_channels(connection, channels)
     log("store", f"{path}: imported {len(channels.channels)} channel(s) into {database}")
     return path
