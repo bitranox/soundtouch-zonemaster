@@ -1288,8 +1288,10 @@ def with_cli_values(given: dict[str, Any], *, configured: dict[str, Any]) -> Ser
         channel_file=cast("str | None", given["channel_file"]),
         switch_file=cast("str | None", given["switch_file"]),
         state_file=cast("str | None", given["state_file"]),
-        # Not in the corpus: the archive had no database. Every case is given one where the
-        # archive's own files lived, so what each case recorded about THOSE files still holds.
+        # Not in the corpus: the archive had no database. Every REPLAY gives one, as a CLI value,
+        # where the archive's own files lived - replay_service_options adds it to its own "given"
+        # before here() runs, and replay_layers does the same to a copy of NOTHING_TYPED - so what
+        # each case recorded about THOSE files still holds.
         database=cast("str | None", given["database"]),
         registry_url=cast("str | None", given["registry_url"]),
         allow_console=tuple(cast("list[str]", given["allow_console"])),
@@ -1425,13 +1427,18 @@ def replay_layers(case: dict[str, Any], work: Path, root: Path, monkeypatch: pyt
     assert unknown_settings(merged.config) == expect["unknown"]
     assert sorted(merged.overridden) == expect["overridden"]
 
+    # The archive predates the database too, and NOTHING_TYPED is shared with every other
+    # layered case, so it cannot carry a per-run path itself. Give this replay a database the
+    # same way replay_service_options gives its own "given" one: as a CLI value, at the place
+    # where the archive's own files lived, substituted through here() like every other path here.
+    typed = {**NOTHING_TYPED, "database": here(f"{WORK_IN_CORPUS}/zonemaster.sqlite", work)}
     parsed = cast("dict[str, Any]", expect["parse"])
     if "raises" in parsed:
         with pytest.raises(OptionsError) as caught:
-            with_cli_values(NOTHING_TYPED, configured=configured)
+            with_cli_values(typed, configured=configured)
         refusal_matches(caught.value, cast("dict[str, Any]", parsed["raises"]), work)
         return
-    produced = cast("dict[str, Any]", canonical(with_cli_values(NOTHING_TYPED, configured=configured)))
+    produced = cast("dict[str, Any]", canonical(with_cli_values(typed, configured=configured)))
     recorded = cast("dict[str, Any]", parsed["value"])
     assert produced["type"] == recorded["type"]
     assert produced["fields"] == here(without_host_mac(cast("dict[str, Any]", recorded["fields"])), work)

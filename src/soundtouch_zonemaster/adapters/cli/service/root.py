@@ -5,8 +5,9 @@
 
 Every setting may also live in a configuration file, and a value typed on the command line still
 wins over all of them, so the line above keeps meaning exactly what it meant before there were any
-files. The same run with nothing in argv works too, once ``config-deploy`` has written the five
-settings that have no default:
+files. The same run with nothing in argv works too, once ``config-deploy`` has written the two
+settings that have no default, ``bind_ip`` and ``database`` (``device_id`` falls back to this
+host's MAC address):
 
     soundtouch-zonemaster-service config-deploy --target user     # write ~/.config/soundtouch-zonemaster/
     soundtouch-zonemaster-service config                          # what is merged, and from which file
@@ -107,10 +108,22 @@ def service_options(func: Callable[..., Any]) -> Callable[..., Any]:
         option("--mpd-port", default=None, type=int, help="the control port MPD answers on"),
         option("--mpd-host", default=None, help="where MPD answers, for channels whose sound it holds"),
         option("--database", default=None, help="the house database: state, channel list and switch"),
-        option("--state-file", default=None, help="what the zone is remembered in across a restart"),
-        option("--switch-file", default=None, help="the file that says off; anything else means on"),
+        option(
+            "--state-file",
+            default=None,
+            help="the state as a file, from before the database: imported once, then renamed <name>.imported",
+        ),
+        option(
+            "--switch-file",
+            default=None,
+            help="the switch as a file, from before the database: imported once, then renamed <name>.imported",
+        ),
         option("--dial-window-s", default=None, type=float, help="how long digits are collected into one number"),
-        option("--channel-file", default=None, help="the house channel list; seeded here on a first start"),
+        option(
+            "--channel-file",
+            default=None,
+            help="the channel list as a file, from before the database: imported once, then renamed <name>.imported",
+        ),
         option("--device-id", default=None, help="twelve hex digits; a MAC, as a speaker has"),
         option("--bind-ip", default=None, help="address the master serves on; the speakers must reach it"),
     ):

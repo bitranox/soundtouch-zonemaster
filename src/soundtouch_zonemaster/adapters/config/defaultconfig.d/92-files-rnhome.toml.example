@@ -5,7 +5,7 @@
 # machine it sits on, and the wheel build excludes it as well. This example is tracked so the
 # shape can be found.
 #
-# The three are commented out here because where they live is a property of one machine; a
+# The four are commented out here because where they live is a property of one machine; a
 # checkout that runs the service names them here, on the command line, or in the environment.
 
 [files]

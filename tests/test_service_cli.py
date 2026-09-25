@@ -64,7 +64,7 @@ def test_a_database_in_a_directory_that_does_not_exist_is_refused(
         ["soundtouch-zonemaster-service", "--bind-ip", "192.168.0.190", "--database", str(tmp_path / "nope" / "db")],
     )
     rc = main(run_service=_refuse_to_run)
-    assert rc != 0
+    assert rc == 1, "the same refusal as the state, channel and switch file directories: ExitCode.REFUSED"
     assert "is not a directory to keep the house database in" in capsys.readouterr().err
 
 
