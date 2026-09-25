@@ -4,9 +4,12 @@ The top of the chain, and the smallest class in it. Holding a house is five work
 classes below, so what is left here is starting them and the order of the start-up - which is not
 arbitrary at any step: the state comes back before any volume is put back and the registry before
 it again, because a level is remembered against a device id and only the registry says where that
-is; the channel file is read before the registry so an unusable one stops the service here rather
+is; the channel list is read before the registry so an unusable one stops the service here rather
 than once a speaker wakes; and the first pass runs only after every box has been asked what it is
 playing.
+
+All of it runs on the house database, which is opened before any of it and closed after the
+stand-down: the database is what a refusal to start is about, and the stand-down still writes to it.
 
 The stand-down is in a ``finally``. Leaving a real speaker in a zone whose master has gone is the
 one outcome that needs a person to undo it by hand, which is why the unit ends this with SIGINT.
@@ -26,6 +29,22 @@ class ZoneService(KeyReading):
     """The service: one zone, the speakers that belong in it, and the switch above both."""
 
     async def run(self) -> None:
+        """Hold the house until cancelled, on a store opened before anything is taken from it.
+
+        The store is opened OUTSIDE the stand-down's ``try``: a database another service holds, or
+        one that cannot be read, refuses the start before a port is bound or a speaker is touched,
+        so there is nothing to stand down. The old files are imported before the first read of it,
+        and an old file that cannot be read refuses the start the same way. It is closed LAST,
+        because the stand-down still writes where MPD was.
+        """
+        self.store.open(exclusive=True)
+        try:
+            self.store.import_legacy(self.options.legacy)
+            await self._hold()
+        finally:
+            self.store.close()
+
+    async def _hold(self) -> None:
         """Hold the house until cancelled; the stand-down is in a ``finally``, as in the prototype.
 
         Leaving a real speaker in a zone whose master has gone is the one outcome that needs a
@@ -59,7 +78,7 @@ class ZoneService(KeyReading):
 
     async def _start_up(self) -> None:
         """Everything that has to be true before the first event is read."""
-        state = self.ports.load_state(self.options.state_file, log=self.log)
+        state = self.store.load_state()
         self._channel = state.channel
         self._believed = state.members
         self._muted = dict(state.muted)
@@ -87,11 +106,11 @@ class ZoneService(KeyReading):
             self.log("dial", f"a key is held after {state.hold_threshold_s:.1f} s, calibrated in an earlier run")
         self.policy.restore(state.members, at=time.time())
         self.log("state", f"{len(state.members)} member(s) remembered from the last run")
-        # Before anything reads the registry: an unusable channel file must stop the service here,
+        # Before anything reads the registry: an unusable channel list must stop the service here,
         # not once a speaker wakes and there is nothing to play.
-        self._channels = self.ports.load_channels(self.options.channel_file, log=self.log)
+        self._channels = self.store.load_channels()
         await self._read_the_registry()
-        # AFTER the registry, not before it: the state file remembers a device id and a level, and
+        # AFTER the registry, not before it: the saved state remembers a device id and a level, and
         # the address to send that level to is what the registry answers. Called any earlier it
         # walks the same notes and skips every one of them for want of a speaker, while reading
         # like the thing that undoes a service killed mid-join. It has to be here rather than left

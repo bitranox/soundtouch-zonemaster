@@ -46,8 +46,9 @@ from speaker_double import (
     user_activity_frame,
 )
 
-from soundtouch_zonemaster.adapters.files.channel_file import load_channels, save_channels
-from soundtouch_zonemaster.adapters.files.state_file import load_state, save_state
+from soundtouch_zonemaster.adapters.files.channel_file import save_channels
+from soundtouch_zonemaster.adapters.files.house_store import SqliteHouseStore
+from soundtouch_zonemaster.adapters.files.state_file import save_state
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
 from soundtouch_zonemaster.adapters.soundtouch.speaker_http import SPEAKER_HTTP_TIMEOUT_S
@@ -221,6 +222,10 @@ def _options(
     written into the channel file here as channel 1, which is exactly what the seeding would
     otherwise have put there. Pass ``seed=True`` to leave the file absent and let the service seed
     itself from the named speaker, which only the seeding tests want.
+
+    The database is where the service keeps everything; the channel file written here, and any
+    state or switch file a test writes before its first start, is what that start imports into
+    it, the way a house upgrading from the files would.
     """
     channel_file = tmp_path / "channels.json"
     if not seed:
@@ -258,9 +263,69 @@ def _preset(url: str, name: str) -> str:
     return station_content_item(url=url, name=name)
 
 
+def _legacy(path: Path | None) -> Path:
+    """One of the three old files, which ``_options`` always names: an import source now.
+
+    Written BEFORE a test's first start, each is what the service imports into its empty
+    database, which keeps every test that sets up a list or a state that way working unchanged.
+    """
+    assert path is not None, "_options names all three old files"
+    return path
+
+
+def _state_file(options: ServiceOptions) -> Path:
+    return _legacy(options.state_file)
+
+
+def _channel_file(options: ServiceOptions) -> Path:
+    return _legacy(options.channel_file)
+
+
+def _switch_file(options: ServiceOptions) -> Path:
+    return _legacy(options.switch_file)
+
+
+def _store_of(options: ServiceOptions) -> SqliteHouseStore:
+    """A READER on the service's database, which the service's writer lock does not block."""
+    store = SqliteHouseStore(options.database, log=lambda _kind, _text: None)
+    store.open(exclusive=False)
+    return store
+
+
+def _state_of(options: ServiceOptions) -> ZoneState:
+    """What a restart starts from, read out of the database the way a restart reads it."""
+    store = _store_of(options)
+    try:
+        return store.load_state()
+    finally:
+        store.close()
+
+
 def _channels_of(options: ServiceOptions) -> ChannelList:
-    """The channel file as the service left it, read the way a restart reads it."""
-    return load_channels(options.channel_file, log=lambda _kind, _text: None)
+    """The channel list as the service left it, read the way a restart reads it."""
+    store = _store_of(options)
+    try:
+        return store.load_channels()
+    finally:
+        store.close()
+
+
+def _switch_of(options: ServiceOptions) -> bool:
+    """Whether the database says the house is on, read the way the service reads it."""
+    store = _store_of(options)
+    try:
+        return store.is_on()
+    finally:
+        store.close()
+
+
+def _flip(options: ServiceOptions, *, on: bool) -> None:
+    """What the service's switch command does, on the database a service may be running on."""
+    store = _store_of(options)
+    try:
+        store.set_switch(on=on)
+    finally:
+        store.close()
 
 
 @asynccontextmanager
@@ -334,13 +399,13 @@ def dissolves(box: FakeSpeaker) -> list[str]:
 
 
 def believed(options: ServiceOptions) -> tuple[str, ...]:
-    """Who the state file says the zone belongs to, read the way a restart reads it."""
-    return load_state(options.state_file, log=lambda _kind, _text: None).members
+    """Who the database says the zone belongs to, read the way a restart reads it."""
+    return _state_of(options).members
 
 
 def out_of_multiroom(options: ServiceOptions) -> tuple[str, ...]:
-    """Which boxes the state file says a person switched out, read the way a restart reads it."""
-    return load_state(options.state_file, log=lambda _kind, _text: None).out_of_multiroom
+    """Which boxes the database says a person switched out, read the way a restart reads it."""
+    return _state_of(options).out_of_multiroom
 
 
 def _slaves(service: ZoneService) -> tuple[str, ...]:
@@ -423,7 +488,7 @@ async def test_a_box_that_wakes_and_dials_is_taken_in_on_the_number_it_dialled(w
     (``source._peek``).
     """
     options = _dialable_world(world, tmp_path, dial_window_s=0.5)
-    save_state(options.state_file, ZoneState(channel="1", members=()))
+    save_state(_state_file(options), ZoneState(channel="1", members=()))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -493,7 +558,7 @@ async def test_a_box_arriving_while_a_number_is_still_open_waits_for_the_number(
     type and the fetch itself (``source._peek``), so four is two stations.
     """
     options = _dialable_world(world, tmp_path, dial_window_s=1.0)
-    save_state(options.state_file, ZoneState(channel="1", members=()))
+    save_state(_state_file(options), ZoneState(channel="1", members=()))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -651,7 +716,7 @@ async def test_dialling_the_channel_the_zone_is_already_on_starts_no_second_stre
     """
     options = _options(world, tmp_path, seed=True, dial_window_s=0.5)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(
                 Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -740,7 +805,7 @@ async def test_a_join_that_finished_is_never_reported_as_one_that_did_not(world:
         # can say anything - but one that started before it is still inside its own slow POST and
         # logs when that returns. So the wait is the note, and then longer than one of those.
         await eventually(
-            lambda: load_state(options.state_file, log=lambda _kind, _text: None).muted == {},
+            lambda: _state_of(options).muted == {},
             "the box was put back and its note came out",
             timeout=20.0,
         )
@@ -791,7 +856,7 @@ async def test_a_box_that_cannot_be_turned_down_keeps_no_note_that_would_move_it
         await eventually(lambda: [line for line in logs if "could not be turned down" in line] != [], "the mute failed")
         await eventually(lambda: len(joins(world.studio)) == 1, "and the box was taken in anyway")
         assert _volume_writes(world.studio) == [], "a box that dropped the write was never moved"
-        muted = load_state(options.state_file, log=lambda _kind, _text: None).muted
+        muted = _state_of(options).muted
         assert STUDIO_ID not in muted, f"the note must come back out, or a later pass moves the box: {muted}"
 
 
@@ -822,7 +887,7 @@ async def test_a_box_that_stops_answering_mid_fade_is_reported_and_left_to_the_n
         await eventually(lambda: [line for line in logs if "fade stopped at step" in line] != [], "the fade gave up")
         # Read from the state FILE rather than the service's own map: that file is what a restart
         # has, so it is the thing that actually has to still name the box and its level.
-        muted = load_state(options.state_file, log=lambda _kind, _text: None).muted
+        muted = _state_of(options).muted
         assert muted.get(STUDIO_ID) == 24, f"the note must survive, or nothing ever puts the box back: {muted}"
 
 
@@ -903,13 +968,13 @@ async def test_a_service_that_died_mid_join_puts_the_volume_back_when_it_starts(
     broken hardware.
     """
     options = _options(world, tmp_path)
-    save_state(options.state_file, ZoneState(muted={STUDIO_ID: 22}))
+    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
     world.studio.volume = 0
 
     async with _running(options, []):
         await eventually(lambda: world.studio.volume == 22, "the box was turned back up on start-up")
         await eventually(
-            lambda: load_state(options.state_file, log=lambda _k, _t: None).muted == {},
+            lambda: _state_of(options).muted == {},
             "and the note was cleared once it was there",
         )
 
@@ -924,14 +989,14 @@ async def test_a_box_left_at_zero_is_turned_back_up_even_when_the_switch_is_off(
     volume back, and a silent speaker nobody can explain is the one failure this feature can cause.
     """
     options = _options(world, tmp_path)
-    options.switch_file.write_text("off\n", encoding="utf-8")
-    save_state(options.state_file, ZoneState(muted={STUDIO_ID: 22}))
+    _switch_file(options).write_text("off\n", encoding="utf-8")
+    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
     world.studio.volume = 0
 
     async with _running(options, []):
         await eventually(lambda: world.studio.volume == 22, "the box was turned back up with the house off")
         await eventually(
-            lambda: load_state(options.state_file, log=lambda _k, _t: None).muted == {},
+            lambda: _state_of(options).muted == {},
             "and the note was cleared once it was there",
         )
 
@@ -953,8 +1018,8 @@ async def test_a_note_the_start_up_could_not_clear_is_cleared_by_a_pass_with_the
     What is asserted is the level the BOX is on, because that is what a person in the room hears.
     """
     options = _options(world, tmp_path)
-    options.switch_file.write_text("off\n", encoding="utf-8")
-    save_state(options.state_file, ZoneState(muted={STUDIO_ID: 22}))
+    _switch_file(options).write_text("off\n", encoding="utf-8")
+    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
     world.studio.volume = 0
     world.studio.refuse = frozenset({"POST /volume"})
     logs: list[str] = []
@@ -969,7 +1034,7 @@ async def test_a_note_the_start_up_could_not_clear_is_cleared_by_a_pass_with_the
 
         await eventually(lambda: world.studio.volume == 22, "a pass turned the box back up with the house off")
         await eventually(
-            lambda: load_state(options.state_file, log=lambda _k, _t: None).muted == {},
+            lambda: _state_of(options).muted == {},
             "and the note came out",
         )
 
@@ -987,7 +1052,7 @@ async def test_a_note_the_start_up_could_not_clear_is_cleared_by_a_pass_that_giv
     The port is taken by a real socket, which is what took it in the flat on 2026-09-07.
     """
     options = _options(world, tmp_path)
-    save_state(options.state_file, ZoneState(muted={STUDIO_ID: 22}))
+    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
     world.studio.volume = 0
     world.studio.refuse = frozenset({"POST /volume"})
     logs: list[str] = []
@@ -1009,7 +1074,7 @@ async def test_a_note_the_start_up_could_not_clear_is_cleared_by_a_pass_that_giv
 
             await eventually(lambda: world.studio.volume == 22, "a pass turned the box back up with the port held")
             await eventually(
-                lambda: load_state(options.state_file, log=lambda _k, _t: None).muted == {},
+                lambda: _state_of(options).muted == {},
                 "and the note came out",
             )
             assert joins(world.studio) == [], "and no box was taken into a zone while the port was held"
@@ -1118,7 +1183,7 @@ async def test_the_switch_dissolves_the_zone_and_a_restart_takes_back_only_what_
     async with _running(options, logs) as service:
         await _both_wake(world)
 
-        options.switch_file.write_text("off\n", encoding="utf-8")
+        _flip(options, on=False)
         await eventually(
             lambda: len(dissolves(world.studio)) == 1 and len(dissolves(world.hallway)) == 1,
             "both boxes were told the zone is over",
@@ -1132,13 +1197,60 @@ async def test_the_switch_dissolves_the_zone_and_a_restart_takes_back_only_what_
     # --- the house while the service is down ----------------------------------------------------
     world.studio.now_playing = now_playing_document(device_id=STUDIO_ID, source=RADIO, owner=MASTER_ID)
     world.hallway.now_playing = now_playing_document(device_id=HALLWAY_ID, source=SourceName.STANDBY)
-    options.switch_file.write_text("on\n", encoding="utf-8")
+    _flip(options, on=True)
     studio_joins, hallway_joins = len(joins(world.studio)), len(joins(world.hallway))
 
     async with _running(options, logs):
         await eventually(lambda: len(joins(world.studio)) > studio_joins, "the studio was taken back into the zone")
         await eventually(lambda: believed(options) == (STUDIO_ID,), "the file was corrected to what is true now")
         assert len(joins(world.hallway)) == hallway_joins, "a box that went to standby is not taken back"
+
+
+def _two_radio_channels(world: World) -> ChannelList:
+    """Two stations on the world's own server, which is what a house's hand-built list looks like."""
+    return ChannelList(
+        channels=(
+            Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
+            Channel(number="2", name="Two", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=2"),
+        )
+    )
+
+
+async def test_a_first_start_takes_the_old_files_into_the_database_and_a_restart_reads_it_back(
+    world: World, tmp_path: Path
+) -> None:
+    """The upgrade path on the real wiring: the old files go in once, and never again.
+
+    The first start finds an empty database beside a channel file and a switch file, so both are
+    imported and set aside as ``.imported``. The second start finds the switch file written again,
+    as an operator who never heard of the database would write it, and must leave it unread:
+    the database already holds a switch, and whatever wrote that is newer than any file.
+    """
+    options = _options(world, tmp_path, seed=True)
+    two = _two_radio_channels(world)
+    save_channels(_channel_file(options), two)
+    _switch_file(options).write_text("off\n", encoding="utf-8")
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        # The import is one synchronous step before any worker starts, so the line it writes is
+        # also the moment the renames are done.
+        await eventually(lambda: any("imported 2 channel(s)" in line for line in logs), "the channel import")
+
+    assert not _channel_file(options).exists(), "the imported file is not left where it was read"
+    assert _channel_file(options).with_name("channels.json.imported").exists()
+    assert _channels_of(options) == two
+    assert _switch_of(options) is False, "the switch came over as it was: off"
+
+    _switch_file(options).write_text("on\n", encoding="utf-8")
+    logs.clear()
+
+    async with _running(options, logs):
+        await eventually(lambda: any("not imported" in line for line in logs), "the second start refusing the file")
+
+    assert _switch_of(options) is False, "a file written after the import changes nothing"
+    assert _switch_file(options).exists(), "and it is left in place for a person to find"
+    assert _channels_of(options) == two, "the list the first start imported is the one a restart reads"
 
 
 async def test_the_last_box_leaving_stops_the_stream_nobody_is_listening_to(world: World, tmp_path: Path) -> None:
@@ -1479,7 +1591,7 @@ async def test_the_remembered_channel_is_what_gets_played(world: World, tmp_path
     """A restart resumes the channel it was on, not the first one in the list."""
     options = _options(world, tmp_path, seed=True)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(
                 Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -1487,7 +1599,7 @@ async def test_the_remembered_channel_is_what_gets_played(world: World, tmp_path
             )
         ),
     )
-    save_state(options.state_file, ZoneState(channel="3", members=()))
+    save_state(_state_file(options), ZoneState(channel="3", members=()))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -1502,12 +1614,12 @@ async def test_a_remembered_channel_that_is_gone_falls_back_to_the_lowest_and_sa
     """Somebody edits the file and deletes what was playing. The house must not go silent."""
     options = _options(world, tmp_path, seed=True)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),)
         ),
     )
-    save_state(options.state_file, ZoneState(channel="3", members=()))
+    save_state(_state_file(options), ZoneState(channel="3", members=()))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -1556,7 +1668,7 @@ def _dialable_world(world: World, tmp_path: Path, *, dial_window_s: float) -> Se
     """Two channels to dial between, and a window short enough for a test to wait out."""
     options = _options(world, tmp_path, seed=True, dial_window_s=dial_window_s)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(
                 Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -1893,7 +2005,7 @@ async def test_a_four_digit_number_survives_a_thumb_slower_than_the_window(world
     """
     options = _options(world, tmp_path, seed=True, dial_window_s=0.5)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(
                 Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -1972,9 +2084,7 @@ async def test_a_dialled_channel_survives_a_restart(world: World, tmp_path: Path
         await _press_preset(world.studio, STUDIO_ID, 2)
         await eventually(lambda: _playing(service).endswith("?c=12"), "the zone moved to channel 12")
 
-    await eventually(
-        lambda: load_state(options.state_file, log=lambda _kind, _text: None).channel == "12", "it was written down"
-    )
+    await eventually(lambda: _state_of(options).channel == "12", "it was written down")
 
     async with _running(options, logs) as second:
         # NOT _both_wake: the boxes already carry a join from the first run, so a check that only
@@ -2044,7 +2154,7 @@ def _rotation_world(world: World, tmp_path: Path, *, numbers: tuple[str, ...]) -
     """A list of dialable channels, so a skip has something to skip over."""
     options = _options(world, tmp_path, seed=True, dial_window_s=0.5)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=tuple(
                 Channel(number=number, name=f"C{number}", kind=ChannelKind.RADIO, url=f"{world.station_url}?c={number}")
@@ -2342,7 +2452,7 @@ async def test_a_box_that_is_out_of_multiroom_dials_for_itself_and_leaves_the_ho
         assert f'location="{world.station_url}?c=13"' in world.studio.bodies_for("/select")[-1]
         assert _playing(service).endswith("?c=1"), "and the house is still on the channel it was on"
 
-    assert load_state(options.state_file, log=lambda _kind, _text: None).channel != "13", (
+    assert _state_of(options).channel != "13", (
         "a box that is not in the zone must not move the number the zone comes back on"
     )
 
@@ -2447,7 +2557,7 @@ def _faded_back(box: FakeSpeaker, level: int) -> bool:
 
 def owed_volume(options: ServiceOptions) -> dict[str, int]:
     """What the state file says each box is owed, read the way a restart reads it."""
-    return load_state(options.state_file, log=lambda _kind, _text: None).owed_volume
+    return _state_of(options).owed_volume
 
 
 async def test_a_tapped_thumbs_up_then_volume_moves_every_box_in_the_zone_by_the_same_step(
@@ -2589,7 +2699,7 @@ async def test_a_box_owed_below_zero_joins_silent_and_is_not_faded(world: World,
     options = _options(world, tmp_path)
     logs: list[str] = []
     world.hallway.volume = 20
-    save_state(options.state_file, ZoneState(owed_volume={HALLWAY_ID: -30}))
+    save_state(_state_file(options), ZoneState(owed_volume={HALLWAY_ID: -30}))
 
     async with _running(options, logs):
         await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
@@ -2704,7 +2814,7 @@ async def test_a_digit_during_a_calibration_is_a_sample_rather_than_a_channel(wo
     # one starved cpu). What this test claims is that the measurement is the value stored.
     said = next(line for line in logs if "the window becomes" in line)
     measured = float(said.rsplit("the window becomes ", 1)[1].split(" s")[0])
-    written = load_state(options.state_file, log=lambda _kind, _text: None)
+    written = _state_of(options)
     assert written.dial_window_s == pytest.approx(measured, abs=0.05), "and what it measured was written down"
 
 
@@ -2743,7 +2853,7 @@ async def test_a_calibrated_window_is_what_a_restart_dials_with(world: World, tm
     channel at all, so the zone would sit where it started.
     """
     options = _dialable_world(world, tmp_path, dial_window_s=0.5)
-    save_state(options.state_file, ZoneState(channel="1", members=(), dial_window_s=1.5))
+    save_state(_state_file(options), ZoneState(channel="1", members=(), dial_window_s=1.5))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -2818,7 +2928,7 @@ async def test_a_calibration_writes_the_hold_threshold_it_measured(world: World,
     said = next(line for line in logs if "the hold becomes" in line)
     measured = float(said.rsplit("the hold becomes ", 1)[1].split(" s")[0])
     assert measured > HOLD_THRESHOLD_DEFAULT_S, "a hand that rests on its keys gets a longer threshold"
-    written = load_state(options.state_file, log=lambda _kind, _text: None)
+    written = _state_of(options)
     assert written.hold_threshold_s == pytest.approx(measured), "and what it measured was written down"
 
 
@@ -2830,7 +2940,7 @@ async def test_a_calibrated_hold_threshold_is_what_a_restart_holds_with(world: W
     out of multiroom instead.
     """
     options = _rotation_world(world, tmp_path, numbers=("1", "12", "13"))
-    save_state(options.state_file, ZoneState(channel="1", members=(), dial_window_s=0.5, hold_threshold_s=1.8))
+    save_state(_state_file(options), ZoneState(channel="1", members=(), dial_window_s=0.5, hold_threshold_s=1.8))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -2986,7 +3096,7 @@ async def test_an_mpd_channel_is_loaded_before_the_master_is_pointed_at_the_stre
     async with _mpd() as fake:
         options = _with_mpd(_options(world, tmp_path, seed=True), fake)
         save_channels(
-            options.channel_file,
+            _channel_file(options),
             ChannelList(
                 channels=(
                     Channel(
@@ -3026,7 +3136,7 @@ async def test_a_dialled_mpd_channel_is_loaded_before_the_house_is_moved_onto_it
     async with _mpd() as fake:
         options = _with_mpd(_options(world, tmp_path, seed=True, dial_window_s=0.5), fake)
         save_channels(
-            options.channel_file,
+            _channel_file(options),
             ChannelList(
                 channels=(
                     Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -3070,7 +3180,7 @@ async def test_a_channel_naming_a_playlist_mpd_does_not_have_is_said_by_name_and
     async with _mpd(refuse={"load": "No such playlist"}) as fake:
         options = _with_mpd(_options(world, tmp_path, seed=True), fake)
         save_channels(
-            options.channel_file,
+            _channel_file(options),
             ChannelList(
                 channels=(
                     Channel(
@@ -3116,7 +3226,7 @@ async def test_a_connection_mpd_closed_is_replaced_before_the_next_exchange_not_
     async with _mpd() as fake:
         options = _with_mpd(_options(world, tmp_path, seed=True, dial_window_s=0.5), fake)
         save_channels(
-            options.channel_file,
+            _channel_file(options),
             ChannelList(
                 channels=(
                     Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -3182,7 +3292,7 @@ async def test_dialling_a_second_mpd_channel_moves_the_house_although_both_name_
         options = _with_mpd(_options(world, tmp_path, seed=True, dial_window_s=0.5), fake)
         one_output = f"{world.station_url}?c=mpd"
         save_channels(
-            options.channel_file,
+            _channel_file(options),
             ChannelList(
                 channels=(
                     Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -3263,7 +3373,7 @@ def _radio_and_mpd(world: World, tmp_path: Path, fake: FakeMpd, *, end: ChannelE
     """A list with one channel of each kind, which is what a step has to choose between."""
     options = _with_mpd(_options(world, tmp_path, seed=True, dial_window_s=0.5), fake)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(
                 Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -3461,7 +3571,7 @@ PLAYING_AT_61_5 = ["state: play", "song: 2", "elapsed: 61.500", "duration: 900.0
 
 def positions_of(options: ServiceOptions) -> dict[str, Place]:
     """Where in each MPD channel the state file says the house got to, read as a restart reads it."""
-    return load_state(options.state_file, log=lambda _kind, _text: None).positions
+    return _state_of(options).positions
 
 
 AT_61_5 = Place(track=2, seconds=61.5)
@@ -3828,7 +3938,7 @@ async def test_a_gesture_acts_at_its_window_while_a_slow_station_is_still_starti
     slow, slow_url = await _station(os.urandom(200_000), first_byte_delay=SLOW_START_S)
     options = _options(world, tmp_path, seed=True, dial_window_s=WINDOW_FLOOR_S)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(
                 Channel(number="1", name="Quick", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -3837,7 +3947,7 @@ async def test_a_gesture_acts_at_its_window_while_a_slow_station_is_still_starti
             )
         ),
     )
-    save_state(options.state_file, ZoneState(channel="1", members=()))
+    save_state(_state_file(options), ZoneState(channel="1", members=()))
     logs: list[str] = []
 
     try:
@@ -3874,7 +3984,7 @@ def _radio_and_directory(world: World, tmp_path: Path, fake: FakeMpd, *, directo
     """Channel 1 a station, channel 12 a directory under MPD's music directory."""
     options = _with_mpd(_options(world, tmp_path, seed=True, dial_window_s=0.5), fake)
     save_channels(
-        options.channel_file,
+        _channel_file(options),
         ChannelList(
             channels=(
                 Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
@@ -3966,7 +4076,7 @@ async def test_coming_back_to_a_directory_finds_the_file_by_name_after_one_was_a
     grown = ["Buch/10.mp3", "Buch/2.mp3", "Buch/3.mp3"]
     async with _mpd(directories={"Buch": grown}) as fake:
         options = _radio_and_directory(world, tmp_path, fake)
-        save_state(options.state_file, ZoneState(positions={"12": Place(track=1, seconds=61.5, file="Buch/10.mp3")}))
+        save_state(_state_file(options), ZoneState(positions={"12": Place(track=1, seconds=61.5, file="Buch/10.mp3")}))
         async with _running(options, []) as service:
             await _on_the_mpd_channel(world, service)
             await eventually(lambda: "seek 2 41.500" in fake.seen, "the file was found where it is now")

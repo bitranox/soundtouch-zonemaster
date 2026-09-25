@@ -10,11 +10,13 @@ names one adapter per port, and the two ``*_main``-facing runs hand the real nar
 ports to a use case that was already complete without them. A rule that lived here would be a rule
 no test could reach except through the real world.
 
-One port needs a function rather than the adapter itself, and the reason is that the application
-may not see the value the wire carries: a prototype run asks for an encryption by its domain NAME
-and ``adapters.soundtouch.wire`` looks up the protobuf enum. Every other port here is the adapter,
-handed over by name, so what a type checker compares against the Protocol is the real thing rather
-than a wrapper standing in front of it.
+Two ports get a function rather than the adapter itself. The prototype's master, because the
+application may not see the value the wire carries: a prototype run asks for an encryption by its
+domain NAME and ``adapters.soundtouch.wire`` looks up the protobuf enum. And the house store,
+because the service's CLI opens the same store and should not have to name the adapter to do it.
+Every other port here is the adapter, handed over by name, so what a type checker compares against
+the Protocol is the real thing rather than a wrapper standing in front of it; the store's own
+conformance is pinned at the bottom for the same reason.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..adapters.aftertouch import registry
-from ..adapters.files import channel_file, state_file, switch_file
+from ..adapters.files.house_store import SqliteHouseStore
 from ..adapters.logging.narration import log
 from ..adapters.mpd.client import MpdControl
 from ..adapters.soundtouch import observer, speaker_http, wire
@@ -34,12 +36,14 @@ from ..application.prototype import run
 from ..application.zone_service import ZoneService
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from ..application import ports as port_types
     from ..application.options import Options, ServiceOptions
     from ..domain.enums import Encryption
     from ..domain.logfn import LogFn
 
-__all__ = ["AppServices", "build_production", "hold_the_zone", "run_prototype"]
+__all__ = ["AppServices", "build_production", "hold_the_zone", "open_house_store", "run_prototype"]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -77,6 +81,16 @@ def open_prototype_master(
     )
 
 
+def open_house_store(database: Path, *, log: LogFn) -> port_types.HouseStore:
+    """The house database both the service and the store verbs of its CLI reach through.
+
+    A function rather than the class handed over by name, because the CLI names it too and
+    neither should have to know which adapter answers: it returns a store not yet opened, and
+    opening it is the caller's first touch of the disk.
+    """
+    return SqliteHouseStore(database, log=log)
+
+
 def build_production() -> AppServices:
     """One adapter per port, named once.
 
@@ -86,11 +100,7 @@ def build_production() -> AppServices:
     """
     return AppServices(
         zone_ports=ZoneServicePorts(
-            load_state=state_file.load_state,
-            save_state=state_file.save_state,
-            load_channels=channel_file.load_channels,
-            save_channels=channel_file.save_channels,
-            open_switch=switch_file.Switch,
+            open_store=open_house_store,
             fetch_speakers=registry.fetch_speakers,
             watch_speaker=observer.SpeakerObserver,
             open_zone_master=ZoneMaster,
@@ -126,10 +136,15 @@ async def run_prototype(options: Options) -> int:
 
 if TYPE_CHECKING:
     # Conformance, stated rather than inferred. Every port above is checked where it is assigned
-    # into its typed field; these four are not assigned anywhere, so without this block the two
-    # commands and the master's two shapes would reach the flat with nothing having compared them
-    # to anything. A run of pyright is what reads this; nothing executes it.
+    # into its typed field; these are not assigned anywhere, so without this block the two
+    # commands, the master's two shapes and the store itself would reach the flat with nothing
+    # having compared them to anything. The store's pair states what the factory's return only
+    # implies: that the ADAPTER, whose switch() hands back a DbSwitch, is a HouseStore whose
+    # switch the service watches as a SwitchReader - and it keeps saying so if the factory is ever
+    # annotated with the adapter's own type. A run of pyright reads this; nothing executes it.
     _run_service: port_types.RunService = hold_the_zone
     _run_zone: port_types.RunZone = run_prototype
     _master_is_a_zone_master_port: port_types.ZoneMasterPort = ZoneMaster(bind_ip="", device_id="", log=log)
     _master_is_a_prototype_master: port_types.PrototypeMaster = ZoneMaster(bind_ip="", device_id="", log=log)
+    _open_store: port_types.OpenHouseStore = open_house_store
+    _store_is_a_house_store: port_types.HouseStore = SqliteHouseStore(Path(), log=log)

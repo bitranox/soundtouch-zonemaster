@@ -1,4 +1,4 @@
-"""What one running service is: every field it holds, and the file it writes them to.
+"""What one running service is: every field it holds, and the store it writes them to.
 
 The bottom of the chain. ``ZoneService`` was one class of sixty-one methods, and it is eight
 classes now, each extending the one before it - so this is where the constructor lives, together
@@ -8,9 +8,9 @@ The chain's rule is that a method may call only methods of its own class or of a
 reading it from here upwards is reading it in dependency order: the state, the channel list, the
 speakers, the volumes, the zone, the dialling, the keys, and the run that starts them.
 
-The one thing here that is not a field is the state FILE, which is written from a single place on
-purpose: membership changes and a dialled channel both land in it, and a writer per caller would
-have lost every channel somebody dialled without the zone also changing.
+The one thing here that is not a field is the saved STATE, which is written from a single place
+on purpose: membership changes and a dialled channel both land in it, and a writer per caller
+would have lost every channel somebody dialled without the zone also changing.
 """
 
 from __future__ import annotations
@@ -126,13 +126,13 @@ class LastReported:
 
 
 class ServiceState:
-    """One service's whole state, and the one writer of the file a restart starts from."""
+    """One service's whole state, and the one writer of the record a restart starts from."""
 
     def __init__(self, options: ServiceOptions, *, log: LogFn, ports: ZoneServicePorts) -> None:
         self.options = options
         self.log = log
         self.ports = ports
-        """Everything outside this program: the two files, the speakers, the service next door.
+        """Everything outside this program: the house database, the speakers, the service next door.
 
         One record rather than one argument per port, and with no defaults, so that adding a
         port breaks every place that builds one - which is the composition root and the tests."""
@@ -141,7 +141,7 @@ class ServiceState:
         self.events: asyncio.Queue[SpeakerEvent] = asyncio.Queue()
         """The one stream: the observers put frames on it, the master's HTTP face puts keys."""
         self._positions: dict[str, Place] = {}
-        """Where each MPD channel was left, by channel number, as the state file remembers it.
+        """Where each MPD channel was left, by channel number, as the saved state remembers it.
 
         Written when the house LEAVES a channel rather than while it plays one: MPD keeps no
         position per stored playlist, and asking it every second would be a file write per second
@@ -160,7 +160,12 @@ class ServiceState:
         It is not closed on a stand-down: the switch going off ends the ZONE, and MPD holding a
         socket open costs nothing, while reconnecting per channel change would cost a round trip
         in front of the one exchange whose ORDER the house can hear."""
-        self.switch = ports.open_switch(options.switch_file, log=log, poll_s=options.switch_poll_s)
+        self.store = ports.open_store(options.database, log=log)
+        """The house database. Opened by ``run`` before anything is taken from the house, closed last.
+
+        Built here and not opened, so constructing a service touches no disk; the switch below is
+        handed out now because it reads through the store only when it is asked."""
+        self.switch = self.store.switch(poll_s=options.switch_poll_s, ignored_file=options.switch_file)
         self.policy = Membership(
             master_device_id=options.device_id,
             now=time.time,
@@ -178,7 +183,7 @@ class ServiceState:
         self._out_of_multiroom: set[str] = set()
         """Boxes a person switched out of the zone by holding a thumb down on one of them.
 
-        Mirrored into the state file, because nothing a person can see records the decision and a
+        Mirrored into the saved state, because nothing a person can see records the decision and a
         restart that took the box back in would undo it silently. It is taken off the answer in
         ``_who_belongs``, which is the one place membership is decided."""
         self._last_reported = LastReported()
@@ -200,7 +205,7 @@ class ServiceState:
         the flat 2026-09-21: eleven dials, every MPD-to-MPD one refused as "already playing it",
         and the only way through was to dial a radio channel in between."""
         self._channels = ChannelList()
-        """The house's channels. Empty until the file is read or the seeding has run."""
+        """The house's channels. Empty until the store is read or the seeding has run."""
         self._switched_on: list[str] = []
         """Device ids in the order they were first seen out of standby.
 
@@ -245,7 +250,7 @@ class ServiceState:
         self._muted: dict[str, int] = {}
         """Boxes turned down to zero while they are taken in, and the volume each was on.
 
-        Mirrored into the state file, because the one failure this feature can cause is a speaker
+        Mirrored into the saved state, because the one failure this feature can cause is a speaker
         left silently at zero, and that reads as broken hardware rather than as a service that
         stopped halfway."""
         self._house_volume = HouseVolume()
@@ -253,7 +258,7 @@ class ServiceState:
         self._owed_volume: dict[str, int] = {}
         """House-volume steps a box missed while it was off, taken when it next joins.
 
-        Mirrored into the state file: the house can be turned up hours before a box is switched on,
+        Mirrored into the saved state: the house can be turned up hours before a box is switched on,
         and a restart in between must not forget Room1 is owed it."""
         self._house_steps: dict[str, int] = {}
         """Steps a box in the zone is to be moved by and has not been written yet, per device id.
@@ -290,7 +295,7 @@ class ServiceState:
         """One calibration at a time for the whole house: the numbers it writes are one setting each."""
         self._gesture = Gesture()
         self._calibrated_window_s: float | None = None
-        """What a calibration measured, kept so the state file can be written from one place."""
+        """What a calibration measured, kept so the state can be written from one place."""
         self._calibrated_hold_s: float | None = None
         """The hold threshold the same calibration measured, kept for the same reason."""
         self._dialled = asyncio.Event()
@@ -302,7 +307,7 @@ class ServiceState:
 
         Sorted, because a set has no order and a file that reshuffles itself reads as one that
         changed. The switch is deliberately not part of this: it says whether we are holding the
-        house, not who is in it, and a service that emptied the file on the way out would come
+        house, not who is in it, and a service that emptied the record on the way out would come
         back to an empty house.
         """
         ordered = tuple(sorted(believed))
@@ -318,8 +323,7 @@ class ServiceState:
         Membership changes and a dialled channel both land here: writing only on a membership
         change would have lost every channel somebody dialled without the zone also changing.
         """
-        self.ports.save_state(
-            self.options.state_file,
+        self.store.save_state(
             ZoneState(
                 channel=self._channel,
                 members=self._believed,

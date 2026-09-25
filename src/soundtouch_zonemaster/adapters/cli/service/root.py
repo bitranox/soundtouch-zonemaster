@@ -29,6 +29,7 @@ import rich_click as click
 from pydantic import BaseModel
 
 from ....__init__conf__ import service_command, version
+from ....application.errors import StoreBusyError, StoreError
 from ....application.outcome import ExitCode, OptionsError
 from ....domain.logfn import ERROR_KIND
 from ...config.errors import ConfigInputError
@@ -204,6 +205,18 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
         # measured on the real unit 2026-09-07, where the zone dissolved and systemd still marked
         # the service failed and sent the OnFailure mail.
         rc = ExitCode.OK
+    except StoreBusyError as exc:
+        # Another service holds the house database. The answer is no rather than a fault, and
+        # stopping that service is the whole fix, which the message says.
+        report_failure(exc, command=service_command, mode=shared.mode)
+        ctx.exit(ExitCode.REFUSED)
+    except StoreError as exc:
+        # The database, or an old file it was to import, cannot be used. That is a refused start
+        # naming the file, and an answer rather than a crash: a stack under it would bury the one
+        # line a person has to act on. The store is opened and imported before a port is bound or
+        # a speaker touched, so at the start there is nothing else to report.
+        report_failure(exc, command=service_command, mode=shared.mode)
+        ctx.exit(ExitCode.ERROR)
     except Exception as exc:  # noqa: BLE001 - CLI edge
         log(ERROR_KIND, f"{type(exc).__name__}: {exc}")
         report_crash(exc, command=service_command, mode=shared.mode)

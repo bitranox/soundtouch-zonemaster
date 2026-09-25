@@ -123,7 +123,7 @@ from soundtouch_zonemaster.domain.station import StationRequest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable, Sequence
 
-    from soundtouch_zonemaster.application.options import ChannelPolicy
+    from soundtouch_zonemaster.application.options import ChannelPolicy, LegacyFiles
     from soundtouch_zonemaster.application.ports import AddressOf, MpdControlPort
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.mpd import MpdStatus
@@ -910,6 +910,45 @@ def playing_its_own_radio(speaker: Speaker) -> SpeakerEvent:
     )
 
 
+class FakeStore:
+    """The house store as the corpus needs it: empty, always on, and silent.
+
+    Silent on purpose: the recorded narration came from fakes that logged nothing, and a store that
+    said "0 channel(s)" would add a line the old code never wrote.
+    """
+
+    def open(self, *, exclusive: bool) -> None: ...
+
+    def close(self) -> None: ...
+
+    def import_legacy(self, files: LegacyFiles) -> None: ...
+
+    def load_state(self) -> ZoneState:
+        return ZoneState()
+
+    def save_state(self, state: ZoneState) -> None: ...
+
+    def load_channels(self) -> ChannelList:
+        return ChannelList()
+
+    def save_channels(self, channels: ChannelList) -> None: ...
+
+    def export_channels(self) -> str:
+        return ""
+
+    def import_channels(self, path: Path) -> ChannelList:
+        return ChannelList()
+
+    def is_on(self) -> bool:
+        return True
+
+    def set_switch(self, *, on: bool) -> bool:
+        return False
+
+    def switch(self, *, poll_s: float, ignored_file: Path | None) -> FakeSwitch:
+        return FakeSwitch()
+
+
 def wired_service(
     tmp_path: Path, *, speaker: Speaker, presets: dict[int, PresetStation | None]
 ) -> tuple[ZoneService, list[tuple[str, str]]]:
@@ -919,18 +958,8 @@ def wired_service(
     def log(kind: str, text: str) -> None:
         lines.append((kind, text))
 
-    def load_state(path: Path, *, log: LogFn) -> ZoneState:
-        return ZoneState()
-
-    def save_state(path: Path, state: ZoneState) -> None: ...
-
-    def load_channels(path: Path, *, log: LogFn) -> ChannelList:
-        return ChannelList()
-
-    def save_channels(path: Path, channels: ChannelList) -> None: ...
-
-    def open_switch(path: Path, *, log: LogFn, poll_s: float = 1.0) -> FakeSwitch:
-        return FakeSwitch()
+    def open_store(database: Path, *, log: LogFn) -> FakeStore:
+        return FakeStore()
 
     async def fetch_speakers(base_url: str = "", *, log: LogFn | None = None) -> tuple[Speaker, ...]:
         return (speaker,)
@@ -986,11 +1015,7 @@ def wired_service(
         channel_file=tmp_path / "channels.json",
     )
     ports = ZoneServicePorts(
-        load_state=load_state,
-        save_state=save_state,
-        load_channels=load_channels,
-        save_channels=save_channels,
-        open_switch=open_switch,
+        open_store=open_store,
         fetch_speakers=fetch_speakers,
         watch_speaker=watch_speaker,
         open_zone_master=open_zone_master,

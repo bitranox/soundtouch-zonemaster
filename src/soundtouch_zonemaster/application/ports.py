@@ -4,9 +4,9 @@ Most of these are a **callable Protocol** rather than a class with methods, beca
 the old code actually reached for: ten module-level functions and three constructors. Naming each
 one on its own keeps the substitution the same size as the thing being substituted - a test that
 wants a different volume reader supplies a different function, not an object implementing every
-method it does not care about. The ones that ARE objects - the switch, one speaker's watch, MPD's
-control connection and the two views of a master - are objects because that is what the adapter
-hands back.
+method it does not care about. The ones that ARE objects - the house store and the switch it
+hands out, one speaker's watch, MPD's control connection and the two views of a master - are
+objects because that is what the adapter hands back.
 
 They are bundled into two records, one per program, so a constructor takes ONE argument rather
 than one per port, and so that a new port cannot be forgotten at a call site: adding a field to
@@ -50,13 +50,10 @@ __all__ = [
     "AskNowPlaying",
     "FetchSpeakers",
     "HouseStore",
-    "LoadChannels",
-    "LoadState",
     "MpdControlPort",
     "OpenHouseStore",
     "OpenMpdControl",
     "OpenPrototypeMaster",
-    "OpenSwitch",
     "OpenZoneMaster",
     "PrototypeMaster",
     "PrototypePorts",
@@ -64,8 +61,6 @@ __all__ = [
     "ReadVolume",
     "RunService",
     "RunZone",
-    "SaveChannels",
-    "SaveState",
     "SelectStation",
     "SetVolume",
     "SpeakerWatch",
@@ -78,31 +73,7 @@ __all__ = [
 ]
 
 
-# --- the files --------------------------------------------------------------------------------
-
-
-class LoadState(Protocol):
-    """Read what a restart starts from. A document nobody can make sense of starts it empty."""
-
-    def __call__(self, path: Path, *, log: LogFn) -> ZoneState: ...
-
-
-class SaveState(Protocol):
-    """Write it down, atomically enough that a power cut cannot leave half of it."""
-
-    def __call__(self, path: Path, state: ZoneState) -> None: ...
-
-
-class LoadChannels(Protocol):
-    """Read the house's channel list. Missing is empty; unusable is a refusal, never empty."""
-
-    def __call__(self, path: Path, *, log: LogFn) -> ChannelList: ...
-
-
-class SaveChannels(Protocol):
-    """Write the list back, in the shape a person can read and repair."""
-
-    def __call__(self, path: Path, channels: ChannelList) -> None: ...
+# --- the house database ---------------------------------------------------------------------------
 
 
 class SwitchReader(Protocol):
@@ -111,12 +82,6 @@ class SwitchReader(Protocol):
     def is_on(self) -> bool: ...
 
     def watch(self) -> AsyncGenerator[bool, None]: ...
-
-
-class OpenSwitch(Protocol):
-    """Open the switch over one path. Built once, in the constructor, and then watched."""
-
-    def __call__(self, path: Path, *, log: LogFn, poll_s: float = ...) -> SwitchReader: ...
 
 
 class HouseStore(Protocol):
@@ -437,11 +402,7 @@ class ZoneServicePorts:
     pass while the thing it meant to exercise was never called.
     """
 
-    load_state: LoadState
-    save_state: SaveState
-    load_channels: LoadChannels
-    save_channels: SaveChannels
-    open_switch: OpenSwitch
+    open_store: OpenHouseStore
     fetch_speakers: FetchSpeakers
     watch_speaker: WatchSpeaker
     open_zone_master: OpenZoneMaster

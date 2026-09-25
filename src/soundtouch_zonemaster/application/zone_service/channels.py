@@ -50,7 +50,7 @@ class ChannelBook(ServiceState):
             self.log("dial", f"{name} thumbed down {channel.number}: refused, it is the last channel there is")
             return
         self._channels = self._channels.with_rotation(channel.number, in_rotation=in_rotation)
-        self.ports.save_channels(self.options.channel_file, self._channels)
+        self.store.save_channels(self._channels)
         where = "back in the rotation" if in_rotation else "out of the rotation"
         self.log("dial", f"{name} thumbed {verb} {channel.number}: {where}")
 
@@ -98,7 +98,7 @@ class ChannelBook(ServiceState):
                 self.log("channels", f"{speaker.name} has no presets; the next box switched on gets the chance")
                 return
             self._channels = seeded
-            self.ports.save_channels(self.options.channel_file, seeded)
+            self.store.save_channels(seeded)
 
     def _first_unasked_speaker(self) -> Speaker | None:
         """The earliest box seen out of standby that has not been asked for its presets yet."""

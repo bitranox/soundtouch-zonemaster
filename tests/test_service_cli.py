@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import lib_cli_exit_tools
 
 from soundtouch_zonemaster.__init__conf__ import version
+from soundtouch_zonemaster.adapters.files.house_store import SqliteHouseStore
 from soundtouch_zonemaster.adapters.logging.narration import log
 from soundtouch_zonemaster.entry import service_main as main
 
@@ -281,6 +282,50 @@ def test_a_refusal_carries_no_traceback(
     err = capsys.readouterr().err
     assert "12 hex digits" in err
     assert "Traceback" not in err, "a refusal is an answer, not a crash"
+
+
+def test_an_old_channel_file_the_import_cannot_read_refuses_the_start_by_name(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The real run, stopped by the house database before a port is bound or a speaker touched.
+
+    The list is the only copy of something a person built, so an old file that cannot be read is
+    not imported as nothing: the start is refused naming the file, which is a refusal and an
+    answer rather than a crash, so it carries no traceback. Nothing is renamed either, so the file
+    is still there for the person who has to repair it.
+    """
+    broken = tmp_path / "channels.json"
+    broken.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare", "--channel-file", str(broken)))
+
+    assert main() == 2
+
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    assert envelope["ok"] is False
+    assert envelope["error"] == "StoreError"
+    assert "channels.json" in envelope["message"]
+    assert "Traceback" not in captured.err, "a refused start is an answer, not a crash"
+    assert broken.exists(), "and the file is left where the person who has to fix it will look"
+
+
+def test_a_database_another_service_holds_refuses_the_start_as_busy(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """One writer: a second service is told the database is held, and the answer is no (exit 1)."""
+    holder = SqliteHouseStore(tmp_path / "zonemaster.sqlite", log=log)
+    holder.open(exclusive=True)
+    try:
+        monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare"))
+        assert main() == 1
+    finally:
+        holder.close()
+
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    assert envelope["error"] == "StoreBusyError"
+    assert "zonemaster.sqlite.lock" in envelope["message"]
+    assert "Traceback" not in captured.err
 
 
 def test_version_answers_without_any_setting_and_starts_nothing(
