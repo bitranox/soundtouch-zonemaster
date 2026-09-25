@@ -42,7 +42,14 @@ if TYPE_CHECKING:
 
     from ...domain.logfn import LogFn
 
-__all__ = ["ChannelDocument", "ChannelFileError", "ChannelListDocument", "load_channels", "save_channels"]
+__all__ = [
+    "ChannelDocument",
+    "ChannelFileError",
+    "ChannelListDocument",
+    "channels_json",
+    "load_channels",
+    "save_channels",
+]
 
 
 class ChannelDocument(BaseModel):
@@ -155,10 +162,15 @@ def load_channels(path: Path, *, log: LogFn) -> ChannelList:
     return channels
 
 
-def save_channels(path: Path, channels: ChannelList) -> None:
-    """Write the channel list where a person can read and repair it.
+def channels_json(channels: ChannelList) -> str:
+    """The channel list as the document a person reads and repairs, and the export writes.
 
-    Indented and newline-terminated on purpose: this is a file somebody opens in an editor, unlike
-    anything else the service writes.
+    Indented and newline-terminated on purpose: this is a file somebody opens in an editor,
+    unlike anything else the service writes.
     """
-    write_atomic(path, ChannelListDocument.of(channels).model_dump_json(indent=2) + "\n")
+    return ChannelListDocument.of(channels).model_dump_json(indent=2) + "\n"
+
+
+def save_channels(path: Path, channels: ChannelList) -> None:
+    """Write the channel list where a person can read and repair it."""
+    write_atomic(path, channels_json(channels))
