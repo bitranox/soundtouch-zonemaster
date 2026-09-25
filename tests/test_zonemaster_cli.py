@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from soundtouch_zonemaster.__init__conf__ import shell_command, version
 from soundtouch_zonemaster.adapters.logging.narration import log
 from soundtouch_zonemaster.application.options import default_device_id
 from soundtouch_zonemaster.entry import prototype_main as main
@@ -37,6 +38,15 @@ def _argv(*extra: str) -> list[str]:
 
 def test_the_default_device_id_is_twelve_hex_digits() -> None:
     assert re.fullmatch(r"[0-9A-F]{12}", default_device_id())
+
+
+def test_version_answers_with_no_other_option_and_starts_nothing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--version`` is eager: it must print and exit before any required option is missed."""
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster", "--version"])
+    assert main() == 0
+    assert capsys.readouterr().out == f"{shell_command} {version}\n"
 
 
 def test_a_log_line_carries_its_kind_and_text(capsys: pytest.CaptureFixture[str]) -> None:

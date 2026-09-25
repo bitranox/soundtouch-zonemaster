@@ -29,7 +29,7 @@ import lib_cli_exit_tools
 import rich_click as click
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
-from ...__init__conf__ import shell_command
+from ...__init__conf__ import shell_command, version
 from ...application.options import Options, default_device_id
 from ...application.outcome import ExitCode, OptionsError, device_id_or_refuse
 from ...domain.enums import Encryption, JoinMode
@@ -38,6 +38,7 @@ from ...domain.speakers import ProtectedSpeaker, first_protected
 from ..config.errors import ConfigInputError
 from ..config.settings_map import prototype_settings
 from ..logging.narration import LogRouting, log
+from . import safe_console
 from .context import Shared, config_for
 from .envelope import Envelope, OutputMode, report_crash, report_failure, write_envelope
 from .typed_click import current_context, option
@@ -137,6 +138,23 @@ class OptionsInput(BaseModel):
         )
 
 
+def _print_version(
+    ctx: click.Context,
+    _param: click.Parameter,
+    value: bool,  # noqa: FBT001 - click calls an option callback positionally as (ctx, param, value)
+) -> None:
+    """Print ``<command> <version>`` and exit, before any required option is checked.
+
+    ``is_eager=True`` is what makes this run ahead of the required ``--bind-ip``,
+    ``--preset-from`` and ``--slave`` options: without it, click raises MissingParameter for
+    those before this callback ever runs, and ``--version`` alone would refuse instead of answer.
+    """
+    if not value or ctx.resilient_parsing:
+        return
+    safe_console.echo(f"{shell_command} {version}")
+    ctx.exit()
+
+
 def zone_options(func: Callable[..., Any]) -> Callable[..., Any]:
     """Everything the operator can say, as click options.
 
@@ -145,6 +163,14 @@ def zone_options(func: Callable[..., Any]) -> Callable[..., Any]:
     validated record lives here, and this is what keeps both halves in one place.
     """
     for decorate in (
+        option(
+            "--version",
+            is_flag=True,
+            expose_value=False,
+            is_eager=True,
+            callback=_print_version,
+            help="print the version and exit",
+        ),
         option(
             "--ignore-selects",
             is_flag=True,

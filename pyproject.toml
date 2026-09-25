@@ -40,6 +40,7 @@ dependencies = [
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
     "coverage[toml]>=7.16.1",
     # The gate's own tools, declared so `uv run <tool>` in this venv matches what
     # bmk runs. bmk resolves them from its own pinned toolchain either way, so a
@@ -131,6 +132,10 @@ convention = "google"
 # and several tests import inside the test body on purpose to exercise import-time
 # behaviour, which is what PLC0415 would otherwise forbid.
 "tests/*.py" = ["S101", "S104", "S105", "S106", "S108", "T20", "PLR2004", "PLR0913", "PLR0915", "FBT001", "FBT003", "PLC0415"]
+# The Quickstart notebook: assert is how it checks each `!` shell command (IPython's `!` never
+# raises, so `assert _exit_code == 0` is the only thing that turns a failed command into a failed
+# cell), and `_exit_code` is an IPython-injected name ruff cannot see, never a real undefined name.
+"notebooks/*.ipynb" = ["S101", "F821"]
 # The research scripts and the export tool are operator tools run by hand: they print, and they
 # shell out to protoc and git on purpose. The complexity rules used to be waived here too; the
 # blanket covered a handful of functions and blinded every other file under these two globs, so it
