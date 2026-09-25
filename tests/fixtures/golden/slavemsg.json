@@ -1,0 +1,1368 @@
+{
+  "meta": {
+    "corpus": "slavemsg",
+    "note": "key_press, parse_request, and HttpApi.handle with a stand-in master.",
+    "source": "soundtouch-zonemaster before the template rebuild",
+    "source_head": "887934c7c05d80ea48180c72986584271873cf4c",
+    "python": "3.14.5",
+    "versions": {
+      "pydantic": "2.13.5",
+      "pydantic_core": "2.46.5",
+      "httpx": "0.28.1",
+      "lib_layered_config": "5.6.2",
+      "lib_cli_exit_tools": "2.3.4",
+      "rich-click": "1.9.9",
+      "protobuf": "7.36.1",
+      "websockets": "17.1"
+    },
+    "placeholders": {
+      "<WORK>": "a scratch directory that exists; substitute your own",
+      "<PACKAGE>": "the installed package directory",
+      "<ARCHIVE>": "the pre-template checkout",
+      "<HOST_MAC>": "default_device_id() on the generating host",
+      "<PORT>": "the loopback port the registry double bound",
+      "<INPUT_FRAME>": "the frame field equals the input frame",
+      "<ARRIVAL_TIME>": "time.time() at arrival"
+    }
+  },
+  "cases": [
+    {
+      "name": "key_press: slavemsg-keydata.txt line 0",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "NEXT_TRACK",
+            "state": "press",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: slavemsg-keydata.txt line 1",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "PREV_TRACK",
+            "state": "press",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: slavemsg-keydata.txt line 2",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "THUMBS_DOWN",
+            "state": "press",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: slavemsg-keydata.txt line 3",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "THUMBS_UP",
+            "state": "press",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: slavemsg-keydata.txt line 4",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "NEXT_TRACK",
+            "state": "release",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: slavemsg-keydata.txt line 5",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "PREV_TRACK",
+            "state": "release",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: slavemsg-keydata.txt line 6",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "THUMBS_DOWN",
+            "state": "release",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: slavemsg-keydata.txt line 7",
+      "input": {
+        "op": "key_press",
+        "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "THUMBS_UP",
+            "state": "release",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: no keyData at all",
+      "input": {
+        "op": "key_press",
+        "body": "<slaveMessage action=\"select\"><content/></slaveMessage>"
+      },
+      "expect": {
+        "value": null,
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: keyData with no attributes",
+      "input": {
+        "op": "key_press",
+        "body": "<slaveMessage><keyData>NEXT_TRACK</keyData></slaveMessage>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "NEXT_TRACK",
+            "state": "",
+            "sender": ""
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: whitespace around the key",
+      "input": {
+        "op": "key_press",
+        "body": "<keyData state=\"press\" sender=\"IrRemote\">\n  THUMBS_UP \n</keyData>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "THUMBS_UP",
+            "state": "press",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: the attributes the other way round",
+      "input": {
+        "op": "key_press",
+        "body": "<keyData sender=\"Console\" state=\"release\">PREV_TRACK</keyData>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "PREV_TRACK",
+            "state": "release",
+            "sender": "Console"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: single-quoted attributes",
+      "input": {
+        "op": "key_press",
+        "body": "<keyData state='press' sender='IrRemote'>NEXT_TRACK</keyData>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "NEXT_TRACK",
+            "state": "press",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, 2026-09-22, when the twelve regex and scanner reads of speaker XML became one bounded parser (OPEN-WORK 133). Same cause as the observer corpus's case of this name: the old state and sender patterns spelled the value in double quotes, so a well-formed single-quoted element lost both. The parser reads them. Nothing a recorded speaker sent is affected."
+    },
+    {
+      "name": "key_press: two keyData elements",
+      "input": {
+        "op": "key_press",
+        "body": "<keyData state=\"press\">NEXT_TRACK</keyData><keyData state=\"release\">PREV_TRACK</keyData>"
+      },
+      "expect": {
+        "value": null,
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, 2026-09-22, when the twelve regex and scanner reads of speaker XML became one bounded parser (OPEN-WORK 133). This body has TWO root elements, so it is not a well-formed XML document at all, and the parser refuses it whole rather than reading the first element out of it. The old scanner took the first. A speaker has never sent this; what the case pins now is that an unparseable body is answered as no key press, which is how every other unreadable body is answered."
+    },
+    {
+      "name": "key_press: an unterminated keyData",
+      "input": {
+        "op": "key_press",
+        "body": "<keyData state=\"press\">NEXT_TRACK"
+      },
+      "expect": {
+        "value": null,
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: an empty key",
+      "input": {
+        "op": "key_press",
+        "body": "<keyData state=\"press\" sender=\"IrRemote\"></keyData>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "",
+            "state": "press",
+            "sender": "IrRemote"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "key_press: markup inside the key",
+      "input": {
+        "op": "key_press",
+        "body": "<keyData state=\"press\"><b>NEXT</b></keyData>"
+      },
+      "expect": {
+        "value": {
+          "type": "KeyPress",
+          "fields": {
+            "key": "",
+            "state": "press",
+            "sender": ""
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, 2026-09-22, when the twelve regex and scanner reads of speaker XML became one bounded parser (OPEN-WORK 133). The old scanner returned the raw inner text of the element, markup included, so the key came back as the string <b>NEXT</b>. A key is a token a speaker names, never a document, so the parser reads the element's TEXT and nested markup is not part of it - which leaves the key empty here. The press is still reported, exactly as an empty keyData was before."
+    },
+    {
+      "name": "key_press: a longer tag that starts with keyData",
+      "input": {
+        "op": "key_press",
+        "body": "<keyDataX state=\"press\">NEXT_TRACK</keyDataX>"
+      },
+      "expect": {
+        "value": null,
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a POST with a query string",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "UE9TVCAvc2xhdmVNc2c/eD0xIEhUVFAvMS4xDQpIb3N0OiBoDQpDb250ZW50LUxlbmd0aDogNQ0KDQpoZWxsbw==",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "hello",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a GET with no body",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "R0VUIC9pbmZvIEhUVFAvMS4xDQpIb3N0OiBoDQoNCg==",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "GET",
+            "path": "/info",
+            "body": "",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a head that never ends",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "R0VUIC9pbmZvIEhUVFAvMS4xDQpIb3N0OiBo",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "GET",
+            "path": "/info",
+            "body": "",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a body that is not UTF-8",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "UE9TVCAveCBIVFRQLzEuMQ0KDQr//g==",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "POST",
+            "path": "/x",
+            "body": "��",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a body holding a blank line",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "UE9TVCAveCBIVFRQLzEuMQ0KDQpsaW5lIG9uZQ0KDQpsaW5lIHR3bw==",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "POST",
+            "path": "/x",
+            "body": "line one\r\n\r\nline two",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a lowercase method",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "Z2V0IC9pbmZvIEhUVFAvMS4xDQoNCg==",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "get",
+            "path": "/info",
+            "body": "",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a query and a fragment",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "R0VUIC9hP2I9MSNmcmFnIEhUVFAvMS4xDQoNCg==",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "GET",
+            "path": "/a",
+            "body": "",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: a request line with only a method",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "R0VUDQoNCg==",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "raises": {
+          "type": "ValueError",
+          "message": "not enough values to unpack (expected at least 2, got 1)"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: no bytes at all",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "raises": {
+          "type": "ValueError",
+          "message": "not enough values to unpack (expected at least 2, got 1)"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "parse_request: two spaces in the request line",
+      "input": {
+        "op": "parse_request",
+        "raw_base64": "R0VUICAvaW5mbyBIVFRQLzEuMQ0KDQo=",
+        "peer": "192.0.2.21"
+      },
+      "expect": {
+        "value": {
+          "type": "Request",
+          "fields": {
+            "method": "GET",
+            "path": "",
+            "body": "",
+            "peer": "192.0.2.21"
+          }
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "HttpApi: each forwarded key with a listener",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>"
+          ]
+        ],
+        "events": [
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "NEXT_TRACK",
+                "state": "press",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>"
+            }
+          },
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "PREV_TRACK",
+                "state": "press",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>"
+            }
+          },
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "THUMBS_DOWN",
+                "state": "press",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>"
+            }
+          },
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "THUMBS_UP",
+                "state": "press",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>"
+            }
+          },
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "NEXT_TRACK",
+                "state": "release",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>"
+            }
+          },
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "PREV_TRACK",
+                "state": "release",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">PREV_TRACK</keyData></slaveMessage>"
+            }
+          },
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "THUMBS_DOWN",
+                "state": "release",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_DOWN</keyData></slaveMessage>"
+            }
+          },
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "THUMBS_UP",
+                "state": "release",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"release\" sender=\"IrRemote\">THUMBS_UP</keyData></slaveMessage>"
+            }
+          }
+        ],
+        "selected": [],
+        "left": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-24 (OPEN-WORK rank 191, house volume). SpeakerEvent gained a volume field, the level a volumeUpdated frame reports, which a forwarded key never carries. No recorded INPUT changed; what moved is the shape of the event the face puts on the queue, which carries this one field more, placed after stream_owner, and null here."
+    },
+    {
+      "name": "HttpApi: a forwarded key with nobody listening",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": false
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData></slaveMessage>"
+          ],
+          [
+            "http",
+            "192.0.2.21: key NEXT_TRACK press with no listener"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a preset press selects",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<slaveMessage action=\"select\"><content source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://example.invalid/live\" isPresetable=\"true\"><itemName>Radio</itemName></content></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=select body=<slaveMessage action=\"select\"><content source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://example.invalid/live\" isPresetable=\"true\"><itemName>Radio</itemName></content></slaveMessage>"
+          ]
+        ],
+        "events": [],
+        "selected": [
+          [
+            "<ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://example.invalid/live\" isPresetable=\"true\"><itemName>Radio</itemName></ContentItem>",
+            "192.0.2.21"
+          ]
+        ],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a preset press with nobody listening still selects",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<slaveMessage action=\"select\"><content source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://example.invalid/live\" isPresetable=\"true\"><itemName>Radio</itemName></content></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": false
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=select body=<slaveMessage action=\"select\"><content source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://example.invalid/live\" isPresetable=\"true\"><itemName>Radio</itemName></content></slaveMessage>"
+          ]
+        ],
+        "events": [],
+        "selected": [
+          [
+            "<ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://example.invalid/live\" isPresetable=\"true\"><itemName>Radio</itemName></ContentItem>",
+            "192.0.2.21"
+          ]
+        ],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a slaveMsg that is not a select",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<slaveMessage action=\"volume\"><content>x</content></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=volume body=<slaveMessage action=\"volume\"><content>x</content></slaveMessage>"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a select with no content element",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<slaveMessage action=\"select\"></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=select body=<slaveMessage action=\"select\"></slaveMessage>"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a content element with no attributes",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<slaveMessage action=\"select\"><content>x</content></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=select body=<slaveMessage action=\"select\"><content>x</content></slaveMessage>"
+          ]
+        ],
+        "events": [],
+        "selected": [
+          [
+            "<ContentItem>x</ContentItem>",
+            "192.0.2.21"
+          ]
+        ],
+        "left": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, 2026-09-22, when the twelve regex and scanner reads of speaker XML became one bounded parser (OPEN-WORK 133). The old pattern required whitespace after <content, which is how it kept itself off elements whose name merely STARTS with content, so an attribute-less <content> was not recognised as a selection at all. A parser compares the tag, so that job is done exactly and this element is read: the selection reaches the master, which finds no location in it and ignores it with a line saying so. Nothing plays either way; what changes is where it is refused."
+    },
+    {
+      "name": "HttpApi: a slaveMsg with no action",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<slaveMessage/>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=? body=<slaveMessage/>"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a key body longer than the log keeps",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData><pad>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</pad></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=key body=<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData><pad>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          ]
+        ],
+        "events": [
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "NEXT_TRACK",
+                "state": "press",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><slaveMessage action=\"key\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData><pad>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</pad></slaveMessage>"
+            }
+          }
+        ],
+        "selected": [],
+        "left": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-24 (OPEN-WORK rank 191, house volume). SpeakerEvent gained a volume field, the level a volumeUpdated frame reports, which a forwarded key never carries. No recorded INPUT changed; what moved is the shape of the event the face puts on the queue, which carries this one field more, placed after stream_owner, and null here."
+    },
+    {
+      "name": "HttpApi: a key and a content item in one body",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/slaveMsg",
+            "body": "<slaveMessage action=\"select\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData><content source=\"LOCAL_INTERNET_RADIO\">y</content></slaveMessage>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/slaveMsg</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: slaveMsg action=select body=<slaveMessage action=\"select\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData><content source=\"LOCAL_INTERNET_RADIO\">y</content></slaveMessage>"
+          ]
+        ],
+        "events": [
+          {
+            "type": "SpeakerEvent",
+            "fields": {
+              "received_at": "<ARRIVAL_TIME>",
+              "speaker": "192.0.2.21",
+              "device_id": "",
+              "kind": "key",
+              "preset_id": null,
+              "key": {
+                "key": "NEXT_TRACK",
+                "state": "press",
+                "sender": "IrRemote"
+              },
+              "source": null,
+              "stream_owner": null,
+              "volume": null,
+              "frame": "<slaveMessage action=\"select\"><keyData state=\"press\" sender=\"IrRemote\">NEXT_TRACK</keyData><content source=\"LOCAL_INTERNET_RADIO\">y</content></slaveMessage>"
+            }
+          }
+        ],
+        "selected": [],
+        "left": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-24 (OPEN-WORK rank 191, house volume). SpeakerEvent gained a volume field, the level a volumeUpdated frame reports, which a forwarded key never carries. No recorded INPUT changed; what moved is the shape of the event the face puts on the queue, which carries this one field more, placed after stream_owner, and null here."
+    },
+    {
+      "name": "HttpApi: a slave leaving names its sender",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/removeZoneSlave",
+            "body": "<zone senderIPAddress=\"192.0.2.22\" />",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/removeZoneSlave</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: removeZoneSlave from 192.0.2.22"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": [
+          "192.0.2.21"
+        ]
+      }
+    },
+    {
+      "name": "HttpApi: a slave leaving without a sender",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/removeZoneSlave",
+            "body": "<zone />",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/removeZoneSlave</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: removeZoneSlave from ?"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": [
+          "192.0.2.21"
+        ]
+      }
+    },
+    {
+      "name": "HttpApi: a notification with a tag",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/notification",
+            "body": "<updates deviceID='x'>\n  <nowPlayingUpdated/></updates>",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/notification</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: notification nowPlayingUpdated"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a notification without one",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/notification",
+            "body": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/notification</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: notification yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: an unknown POST",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/whatever",
+            "body": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/whatever</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: POST /whatever zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: a PUT is answered as a POST",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "PUT",
+            "path": "/x",
+            "body": "b",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/x</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: POST /x b"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: every GET route",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/info",
+            "body": "",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "GET",
+            "path": "/now_playing",
+            "body": "",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "GET",
+            "path": "/nowPlaying",
+            "body": "",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "GET",
+            "path": "/getZone",
+            "body": "",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "GET",
+            "path": "/presets",
+            "body": "",
+            "peer": "192.0.2.21"
+          },
+          {
+            "method": "GET",
+            "path": "/volume",
+            "body": "",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<info/>",
+          "<nowPlaying/>",
+          "<nowPlaying/>",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><zone master=\"5EB0CE000001\" />",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><presets />",
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><volume deviceID=\"5EB0CE000001\"><targetvolume>20</targetvolume><actualvolume>20</actualvolume><muteenabled>false</muteenabled></volume>"
+        ],
+        "logs": [],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    },
+    {
+      "name": "HttpApi: an unknown GET with characters to escape",
+      "input": {
+        "op": "handle",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/a<b>&\"c'",
+            "body": "",
+            "peer": "192.0.2.21"
+          }
+        ],
+        "listening": true
+      },
+      "expect": {
+        "answers": [
+          "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><status>/a&lt;b&gt;&amp;\"c'</status>"
+        ],
+        "logs": [
+          [
+            "http",
+            "192.0.2.21: unhandled GET /a<b>&\"c'"
+          ]
+        ],
+        "events": [],
+        "selected": [],
+        "left": []
+      }
+    }
+  ]
+}

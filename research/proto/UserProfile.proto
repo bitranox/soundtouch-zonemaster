@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message UserProfile {
+  message Preferences {
+    optional int32 custom_radio = 1;
+    optional string test_field = 2;
+  }
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  optional .IHeart.UserProfile.Preferences preferences = 4;
+}

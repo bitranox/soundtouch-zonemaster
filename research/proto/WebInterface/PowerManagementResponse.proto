@@ -1,0 +1,44 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+enum BatteryFaultType {
+  Precharge = 2;
+  Failed = 3;
+  CannotCharge = 4;
+  TempOutOfRange = 5;
+  VoltageTooHigh = 6;
+  BatteryCommError = 7;
+  AudioDisabled = 8;
+}
+
+enum PowerStateType {
+  LowPowerStandby = 0;
+  FullPower = 1;
+  NetworkStandby = 2;
+  LowPowerChargingStandby = 3;
+}
+
+message powerManagementResponse {
+  message PowerState {
+    optional .WebInterface.PowerStateType text = 1;
+  }
+  message Battery {
+    message Fault {
+      optional .WebInterface.BatteryFaultType text = 1;
+    }
+    message Faults {
+      repeated .WebInterface.powerManagementResponse.Battery.Fault fault = 1;
+    }
+    required .Common.Bool capable = 1;
+    optional .Common.Bool present = 2;
+    optional .Common.Bool runningOnBattery = 3;
+    optional .Common.Int32 percentCharge = 4;
+    optional .WebInterface.powerManagementResponse.Battery.Faults faults = 5;
+  }
+  required .WebInterface.powerManagementResponse.PowerState powerState = 1;
+  required .WebInterface.powerManagementResponse.Battery battery = 2;
+}

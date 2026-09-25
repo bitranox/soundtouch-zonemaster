@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSContentItem.proto";
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message PlaybackRequest {
+  optional string streamType = 1;
+  optional .STS.ContentItem container = 2;
+  optional .STS.ContentItem track = 3;
+  optional int64 seekTimeMs = 4;
+}

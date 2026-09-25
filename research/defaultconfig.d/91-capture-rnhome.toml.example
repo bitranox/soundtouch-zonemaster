@@ -1,0 +1,4 @@
+# Copy to 91-capture-rnhome.toml (gitignored) and put this house's values in it.
+
+[capture]
+never_touch = ["192.0.2.30"]

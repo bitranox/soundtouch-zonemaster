@@ -1,0 +1,4 @@
+# One volumeUpdated frame exactly as it arrived on 2026-09-24 21:01:06, lifted from
+# research/captures/2026-09-24-thumb-and-volume/room1-websocket.jsonl rather than retyped:
+# Room1 after one tap of volume up, at level 12.
+<updates deviceID="AABBCC0000A1"><volumeUpdated><volume><targetvolume>12</targetvolume><actualvolume>12</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>

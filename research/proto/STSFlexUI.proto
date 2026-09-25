@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+package STS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message FlexUIResponse {
+  message MarconiUI {
+    message MarconiAsset {
+      optional string opaqueData = 1;
+    }
+    optional .STS.FlexUIResponse.MarconiUI.MarconiAsset marconiAsset = 1;
+  }
+  message OledUI {
+    optional string oledIconUrl = 1;
+    optional string likeUrl = 2;
+    optional string dislikeUrl = 3;
+    optional string favoriteUrl = 4;
+  }
+  message ControllerUI {
+    optional uint32 capabilities = 1;
+    optional string ctlrIconURL = 2;
+  }
+  optional .STS.FlexUIResponse.MarconiUI marconiUi = 1;
+  optional .STS.FlexUIResponse.OledUI oledUi = 2;
+  optional .STS.FlexUIResponse.ControllerUI controllerUI = 3;
+}

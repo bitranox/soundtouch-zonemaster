@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package STS.AudioReason;
+
+enum Enum {
+  NOTAPPLICABLE = 0;
+  INTERRUPTED = 1;
+  ENDOFTRACK = 2;
+}

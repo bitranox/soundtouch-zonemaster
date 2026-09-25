@@ -1,0 +1,54 @@
+[
+  {
+    "device_id": "AABBCC000010",
+    "product_code": "SoundTouch",
+    "device_serial_number": "S0000000000000000000010",
+    "product_serial_number": "000000000000010AE",
+    "firmware_version": "27.0.6.46330.5043500 epdbuild.trunk.example.2022-08-04T11:20:29",
+    "ip_address": "192.0.2.10",
+    "name": "Bose Studio",
+    "mac_address": "AABBCC000010",
+    "discovery_method": "SSDP/UPnP",
+    "account_id": "1000001",
+    "components": [
+      {
+        "type": "",
+        "category": "SCM",
+        "firmware_version": "27.0.6.46330.5043500 epdbuild.trunk.example.2022-08-04T11:20:29",
+        "serial_number": "S0000000000000000000010"
+      },
+      {
+        "type": "",
+        "category": "PackagedProduct",
+        "firmware_version": "",
+        "serial_number": "000000000000010AE"
+      }
+    ]
+  },
+  {
+    "device_id": "AABBCC000011",
+    "product_code": "SoundTouch",
+    "device_serial_number": "S0000000000000000000011",
+    "product_serial_number": "000000000000011AE",
+    "firmware_version": "27.0.6.46330.5043500 epdbuild.trunk.example.2022-08-04T11:20:29",
+    "ip_address": "192.0.2.11",
+    "name": "Bose Hallway",
+    "mac_address": "AABBCC000011",
+    "discovery_method": "SSDP/UPnP",
+    "account_id": "1000001",
+    "components": []
+  },
+  {
+    "device_id": "AABBCC000012",
+    "product_code": "Lifestyle",
+    "device_serial_number": "S0000000000000000000012",
+    "product_serial_number": "000000000000012AE",
+    "firmware_version": "27.0.6.46330.5043500 epdbuild.trunk.example.2022-08-04T11:20:29",
+    "ip_address": "192.0.2.12",
+    "name": "Bose Cinema",
+    "mac_address": "AABBCC000012",
+    "discovery_method": "SSDP/UPnP",
+    "account_id": "1000001",
+    "components": []
+  }
+]

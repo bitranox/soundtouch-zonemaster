@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+message AirplayControllerMsgVersion {
+  optional string bsl_version = 1 [default = ""];
+  optional string app_version = 2 [default = ""];
+}
+
+message AirplayControllerMsgSaveCNESettings {
+}
+
+message AirplayControllerMsgRestoreCNESettings {
+}
+
+message AirplayControllerMsgDisconnect {
+}
+
+message AirplayControllerMsgReconnect {
+}

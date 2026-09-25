@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum ContentType {
+  ON_DEMAND = 1;
+  ARTIST_RADIO = 2;
+  RADIO = 3;
+  TRACKLIST_RADIO = 4;
+}

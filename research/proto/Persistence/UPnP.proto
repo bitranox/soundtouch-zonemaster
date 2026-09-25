@@ -1,0 +1,20 @@
+syntax = "proto2";
+
+message UpnpSourcePersist {
+  message ContainerHistQueue {
+    message TrackInfo {
+      optional string containerID = 1;
+      optional uint32 index = 2;
+      optional uint64 byteOffsetIntoTrack = 3 [default = 0];
+      optional uint64 timeOffsetIntoTrack = 4 [default = 0];
+      optional string url = 5 [default = ""];
+      optional string trackData = 6 [default = ""];
+      optional uint32 sourceId = 7 [default = 0];
+    }
+    repeated .UpnpSourcePersist.ContainerHistQueue.TrackInfo queue = 1;
+  }
+  optional .UpnpSourcePersist.ContainerHistQueue contHist = 1;
+}
+
+message UpnpSourceSelectArgs {
+}

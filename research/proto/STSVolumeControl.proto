@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package STS;
+
+message VolumeControl {
+  optional uint32 volume = 1;
+}
+
+message VolumeControlResponse {
+  optional bool result = 1;
+}

@@ -1,0 +1,55 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message device__hy__data {
+  message Component {
+    optional string type = 1;
+    optional string value = 2;
+    optional .Common.String serialnumber = 3;
+    optional .Common.String firmware__hy__version = 4;
+  }
+  message Components {
+    repeated .MargePB.device__hy__data.Component component = 1;
+  }
+  message Product {
+    optional string product_code = 1;
+    optional string type = 2;
+    optional .Common.String firmware__hy__version = 3;
+    optional .Common.String serialnumber = 4;
+    optional .MargePB.device__hy__data.Components components = 5;
+  }
+  message MacAddresses {
+    repeated .Common.String macaddress = 1;
+  }
+  message DeviceLandscape {
+    optional .Common.String rssi = 1;
+    optional .Common.String gateway__hy__ip__hy__address = 2;
+    optional .MargePB.device__hy__data.MacAddresses macaddresses = 3;
+    optional .Common.String ip__hy__address = 4;
+    optional .Common.String network__hy__connection__hy__type = 5;
+  }
+  message Device {
+    optional string id = 1;
+    optional .Common.String serialnumber = 2;
+    optional .Common.String firmware__hy__version = 3;
+    optional .MargePB.device__hy__data.Product product = 4;
+  }
+  message NetworkData {
+    optional string xmlns = 1;
+    optional .Common.String devices = 2;
+    optional .Common.String snapshots = 3;
+  }
+  message NetworkLandscape {
+    optional .MargePB.device__hy__data.NetworkData network__hy__data = 1;
+  }
+  message DiagnosticData {
+    optional .MargePB.device__hy__data.DeviceLandscape device__hy__landscape = 1;
+    optional .MargePB.device__hy__data.NetworkLandscape network__hy__landscape = 2;
+  }
+  optional .MargePB.device__hy__data.Device device = 1;
+  optional .MargePB.device__hy__data.DiagnosticData diagnostic__hy__data = 2;
+}

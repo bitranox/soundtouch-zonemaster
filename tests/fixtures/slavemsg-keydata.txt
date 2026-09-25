@@ -1,0 +1,10 @@
+# The eight keyData bodies exactly as they arrived at the master on 2026-09-06, lifted from
+# research/captures/2026-09-06-key-family/master-part1.log rather than retyped. One per line.
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="press" sender="IrRemote">NEXT_TRACK</keyData></slaveMessage>
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="press" sender="IrRemote">PREV_TRACK</keyData></slaveMessage>
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="press" sender="IrRemote">THUMBS_DOWN</keyData></slaveMessage>
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="press" sender="IrRemote">THUMBS_UP</keyData></slaveMessage>
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="release" sender="IrRemote">NEXT_TRACK</keyData></slaveMessage>
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="release" sender="IrRemote">PREV_TRACK</keyData></slaveMessage>
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="release" sender="IrRemote">THUMBS_DOWN</keyData></slaveMessage>
+<?xml version="1.0" encoding="UTF-8" ?><slaveMessage action="key"><keyData state="release" sender="IrRemote">THUMBS_UP</keyData></slaveMessage>

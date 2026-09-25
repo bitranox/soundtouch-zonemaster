@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message Country {
+  optional string countryCode = 1;
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  optional string latitude = 4;
+  optional string longitude = 5;
+  optional .IHeart.Error error = 6;
+}

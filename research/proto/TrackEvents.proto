@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message TrackEvents {
+  message Event {
+    optional string artistName = 4;
+    optional string dateString = 8;
+    repeated .IHeart.TrackEvents.Event events = 9;
+    optional string id = 13;
+    optional string imagePath = 14;
+    optional string radioType = 18;
+    optional string showId = 19;
+    optional string showName = 20;
+    optional string title = 21;
+    optional string version = 28;
+  }
+  repeated .IHeart.TrackEvents.Event events = 3;
+  repeated .IHeart.Error errors = 5;
+  optional .IHeart.Error firstError = 6;
+  optional .IHeart.Error error = 7;
+}

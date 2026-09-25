@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message trackInfo {
+  required string deviceID = 1;
+  optional string text = 2;
+}

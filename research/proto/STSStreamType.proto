@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package STS.StreamType;
+
+enum Enum {
+  TRACK_ONDEMAND = 0;
+  RADIO_STREAMING = 1;
+  RADIO_TRACKS = 2;
+  NO_TRANSPORT_CONTROLS = 3;
+}

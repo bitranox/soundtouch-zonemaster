@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "MargeSource.proto";
+import "Common.proto";
+
+message recent {
+  optional .Common.String lastplayedat = 1;
+  optional .Common.String location = 2;
+  optional .Common.String name = 3;
+  optional .MargePB.MargeSource.source source = 4;
+  optional .Common.String credential = 5;
+  optional .Common.String sourceid = 6;
+  optional .Common.String contentItemType = 7;
+  optional uint64 id = 8;
+}

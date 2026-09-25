@@ -1,0 +1,190 @@
+{
+  "note": "Every notification frame Room1 sent while eight PRESET_2 presses were driven at it over its own /key endpoint, 2026-09-21 03:1x, recorded with research/observe_keys.py and not retyped. Two bursts of four, about 0.47 s apart within a burst. The first burst was made while the box was NOT in the zone and arrives as four clean selection-then-confirmation pairs. Between the two the service took the box into the zone and faded its volume up, and the second burst then arrives with its four selections in one block and its confirmations in another, the first of them 1.06 s behind its selection. Sent through the box's own API rather than by hand so that the number of presses is known exactly: eight, every one answered HTTP 200.",
+  "frames": [
+    {
+      "received_at": 1789953062.5678508,
+      "speaker": "192.168.0.31",
+      "frame": "<SoundTouchSdkInfo serverVersion=\"4\" serverBuild=\"trunk r46330 v4 epdbuild hepdswbld04\" />"
+    },
+    {
+      "received_at": 1789953070.4655538,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953070.514917,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953070.6942275,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC0000A1\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem><track>TechnikumCity</track><artist></artist><album></album><stationName>TechnikumCity</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>BUFFERING_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+    },
+    {
+      "received_at": 1789953070.9506824,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953070.9748719,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953071.3792074,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953071.406264,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953071.8639748,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953071.882064,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953075.024055,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC0000A1\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem><track>TechnikumCity</track><artist></artist><album></album><stationName>TechnikumCity</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+    },
+    {
+      "received_at": 1789953075.3413959,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>0</targetvolume><actualvolume>0</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+    },
+    {
+      "received_at": 1789953075.3614511,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953075.4796615,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><zoneUpdated><zone master=\"AABBCC000001\" senderIPAddress=\"192.168.0.190\" senderIsMaster=\"true\"><member ipaddress=\"192.168.0.31\">AABBCC0000A1</member></zone></zoneUpdated></updates>"
+    },
+    {
+      "received_at": 1789953075.5844066,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem><track>OE3 direct</track><artist /><album /><stationName>OE3 direct</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+    },
+    {
+      "received_at": 1789953076.0099535,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953076.4850292,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953076.955417,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953077.0489085,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>5</targetvolume><actualvolume>5</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+    },
+    {
+      "received_at": 1789953077.0648003,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953077.2524986,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953077.302555,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>9</targetvolume><actualvolume>9</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+    },
+    {
+      "received_at": 1789953077.469041,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>14</targetvolume><actualvolume>14</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+    },
+    {
+      "received_at": 1789953077.4794562,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953077.5605247,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953077.7652981,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>18</targetvolume><actualvolume>18</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+    },
+    {
+      "received_at": 1789953077.7875004,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953077.9696426,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953078.1710136,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953078.421276,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953078.4940562,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>23</targetvolume><actualvolume>23</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+    },
+    {
+      "received_at": 1789953078.663595,
+      "speaker": "192.168.0.31",
+      "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+    },
+    {
+      "received_at": 1789953078.7391667,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>37</targetvolume><actualvolume>37</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+    },
+    {
+      "received_at": 1789953078.9042692,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953079.0426664,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem><track>TechnikumCity</track><artist /><album /><stationName>TechnikumCity</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+    },
+    {
+      "received_at": 1789953080.0341012,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+    },
+    {
+      "received_at": 1789953080.1138806,
+      "speaker": "192.168.0.31",
+      "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem><track>TechnikumCity</track><artist /><album /><stationName>TechnikumCity</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+    }
+  ]
+}

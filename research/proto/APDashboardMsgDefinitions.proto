@@ -1,0 +1,34 @@
+syntax = "proto2";
+
+import "AudioServerMsgDefinitions.proto";
+
+message APDashboardEnableUpdates {
+  optional bool enabled = 1 [default = false];
+  optional int64 updateRate = 2 [default = 1000];
+}
+
+message APBashboardStartOfStream {
+}
+
+message APDashboardBDSPData {
+  optional uint64 time = 1 [default = 0];
+  optional int32 samples = 2 [default = 0];
+}
+
+message APDashboardUpdateEvent {
+  repeated .APDashboardBDSPData datas = 1;
+  optional uint64 timeOffset = 2 [default = 0];
+  optional uint64 time_stamp = 3 [default = 0];
+  optional float ringBufferLevel = 4 [default = 0];
+  optional .AudioServerMsgServerState state = 5;
+  optional float sample_rate = 6 [default = 44100];
+}
+
+message APDashboardEndOfStreamEvent {
+}
+
+message APDashboardDisconnectSlavesEvent {
+}
+
+message APDashboardDisconnectGroupSlavesEvent {
+}

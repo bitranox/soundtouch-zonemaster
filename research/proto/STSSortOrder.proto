@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package STS.SortOrder;
+
+enum Enum {
+  stationName = 0;
+  dateCreated = 1;
+  artist = 2;
+  album = 3;
+  composer = 4;
+  genre = 5;
+  playlist = 6;
+  track = 7;
+}

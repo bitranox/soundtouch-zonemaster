@@ -1,0 +1,27 @@
+# This machine's own settings for the hardware tests, over the safe defaults in
+# tests/e2e_defaults.toml.
+#
+# Copy this file to 90-e2e-rnhome.toml (the same name without .example) and fill it in. The copy
+# is gitignored: every file named <anything>-rnhome.<ext> is private to the machine it sits on.
+# Nothing here is a secret, but the addresses are house data, which is why the filled-in file stays
+# out of the repository. The values below are placeholders from the documentation address range.
+#
+# The speakers answer only on their own LAN, which a development host usually cannot reach, so the
+# hardware tests ship a probe to a machine that CAN and run it there. e2e_host is that machine.
+
+# The host on the speaker LAN that the probe runs on, and how to reach it.
+e2e_host = "192.0.2.5"
+e2e_user = "root"
+e2e_key = "/path/to/ssh/key"
+
+# The speakers the read-only probe may query. Read-only means GET only: /info, /now_playing,
+# /volume, /presets, /getZone. None of those makes a sound.
+#
+# List EVERY box in the house, not the ones a test happens to use. A box missing from this list is
+# invisible to every check built on it, including the standby check that decides whether a run may
+# start. Sweeping the LAN beats enumerating here.
+e2e_speakers = ["192.0.2.11", "192.0.2.12"]
+
+# Whether a test may do something AUDIBLE (play, join a zone, switch a station). Leave false
+# unless you know who is at home: a speaker on AUX may have someone listening to it.
+e2e_audible = false

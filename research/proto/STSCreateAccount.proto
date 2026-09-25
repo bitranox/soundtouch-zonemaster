@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSOAuthCredentials.proto";
+
+enum AuthType {
+  UNKNOWN = 1;
+  USER_PASSWORD = 2;
+  OAUTH = 3;
+}
+
+message CreateAccountRequest {
+  optional string user = 1;
+  optional string password = 2;
+  optional uint32 port = 3;
+  optional .STS.AuthType authType = 4;
+  optional .STS.OAuthCredentialsResponse credentials = 5;
+}
+
+message CreateAccountResponse {
+  optional string user = 1;
+  optional string secret = 2;
+}

@@ -1,0 +1,19 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/ContentItem.proto";
+import "MargeSource.proto";
+import "Common.proto";
+
+message preset {
+  optional .SoundTouchInterface.PresetID buttonNumber = 1;
+  optional .Common.String name = 2;
+  optional .Common.String location = 3;
+  optional .MargePB.MargeSource.source source = 4;
+  optional .Common.String createdOn = 5;
+  optional .Common.String updatedOn = 6;
+  optional .Common.String contentItemType = 7;
+  optional .Common.String containerArt = 8;
+}

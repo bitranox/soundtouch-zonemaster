@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package STS;
+
+import "Common.proto";
+
+message SkipList {
+  message StationSkipList {
+    optional string station = 1;
+    repeated .Common.UInt32 timestamp = 2;
+  }
+  repeated .STS.SkipList.StationSkipList station = 1;
+}

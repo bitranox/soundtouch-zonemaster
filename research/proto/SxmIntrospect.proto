@@ -1,0 +1,38 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message Accounts {
+  repeated .Common.String account = 1;
+}
+
+message ClientStats {
+  optional uint64 txPackets = 1;
+  optional uint64 rxPackets = 2;
+  optional uint64 txErrors = 3;
+  optional uint64 rxErrors = 4;
+  optional uint64 parseErrors = 5;
+  optional uint64 logoutCount = 6;
+}
+
+message SiriusXMIntrospectResponse {
+  optional string stsServerIP = 1;
+  optional .Sxm.Accounts accounts = 2;
+}
+
+message SiriusXMAccountIntrospectResponse {
+  optional string state = 1;
+  optional .Common.String sessionId = 2;
+  optional .Common.String consumerName = 3;
+  optional .Common.String tokenBaseUrl = 4;
+  optional .Common.String maxIdleTime = 5;
+  optional .Common.String hPDTPollingTime = 6;
+  optional .Common.String albumArtsSmallUrl = 7;
+  optional .Common.String albumArtsUrl = 8;
+  optional .Common.String channelLineUpId = 9;
+  optional .Common.String consumerSuffix = 10;
+  optional .Sxm.ClientStats clientStats = 11;
+}

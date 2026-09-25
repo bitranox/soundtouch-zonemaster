@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSZeroconfTxtRecord.proto";
+
+message ZeroconfRegisterService {
+  optional string deviceName = 1;
+  required string serviceType = 2;
+  required uint32 port = 3;
+  repeated .STS.TxtRecord txtRecord = 4;
+}

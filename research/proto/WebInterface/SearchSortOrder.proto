@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package WebInterface.Search.SortOrder;
+
+enum Enum {
+  artist = 1;
+  album = 2;
+  composer = 3;
+  genre = 4;
+  playlist = 5;
+  track = 6;
+}

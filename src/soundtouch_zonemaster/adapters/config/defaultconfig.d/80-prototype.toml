@@ -1,0 +1,31 @@
+# Which speakers the prototype never touches.
+#
+# The prototype is the measurement run - the program that proves a speaker accepts a non-Bose
+# master - and everything else about a run of it is typed on the command line. This is the one
+# thing that must not be, because it is the one that protects a real room: an address named here is
+# refused as --slave and as --late-slave before the run starts, so a typo cannot reach a box that
+# somebody is listening to.
+#
+# It was a constant in the source until this section existed, which meant the only way to protect
+# a second box, or to lift the protection for a deliberate test, was to edit the program.
+
+[prototype]
+
+# The addresses this house never sends anything to, each with the name and the reason shown in the
+# refusal: `refused: <name> (<ip>) is <why>`.
+#
+# Default: empty. Which box must be left alone is a fact about one flat, so the wheel ships none and
+# a house names its own in a layer of its own - the host layer
+# (/etc/soundtouch-zonemaster/hosts/<hostname>.toml) is the natural one, because the machine that
+# reaches the speakers is the one that must refuse them.
+# Effect: naming one of these as --slave or --late-slave ends the run with that sentence on stderr
+# and exit code 1, before a packet is sent.
+# What belongs here: a Bose Lifestyle console, whose INPUT an API POWER flips, so a run that reached
+# it would change what somebody in the room is listening to and undoing that needs a person with
+# the remote rather than a command; or a speaker in a room somebody sleeps in.
+# Lifting an entry for a deliberate test is audible in the house and needs somebody at home who
+# agreed to it: `--set prototype.never_touch=[]` does it for one run.
+# Matching is on the exact address text, so an entry with a stray space protects nothing.
+#   env: SOUNDTOUCH_ZONEMASTER___PROTOTYPE__NEVER_TOUCH (as JSON, e.g.
+#        '[{"ip":"192.0.2.30","name":"Room5","why":"the Lifestyle console"}]')
+never_touch = []

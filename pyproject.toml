@@ -1,0 +1,443 @@
+[build-system]
+requires = ["hatchling>=1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "soundtouch-zonemaster"
+version = "0.4.7"
+description = "A software zone master for Bose SoundTouch speakers, and the protocol research behind it"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Robert Nowotny" }]
+keywords = ["soundtouch", "bose", "multiroom", "zone", "protobuf"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Typing :: Typed",
+]
+dependencies = [
+    "httpx>=0.28.1",
+    "lib_cli_exit_tools>=2.3.4",
+    "lib_layered_config>=5.6.2",
+    "protobuf>=7.36.2",
+    "pydantic>=2.13.5",
+    "pydantic-xml>=2.21.1",
+    "rich-click>=1.9.9",
+    "websockets>=17.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "coverage[toml]>=7.16.1",
+    # The gate's own tools, declared so `uv run <tool>` in this venv matches what
+    # bmk runs. bmk resolves them from its own pinned toolchain either way, so a
+    # floor here documents the version this project was proven against.
+    "ruff>=0.16.9",
+    "pyright[nodejs]>=1.1.414",
+    "bandit>=1.9.4",
+    "pip-audit>=2.10.1",
+    "import-linter>=2.15",
+    # Project-specific: protoc for the schema round-trip test, protobuf stubs for
+    # pyright strict, scapy to read the capture pcaps.
+    "grpcio-tools>=1.84.0",
+    "types-protobuf>=7.35.1.20260906",
+    "scapy>=2.7.0",
+    # The build backend, imported by tests/test_wheel_contents.py to build the wheel and sdist
+    # in-process and check that no private file ships.
+    "hatchling>=1.32.4",
+]
+
+[project.scripts]
+soundtouch-zonemaster = "soundtouch_zonemaster.entry:prototype_main"
+soundtouch-zonemaster-service = "soundtouch_zonemaster.entry:service_main"
+
+[project.urls]
+Homepage = "https://github.com/bitranox/soundtouch-zonemaster"
+Repository = "https://github.com/bitranox/soundtouch-zonemaster.git"
+Issues = "https://github.com/bitranox/soundtouch-zonemaster/issues"
+
+[tool.hatch.build]
+# A checkout keeps its private values in gitignored files named <anything>-rnhome.<ext>, some of
+# them inside the package directory. .gitignore keeps them out of a build from a checkout; this
+# keeps them out of a build from anywhere else (an unpacked sdist, a copied tree), for the wheel and
+# the sdist alike. The tracked *-rnhome.*.example files match too, on purpose: they document a
+# checkout, not an installation. tests/test_wheel_contents.py builds both and checks.
+exclude = ["*-rnhome.*"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/soundtouch_zonemaster"]
+include = [
+    "src/soundtouch_zonemaster/py.typed",
+    "src/soundtouch_zonemaster/adapters/config/defaultconfig.toml",
+    "src/soundtouch_zonemaster/adapters/config/defaultconfig.d/*.toml",
+    "src/soundtouch_zonemaster/adapters/soundtouch/pb/**/*.pyi",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# protoc writes src/soundtouch_zonemaster/adapters/soundtouch/pb; it is regenerated from research/proto and never hand-edited.
+extend-exclude = ["src/soundtouch_zonemaster/adapters/soundtouch/pb/**/*_pb2.py", "src/soundtouch_zonemaster/adapters/soundtouch/pb/**/*_pb2.pyi"]
+
+[tool.ruff.lint]
+# Pin the policy explicitly. Without a select, a newer ruff applies its own
+# ever-growing default set, and a scheduled run reds on rules this project never
+# adopted; with it, the rule set changes only when this list does.
+select = [
+    "E", "W",     # pycodestyle
+    "F",          # pyflakes
+    "I",          # isort
+    "N",          # pep8-naming
+    "UP",         # pyupgrade
+    "B",          # bugbear
+    "A",          # builtins shadowing
+    "C4",         # comprehension simplification
+    "SIM",        # simplification
+    "TCH",        # type-checking imports
+    "RUF",        # ruff-specific
+    "G",          # logging format (catches f-string in logger)
+    "T20",        # print statements
+    "PTH",        # pathlib preference
+    "PLC", "PLE", # pylint conventions/errors
+    "S",          # flake8-bandit security checks
+    "PERF",       # performance anti-patterns
+    "ERA",        # eradicate dead/commented-out code
+    "FBT",        # boolean trap (boolean positional args)
+    "PLR",        # pylint refactor
+    "PLW",        # pylint warnings
+    "BLE",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: assert is the idiom, magic values read better inline, temp paths are fine,
+# and several tests import inside the test body on purpose to exercise import-time
+# behaviour, which is what PLC0415 would otherwise forbid.
+"tests/*.py" = ["S101", "S104", "S105", "S106", "S108", "T20", "PLR2004", "PLR0913", "PLR0915", "FBT001", "FBT003", "PLC0415"]
+# The research scripts and the export tool are operator tools run by hand: they print, and they
+# shell out to protoc and git on purpose. The complexity rules used to be waived here too; the
+# blanket covered a handful of functions and blinded every other file under these two globs, so it
+# is gone and each of those functions carries its own noqa saying why. Count them before quoting a
+# number: grep -h 'noqa: PLR09' research/*.py tools/*.py | wc -l - five on 2026-09-18, all under
+# research/, because tools/ still fires none of the three.
+"research/*.py" = ["T20", "S404", "S603", "S607"]
+"tools/*.py" = ["T20", "S404", "S603", "S607"]
+"src/soundtouch_zonemaster/__main__.py" = ["T20"]
+
+[tool.ruff.lint.flake8-type-checking]
+# A pydantic model's annotations are EVALUATED at runtime, so an import used only
+# in one is not a type-only import: moving it into a type-checking block makes the
+# model fail to build (PydanticUndefinedAnnotation) rather than merely reading oddly.
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+# protoc output ships no strict-clean stubs and is regenerated, so it is checked as written, not as ours.
+# The generated modules import each other by bare proto path (AudioServerMsgAudioData_pb2), which
+# pb/__init__.py makes work at runtime by inserting its own directory into sys.path; pyright needs the
+# same directory declared. Measured 2026-09-08 on the move to src/: 429 errors without it, 0 with it,
+# and 0 on the pre-move layout, so this is the layout change and not a new defect.
+exclude = ["src/soundtouch_zonemaster/adapters/soundtouch/pb/**/*_pb2.py", "src/soundtouch_zonemaster/adapters/soundtouch/pb/**/*_pb2.pyi", "**/__pycache__", ".venv*", "research/captures"]
+extraPaths = ["src", "src/soundtouch_zonemaster/adapters/soundtouch/pb", "research", "tools"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "os_agnostic: test runs on every supported operating system",
+    "os_windows: test exercises Windows-only behavior",
+    "os_macos: test exercises macOS-only behavior",
+    "os_posix: test exercises behavior requiring POSIX semantics",
+    "os_linux: test exercises Linux-only behavior",
+    "local_only: needs a local resource the CI runners lack; skipped in CI",
+    "integration: needs real speakers on the LAN; run via 'make testintegration'",
+]
+pythonpath = ["src"]
+
+[tool.importlinter]
+root_package = "soundtouch_zonemaster"
+exclude_type_checking_imports = true
+# Required at the top level, not per contract: import-linter refuses the whole run when a
+# forbidden contract names an external distribution and this is not set here.
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure (no adapter dependencies)"
+type = "forbidden"
+source_modules = [
+  "soundtouch_zonemaster.domain",
+]
+forbidden_modules = [
+  "soundtouch_zonemaster.adapters",
+  "soundtouch_zonemaster.composition",
+]
+
+[[tool.importlinter.contracts]]
+name = "Clean Architecture layers"
+type = "layers"
+layers = [
+  # The module entry point: one line, which runs the prototype
+  "soundtouch_zonemaster.__main__",
+  # The two console scripts, the only modules that name a command AND the world it runs against
+  "soundtouch_zonemaster.entry",
+  # Composition wires adapters - can import everything
+  "soundtouch_zonemaster.composition",
+  # Adapters implement ports - can import application and domain
+  "soundtouch_zonemaster.adapters",
+  # Application defines ports - can import domain
+  "soundtouch_zonemaster.application",
+  # Domain is pure - bottom layer
+  "soundtouch_zonemaster.domain",
+]
+
+[[tool.importlinter.contracts]]
+# The conversion's own guard: the thirteen records that moved from pydantic to frozen dataclasses
+# leave the rules framework-free, and nothing may quietly put a framework back.
+# NOTE: the project sets exclude_type_checking_imports, so an import written only for an
+# annotation is invisible here; tests/test_domain_is_pure.py reads the source and catches those.
+name = "Domain and application speak no framework"
+type = "forbidden"
+source_modules = [
+  "soundtouch_zonemaster.domain",
+  "soundtouch_zonemaster.application",
+]
+forbidden_modules = [
+  "pydantic",
+  "pydantic_xml",
+  "httpx",
+  "websockets",
+  # "google", not "google.protobuf": import-linter refuses a subpackage of an external
+  # package as a forbidden module, and nothing here may name any of it in any case.
+  "google",
+  "lib_layered_config",
+  "lib_cli_exit_tools",
+  "rich_click",
+  "click",
+]
+
+[[tool.importlinter.contracts]]
+# Each of these decides one thing from what the speakers said, and none of them may consult
+# another: a membership answer that depended on what was dialled, or a hold that read the
+# dialler's buffers, would make two rules one and neither testable alone. domain.presses joins
+# this list with M4, which is the milestone that lands it.
+name = "The house policies decide independently"
+type = "independence"
+modules = [
+  "soundtouch_zonemaster.domain.membership",
+  "soundtouch_zonemaster.domain.dialling",
+  "soundtouch_zonemaster.domain.longpress",
+  "soundtouch_zonemaster.domain.presses",
+  "soundtouch_zonemaster.domain.housevolume",
+]
+
+[[tool.importlinter.contracts]]
+# The shared application core is what BOTH programs are built on, so it may not depend on either
+# one's chain. It is not a style rule: application/prototype.py imports Options from options.py,
+# so anything options.py reaches, the prototype reaches - and a single constant imported from
+# zone_service would break the prototype/zone_service independence the plan requires at M5, one
+# milestone before the contract stating it exists. That is why REGISTRY_POLL_S sits in options.py
+# beside the field it defaults rather than in zone_service/constants.py where the symbol map put it.
+name = "The shared application core depends on neither program's chain"
+type = "forbidden"
+source_modules = [
+  "soundtouch_zonemaster.application.outcome",
+  "soundtouch_zonemaster.application.errors",
+  "soundtouch_zonemaster.application.options",
+]
+forbidden_modules = [
+  "soundtouch_zonemaster.application.zone_service",
+  "soundtouch_zonemaster.application.prototype",
+]
+
+[[tool.importlinter.contracts]]
+# Each family speaks to a DIFFERENT thing - the speakers, the service next door, the disk, the
+# configuration layers, the log, and the music daemon - and a call from one into another would mean
+# the zone service had stopped being the place those are put together. With only files/ this was a
+# contract over one module and said nothing; the test for a new family is whether it talks to
+# something the others do not.
+name = "The adapter families do not reach into each other"
+type = "independence"
+modules = [
+  "soundtouch_zonemaster.adapters.soundtouch",
+  "soundtouch_zonemaster.adapters.aftertouch",
+  "soundtouch_zonemaster.adapters.files",
+  "soundtouch_zonemaster.adapters.logging",
+  "soundtouch_zonemaster.adapters.config",
+  "soundtouch_zonemaster.adapters.mpd",
+]
+
+[[tool.importlinter.contracts]]
+# The protoc output is the SoundTouch protocol's own vocabulary and nothing else's. Keeping it
+# inside that one adapter is what lets the rest of the program be read without protobuf installed,
+# and it is why an option set carries the encryption NAME while adapters/soundtouch/wire.py looks
+# up the wire value. "google" catches the runtime library the generated modules import.
+name = "The generated protobuf stays inside the SoundTouch adapter"
+type = "forbidden"
+source_modules = [
+  "soundtouch_zonemaster.domain",
+  "soundtouch_zonemaster.application",
+  "soundtouch_zonemaster.adapters.files",
+  "soundtouch_zonemaster.adapters.aftertouch",
+  "soundtouch_zonemaster.adapters.cli",
+  "soundtouch_zonemaster.adapters.logging",
+  "soundtouch_zonemaster.adapters.config",
+  "soundtouch_zonemaster.adapters.mpd",
+]
+forbidden_modules = [
+  "soundtouch_zonemaster.adapters.soundtouch.pb",
+  "google",
+]
+
+[[tool.importlinter.contracts]]
+# The composition root is the one module that names every adapter, so it reaches the SoundTouch
+# one and, through it, the generated protobuf. What it must NOT do is name protobuf itself:
+# adapters/soundtouch/wire.py exists so an option set carries the encryption's domain NAME and the
+# wire value is looked up at the edge that sends it. Same fence as the contract above, with
+# allow_indirect_imports, which is what makes this one say "not directly".
+name = "The composition root names no protobuf itself"
+type = "forbidden"
+source_modules = [
+  "soundtouch_zonemaster.composition",
+]
+forbidden_modules = [
+  "soundtouch_zonemaster.adapters.soundtouch.pb",
+  "google",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+# One application core, two chains on top of it, and neither may reach into the other. The
+# prototype is a measurement run that has to stay runnable when the service's world is not there,
+# and the service must not grow a dependency on a research tool. It is also why REGISTRY_POLL_S
+# sits in application/options.py rather than in zone_service/constants.py where the symbol map put
+# it: options.py is imported by application/prototype.py, so anything options.py reaches, the
+# prototype reaches.
+name = "The two programs' chains are independent"
+type = "independence"
+modules = [
+  "soundtouch_zonemaster.application.prototype",
+  "soundtouch_zonemaster.application.zone_service",
+]
+
+[[tool.importlinter.contracts]]
+# The CLI's half of the rule the application chains already have: two commands, one package, and
+# neither may name the other. The prototype is a measurement run that has to stay runnable when
+# the service's world is not there, and the service must not grow a dependency on a research tool.
+# What they DO share is named on purpose and sits outside both: the envelope, the context, the
+# typed click facade and the config adapter.
+name = "The two commands are independent"
+type = "independence"
+modules = [
+  "soundtouch_zonemaster.adapters.cli.prototype",
+  "soundtouch_zonemaster.adapters.cli.service",
+]
+
+[tool.coverage.run]
+branch = true
+parallel = false
+# The package sits under src/, which is what bmk assumes by default.
+# `tools` is measured because export_public.py decides what leaves this house and a silent
+# regression there is a privacy leak. `research` is NOT: the two analysers are held to their
+# recorded output byte for byte by research/golden_check.py, which needs the gitignored firmware
+# and captures and so cannot run here, and capture_zone.py drives real speakers in a real flat.
+source = ["src/soundtouch_zonemaster", "tools", "research"]
+omit = [
+    "src/soundtouch_zonemaster/adapters/soundtouch/pb/**/*_pb2.py", # protoc output, regenerated by research/generate_pb.py and never hand-written
+    # research/ is excluded per FILE, not per directory, because the reason is per file: the two
+    # analysers and extract_protos.py are held to their recorded output byte for byte by
+    # golden_check.py, capture_zone.py drives real speakers, generate_pb.py wraps protoc, and
+    # mpd_seek_ab.py starts and kills mpd (its two pure functions are tested all the same).
+    # capture_model.py is deliberately NOT here: it is pure records and validators, it needs no
+    # firmware, capture or speaker, and nothing else inside `make test` holds it.
+    "research/analyze_capture.py",
+    "research/analyze_late_join.py",
+    "research/capture_zone.py",
+    "research/extract_protos.py",
+    "research/generate_pb.py",
+    "research/golden_check.py",
+    "research/mpd_seek_ab.py",
+]
+
+[tool.coverage.report]
+omit = ["tests/*"]
+fail_under = 80
+show_missing = true
+
+[tool.coverage.json]
+output = "coverage.json"
+pretty_print = true
+
+[tool.scripts.test]
+# Configuration for the bmk test runner.
+pytest-verbosity = "-vv"
+coverage-report-file = "coverage.xml"
+# src layout: the importable package sits in src/, which is the path bmk puts on
+# PYTHONPATH and also its own default.
+src-path = "src"
+
+[tool.clean]
+# Patterns to remove when running `make clean`
+patterns = [
+    "**/__pycache__",
+    ".hypothesis",
+    ".import_linter_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".pyright",
+    ".mypy_cache",
+    ".tox",
+    ".nox",
+    ".eggs",
+    "*.egg-info",
+    "build",
+    "dist",
+    "htmlcov",
+    ".coverage",
+    "coverage.xml",
+    "coverage.json",
+    "codecov.sh",
+    ".cache",
+    "result",
+]
+
+[tool.git]
+# Default git remote for push/release commands
+default-remote = "origin"
+
+[tool.pip-audit]
+# Vulnerability ids pip-audit should not fail on. Empty on purpose: the resolved
+# dev tree audits clean, so nothing is carried here. Add an id ONLY when another
+# dependency caps the fixed version, or when no fixed release exists yet, and
+# record the reason and the removal condition next to it.
+ignore-vulns = []
+
+[tool.bashate]
+# bashate style settings for .sh files (E003 excluded: indent handled by shfmt).
+# No .sh is tracked here yet; these are the values bmk's shell gate uses, declared
+# up front so the first script added is formatted the way the gate will demand.
+max-line-length = 120
+ignores = ["E003"]
+
+[tool.ci] # System packages the CI runners need (read by the GitHub Actions workflow template)
+system-dependencies-ubuntu = []
+system-dependencies-macos = []
+system-dependencies-windows-pip = []
+system-dependencies-windows-choco = []
+os = ["ubuntu-latest", "windows-latest", "macos-latest"]

@@ -1,0 +1,60 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/ErrorType.proto";
+
+enum ErrorSeverity {
+  Unknown = 100;
+  Recoverable = 200;
+  Unrecoverable = 201;
+}
+
+message status {
+  optional string text = 1;
+}
+
+message Ancillary {
+  optional string text = 1;
+}
+
+message TextField {
+  optional string text = 1;
+}
+
+message ErrorOption {
+  required .SoundTouchInterface.TextField label = 1;
+  optional .SoundTouchInterface.TextField action = 2;
+  optional .SoundTouchInterface.TextField url = 3;
+}
+
+message ErrorOptions {
+  repeated .SoundTouchInterface.ErrorOption option = 1;
+}
+
+message CustomError {
+  optional .SoundTouchInterface.TextField title = 1;
+  optional .SoundTouchInterface.TextField shortMessage = 2;
+  optional .SoundTouchInterface.TextField message = 3;
+  optional .SoundTouchInterface.ErrorOptions options = 4;
+}
+
+message Error {
+  required .SoundTouchInterface.ErrorType value = 1;
+  required .SoundTouchInterface.ErrorType name = 2;
+  optional string text = 3;
+  optional .SoundTouchInterface.ErrorSeverity severity = 4 [default = Unknown];
+  optional .SoundTouchInterface.CustomError customError = 5;
+}
+
+message errors {
+  optional string deviceID = 1;
+  repeated .SoundTouchInterface.Error error = 2;
+  optional .SoundTouchInterface.Ancillary ancillary = 3;
+}
+
+message errorNotification {
+  required string deviceID = 1;
+  optional .SoundTouchInterface.Error error = 2;
+}

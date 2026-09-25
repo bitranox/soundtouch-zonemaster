@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+package Persistence;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/AcctModeType.proto";
+import "Common.proto";
+
+message SystemConfiguration {
+  message AcctMode {
+    optional .SoundTouchInterface.AcctModeType text = 1 [default = local];
+  }
+  message PasswordType {
+    optional string version = 1;
+    optional string text = 2;
+  }
+  message PowerSavingConfig {
+    optional bool powersaving_en = 1 [default = true];
+  }
+  optional .Persistence.SystemConfiguration.PasswordType Password = 1;
+  optional .Common.StringEmpty DeviceName = 2;
+  optional .Common.String AccountAssociatedEMail = 3;
+  optional .Common.String AccountUUID = 4;
+  optional .Common.String Locale = 5;
+  optional .Persistence.SystemConfiguration.AcctMode acctMode = 8;
+  optional .Common.BoolTrue isMultiDeviceAccount = 9;
+  optional .Common.String margeAuthServerToken = 10;
+  optional .Persistence.SystemConfiguration.PowerSavingConfig powerSavingSettings = 11;
+}

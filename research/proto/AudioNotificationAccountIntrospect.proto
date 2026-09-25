@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package AudioNotificationPB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "WebInterface/PlayInfo.proto";
+
+message AudioNotificationAccountIntrospectResponse {
+  optional string state = 1;
+  optional .WebInterface.play_info play_info = 2;
+}

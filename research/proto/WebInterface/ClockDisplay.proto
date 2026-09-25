@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ClockConfiguration.proto";
+
+message clockDisplay {
+  optional string deviceID = 1;
+  optional .clockConfiguration clockConfig = 2;
+}

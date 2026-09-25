@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message MargeClientIntrospectResponse {
+  optional bool fullaccountetagmatch = 1;
+  optional uint32 fullaccountsize = 2;
+  optional bool presetsetagmatch = 3;
+  optional uint32 presetssize = 4;
+  optional uint32 numpresets = 5;
+  optional bool recentsetagmatch = 6;
+  optional uint32 recentssize = 7;
+  optional uint32 numrecents = 8;
+  optional bool sourcesetagmatch = 9;
+  optional uint32 sourcessize = 10;
+  optional uint32 numsources = 11;
+  optional bool devicesetagmatch = 12;
+  optional uint32 devicessize = 13;
+  optional uint32 numdevices = 14;
+  optional string currentstate = 15;
+}

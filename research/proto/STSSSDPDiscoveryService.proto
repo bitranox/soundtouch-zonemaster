@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package STS;
+
+message SSPDDiscoveryServiceFilter {
+  optional string filter = 1;
+}
+
+message SSDPDiscoveryServiceDeviceStatus {
+  optional string location = 1;
+  optional string usn = 2;
+  optional bool isOnline = 3;
+}

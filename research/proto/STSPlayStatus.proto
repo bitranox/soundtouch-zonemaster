@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package STS.PlayStatus;
+
+enum Enum {
+  PLAY = 0;
+  PAUSE = 1;
+  STOP = 2;
+  BUFFERING = 3;
+  INVALID = 4;
+}

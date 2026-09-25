@@ -1,0 +1,26 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message Artist {
+  optional int32 artistId = 2;
+  optional string artistName = 3;
+  optional string link = 6;
+  repeated string roviImages = 8;
+}
+
+message ArtistInfo {
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  optional .IHeart.Artist artist = 4;
+}
+
+message SimilarArtists {
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  repeated .IHeart.Artist similarArtists = 4;
+  optional .IHeart.Error error = 7;
+}

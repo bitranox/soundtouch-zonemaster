@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message EnterCodeResponse {
+  optional bool success = 2;
+  optional .IHeart.Error firstError = 3;
+  repeated .IHeart.Error errors = 4;
+}

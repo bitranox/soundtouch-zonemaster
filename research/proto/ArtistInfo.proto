@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "DeezerError.proto";
+
+message ArtistInfo {
+  optional int64 id = 1;
+  optional string name = 2;
+  optional string link = 3;
+  optional string picture = 4;
+  optional bool radio = 7;
+  optional .Deezer.error error = 9;
+}

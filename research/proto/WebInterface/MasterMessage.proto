@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "SoundTouchInterface/Status.proto";
+import "SoundTouchInterface/Presets.proto";
+
+message masterMessage {
+  required string action = 1;
+  optional .SoundTouchInterface.Error err = 2;
+  optional .SoundTouchInterface.preset selection = 3;
+  optional int32 skipEvent = 4;
+}

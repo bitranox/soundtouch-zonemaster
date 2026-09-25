@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "Common.proto";
+
+message results {
+  message SearchResult {
+    optional string deviceID = 1;
+    required string source = 2;
+    required string sourceAccount = 3;
+    required string token = 4;
+    optional bool genre = 5;
+    required .Common.String name = 6;
+    optional .Common.String artist = 7;
+    optional .Common.String logo = 8;
+  }
+  message Artists {
+    repeated .WebInterface.results.SearchResult searchResult = 4;
+  }
+  message Songs {
+    repeated .WebInterface.results.SearchResult searchResult = 4;
+  }
+  required string deviceID = 1;
+  required string source = 2;
+  required string sourceAccount = 3;
+  repeated .WebInterface.results.SearchResult searchResult = 4;
+  optional .WebInterface.results.Songs songs = 5;
+  optional .WebInterface.results.Artists artists = 6;
+}

@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Streams {
+  optional string secure_rtmp_stream = 1;
+  optional string shoutcast_stream = 2;
+  optional string stw_stream = 3;
+  optional string pls_stream = 4;
+  optional string flv_stream = 5;
+  optional string hls_stream = 6;
+  optional string secure_hls_stream = 7;
+}

@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package STS;
+
+message RemoveAccountRequest {
+  optional string user = 1;
+}

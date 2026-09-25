@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "DeezerError.proto";
+
+message LoginResponse {
+  optional string access_token = 3;
+  optional .Deezer.error error = 6;
+}

@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "MargeRecent.proto";
+
+message recents {
+  repeated .MargePB.recent recent = 1;
+}

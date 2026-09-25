@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message providerSettings {
+  message ProviderSetting {
+    optional .Common.String boseId = 1;
+    required .Common.String keyName = 2;
+    required .Common.String value = 3;
+    required .Common.UInt32 providerId = 4;
+  }
+  repeated .MargePB.providerSettings.ProviderSetting providerSetting = 1;
+}

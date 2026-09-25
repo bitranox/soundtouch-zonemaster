@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package STS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message SeekToTime {
+  required uint32 startSecond = 1;
+}

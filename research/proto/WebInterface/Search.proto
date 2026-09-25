@@ -1,0 +1,54 @@
+syntax = "proto2";
+
+package WebInterface.Search;
+
+import "WebInterface/Item.proto";
+import "WebInterface/SearchSortOrder.proto";
+import "Common.proto";
+
+enum FilterType {
+  namestation = 0;
+  location = 1;
+  genre = 2;
+  language = 3;
+  artist = 4;
+  autocomplete = 5;
+  album = 6;
+  track = 7;
+  library = 8;
+}
+
+message search {
+  message SearchTerm {
+    optional string text = 1;
+    optional .WebInterface.Search.FilterType filter = 2;
+  }
+  optional string source = 1;
+  optional string sourceAccount = 2;
+  optional .Common.Int32One startItem = 3;
+  optional .Common.Int32 numItems = 4;
+  optional .WebInterface.Search.search.SearchTerm searchTerm = 5;
+  optional .WebInterface.Search.SortOrder.Enum sortOrder = 6;
+  optional .WebInterface.Item item = 7;
+}
+
+message searchResponse {
+  message Items {
+    repeated .WebInterface.Item item = 1;
+  }
+  message Section {
+    optional .Common.String title = 1;
+    optional .WebInterface.ItemType type = 2;
+    optional .WebInterface.Search.searchResponse.Items items = 4;
+  }
+  message Sections {
+    repeated .WebInterface.Search.searchResponse.Section section = 1;
+  }
+  required string source = 1;
+  optional string sourceAccount = 2;
+  required .Common.Int32 totalItems = 3;
+  optional .WebInterface.Search.searchResponse.Items items = 4;
+  optional .WebInterface.Search.FilterType filter = 5;
+  optional .WebInterface.Search.searchResponse.Sections sections = 7;
+  optional .WebInterface.Search.SortOrder.Enum sortOrder = 8;
+}

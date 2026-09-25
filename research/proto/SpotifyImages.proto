@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package STS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message ImageInfo {
+  optional uint32 height = 1;
+  optional string url = 2;
+  optional uint32 width = 3;
+}
+
+message SpotifyImages {
+  repeated .STS.ImageInfo images = 1;
+}

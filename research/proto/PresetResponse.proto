@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message presetResponse {
+  message Messages {
+    optional uint32 code = 1;
+    optional string message = 2;
+  }
+  repeated .Sxm.presetResponse.Messages messages = 1;
+  optional uint32 status = 2;
+  optional string presets = 3;
+}

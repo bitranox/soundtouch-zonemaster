@@ -1,0 +1,6 @@
+syntax = "proto2";
+
+message TxtRecord {
+  optional string name = 1;
+  optional string value = 2;
+}

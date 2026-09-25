@@ -1,0 +1,43 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum MsgType {
+  REQUEST = 1;
+  RESPONSE = 2;
+}
+
+enum HTTPMethod {
+  GET = 1;
+  POST = 2;
+  PUT = 3;
+  DELETE = 4;
+}
+
+message msg {
+  message Header {
+    message Request {
+      message Info {
+        optional string mainNode = 1;
+        optional string type = 2;
+      }
+      message SourceItem {
+        required string source = 1;
+        optional string sourceAccount = 2;
+      }
+      required int32 requestID = 1;
+      optional .SoundTouchInterface.msg.Header.Request.Info info = 2;
+      optional .SoundTouchInterface.msg.Header.Request.SourceItem sourceItem = 3;
+      optional .SoundTouchInterface.MsgType msgType = 4;
+    }
+    required string deviceID = 1;
+    required string url = 2;
+    optional .SoundTouchInterface.HTTPMethod method = 3;
+    optional .SoundTouchInterface.msg.Header.Request request = 4;
+    optional bool propagate = 5;
+  }
+  optional .SoundTouchInterface.msg.Header header = 1;
+  optional string body = 2;
+}

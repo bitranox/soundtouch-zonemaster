@@ -1,0 +1,60 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message ListenHistory {
+  message Feeds {
+    optional string site_id = 1;
+    optional string fee = 2;
+  }
+  message RecordLabel {
+    optional string recordLabel = 1;
+    optional string recordLabelId = 2;
+    optional string recordProvider = 3;
+    optional string recordSublabel = 4;
+  }
+  message Content {
+    optional string album = 1;
+    optional string description = 10;
+    optional string id = 16;
+    optional string imagePath = 17;
+    optional string logo = 18;
+    optional string name = 20;
+    optional string responseType = 24;
+    repeated string roviImages = 25;
+    optional string title = 30;
+  }
+  message Hit {
+    repeated .IHeart.ListenHistory.Content content = 2;
+    optional bool favorite = 3;
+    optional string id = 4;
+    optional int64 lastModifiedDate = 5;
+    optional int64 lastPlayedDate = 6;
+    optional string name = 7;
+    optional int32 seedArtistId = 10;
+    optional string seedShowId = 11;
+    optional string stationType = 13;
+    optional string variety = 16;
+    optional string imagePath = 17;
+    optional string description = 18;
+  }
+  enum StationType {
+    UNKNOWN = 1;
+    ARTIST = 2;
+    LIVE = 3;
+    TALKSHOW = 4;
+    TALKTHEME = 5;
+    TRACK = 6;
+    FEATUREDSTATION = 7;
+    FAVORITES = 8;
+  }
+  optional int32 duration = 1;
+  optional int32 total = 2;
+  repeated .IHeart.ListenHistory.Hit hits = 3;
+  repeated .IHeart.Error errors = 4;
+  optional .IHeart.Error firstError = 5;
+  optional .IHeart.Error error = 6;
+}

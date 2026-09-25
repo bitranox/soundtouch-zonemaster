@@ -1,0 +1,989 @@
+{
+  "meta": {
+    "corpus": "dialler",
+    "note": "Dialler scripts: what each call returned and the lines it logged.",
+    "source": "soundtouch-zonemaster before the template rebuild",
+    "source_head": "887934c7c05d80ea48180c72986584271873cf4c",
+    "python": "3.14.5",
+    "versions": {
+      "pydantic": "2.13.5",
+      "pydantic_core": "2.46.5",
+      "httpx": "0.28.1",
+      "lib_layered_config": "5.6.2",
+      "lib_cli_exit_tools": "2.3.4",
+      "rich-click": "1.9.9",
+      "protobuf": "7.36.1",
+      "websockets": "17.1"
+    },
+    "placeholders": {
+      "<WORK>": "a scratch directory that exists; substitute your own",
+      "<PACKAGE>": "the installed package directory",
+      "<ARCHIVE>": "the pre-template checkout",
+      "<HOST_MAC>": "default_device_id() on the generating host",
+      "<PORT>": "the loopback port the registry double bound",
+      "<INPUT_FRAME>": "the frame field equals the input frame",
+      "<ARRIVAL_TIME>": "time.time() at arrival"
+    }
+  },
+  "cases": [
+    {
+      "name": "a two-digit number completes one window after its last digit",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "digit",
+            "A",
+            "1",
+            0.0
+          ],
+          [
+            "deadline"
+          ],
+          [
+            "digit",
+            "A",
+            "2",
+            0.3
+          ],
+          [
+            "deadline"
+          ],
+          [
+            "due",
+            1.0
+          ],
+          [
+            "due",
+            1.1
+          ],
+          [
+            "due",
+            1.2
+          ],
+          [
+            "deadline"
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "digit",
+              "A",
+              "1",
+              0.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": 0.8,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "2",
+              0.3
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": 1.1,
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              1.0
+            ],
+            "returned": [],
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              1.1
+            ],
+            "returned": [
+              [
+                "A",
+                "12"
+              ]
+            ],
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              1.2
+            ],
+            "returned": [],
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": null,
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "digits no preset key can press are ignored and said so",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "digit",
+            "A",
+            "7",
+            0.0
+          ],
+          [
+            "digit",
+            "A",
+            "0",
+            0.1
+          ],
+          [
+            "digit",
+            "A",
+            "",
+            0.2
+          ],
+          [
+            "digit",
+            "A",
+            "a",
+            0.3
+          ],
+          [
+            "deadline"
+          ],
+          [
+            "digit",
+            "A",
+            "12",
+            0.4
+          ],
+          [
+            "digit",
+            "A",
+            "1",
+            0.5
+          ],
+          [
+            "due",
+            2.0
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "digit",
+              "A",
+              "7",
+              0.0
+            ],
+            "returned": null,
+            "logs": [
+              [
+                "dial",
+                "A: ignoring '7', which no preset key can press"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "0",
+              0.1
+            ],
+            "returned": null,
+            "logs": [
+              [
+                "dial",
+                "A: ignoring '0', which no preset key can press"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "",
+              0.2
+            ],
+            "returned": null,
+            "logs": [
+              [
+                "dial",
+                "A: ignoring '', which no preset key can press"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "a",
+              0.3
+            ],
+            "returned": null,
+            "logs": [
+              [
+                "dial",
+                "A: ignoring 'a', which no preset key can press"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "12",
+              0.4
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "1",
+              0.5
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              2.0
+            ],
+            "returned": [
+              [
+                "A",
+                "121"
+              ]
+            ],
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a repeated digit is part of the number",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "digit",
+            "A",
+            "1",
+            0.0
+          ],
+          [
+            "digit",
+            "A",
+            "1",
+            0.1
+          ],
+          [
+            "digit",
+            "A",
+            "2",
+            0.2
+          ],
+          [
+            "digit",
+            "A",
+            "2",
+            0.3
+          ],
+          [
+            "digit",
+            "A",
+            "1",
+            0.4
+          ],
+          [
+            "due",
+            1.2
+          ],
+          [
+            "due",
+            1.3
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "digit",
+              "A",
+              "1",
+              0.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "1",
+              0.1
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "2",
+              0.2
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "2",
+              0.3
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "1",
+              0.4
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              1.2
+            ],
+            "returned": [],
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              1.3
+            ],
+            "returned": [
+              [
+                "A",
+                "11221"
+              ]
+            ],
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "speakers completing in one pass report in device order",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "digit",
+            "B",
+            "3",
+            0.0
+          ],
+          [
+            "digit",
+            "A",
+            "4",
+            0.1
+          ],
+          [
+            "digit",
+            "C",
+            "5",
+            5.0
+          ],
+          [
+            "due",
+            1.0
+          ],
+          [
+            "due",
+            6.0
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "digit",
+              "B",
+              "3",
+              0.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "A",
+              "4",
+              0.1
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "digit",
+              "C",
+              "5",
+              5.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              1.0
+            ],
+            "returned": [
+              [
+                "A",
+                "4"
+              ],
+              [
+                "B",
+                "3"
+              ]
+            ],
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              6.0
+            ],
+            "returned": [
+              [
+                "C",
+                "5"
+              ]
+            ],
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "steps collect into one jump",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "step",
+            "A",
+            1,
+            0.0
+          ],
+          [
+            "step",
+            "A",
+            1,
+            0.2
+          ],
+          [
+            "step",
+            "A",
+            -1,
+            0.3
+          ],
+          [
+            "deadline"
+          ],
+          [
+            "steps_due",
+            1.0
+          ],
+          [
+            "steps_due",
+            1.2
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "step",
+              "A",
+              1,
+              0.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "step",
+              "A",
+              1,
+              0.2
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "step",
+              "A",
+              -1,
+              0.3
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": 1.1,
+            "logs": []
+          },
+          {
+            "op": [
+              "steps_due",
+              1.0
+            ],
+            "returned": [],
+            "logs": []
+          },
+          {
+            "op": [
+              "steps_due",
+              1.2
+            ],
+            "returned": [
+              [
+                "A",
+                1
+              ]
+            ],
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a jump of zero is dropped",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "step",
+            "A",
+            1,
+            0.0
+          ],
+          [
+            "step",
+            "A",
+            -1,
+            0.1
+          ],
+          [
+            "steps_due",
+            5.0
+          ],
+          [
+            "deadline"
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "step",
+              "A",
+              1,
+              0.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "step",
+              "A",
+              -1,
+              0.1
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "steps_due",
+              5.0
+            ],
+            "returned": [],
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": null,
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "forgetting steps keeps the digits",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "digit",
+            "A",
+            "2",
+            0.0
+          ],
+          [
+            "step",
+            "A",
+            1,
+            0.0
+          ],
+          [
+            "forget_steps",
+            "A"
+          ],
+          [
+            "forget_steps",
+            "B"
+          ],
+          [
+            "deadline"
+          ],
+          [
+            "steps_due",
+            5.0
+          ],
+          [
+            "due",
+            5.0
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "digit",
+              "A",
+              "2",
+              0.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "step",
+              "A",
+              1,
+              0.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "forget_steps",
+              "A"
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "forget_steps",
+              "B"
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": 0.8,
+            "logs": []
+          },
+          {
+            "op": [
+              "steps_due",
+              5.0
+            ],
+            "returned": [],
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              5.0
+            ],
+            "returned": [
+              [
+                "A",
+                "2"
+              ]
+            ],
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "the deadline is the earliest of digits and steps",
+      "input": {
+        "window_s": 0.5,
+        "ops": [
+          [
+            "digit",
+            "A",
+            "1",
+            1.0
+          ],
+          [
+            "step",
+            "B",
+            -1,
+            0.2
+          ],
+          [
+            "deadline"
+          ],
+          [
+            "steps_due",
+            0.7
+          ],
+          [
+            "deadline"
+          ],
+          [
+            "due",
+            1.5
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "digit",
+              "A",
+              "1",
+              1.0
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "step",
+              "B",
+              -1,
+              0.2
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": 0.7,
+            "logs": []
+          },
+          {
+            "op": [
+              "steps_due",
+              0.7
+            ],
+            "returned": [
+              [
+                "B",
+                -1
+              ]
+            ],
+            "logs": []
+          },
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": 1.5,
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              1.5
+            ],
+            "returned": [
+              [
+                "A",
+                "1"
+              ]
+            ],
+            "logs": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "a device id that needs quoting",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "digit",
+            "B\u00fcro 'x'",
+            "9",
+            0.0
+          ],
+          [
+            "digit",
+            "B\u00fcro 'x'",
+            "'",
+            0.1
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "digit",
+              "B\u00fcro 'x'",
+              "9",
+              0.0
+            ],
+            "returned": null,
+            "logs": [
+              [
+                "dial",
+                "B\u00fcro 'x': ignoring '9', which no preset key can press"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "digit",
+              "B\u00fcro 'x'",
+              "'",
+              0.1
+            ],
+            "returned": null,
+            "logs": [
+              [
+                "dial",
+                "B\u00fcro 'x': ignoring \"'\", which no preset key can press"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "nothing pending",
+      "input": {
+        "window_s": 0.8,
+        "ops": [
+          [
+            "deadline"
+          ],
+          [
+            "due",
+            0.0
+          ],
+          [
+            "steps_due",
+            0.0
+          ]
+        ]
+      },
+      "expect": {
+        "trace": [
+          {
+            "op": [
+              "deadline"
+            ],
+            "returned": null,
+            "logs": []
+          },
+          {
+            "op": [
+              "due",
+              0.0
+            ],
+            "returned": [],
+            "logs": []
+          },
+          {
+            "op": [
+              "steps_due",
+              0.0
+            ],
+            "returned": [],
+            "logs": []
+          }
+        ]
+      }
+    }
+  ]
+}

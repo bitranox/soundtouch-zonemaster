@@ -1,0 +1,67 @@
+syntax = "proto2";
+
+package STS;
+
+enum SettingStatus {
+  SUCCESS = 0;
+  NOT_FOUND = 1;
+  SERVER_NOT_AVAILABLE = 2;
+}
+
+message AccountSetting {
+  required string name = 1;
+  optional string value = 2;
+}
+
+message AccountSettings {
+  repeated .STS.AccountSetting accountSetting = 1;
+}
+
+message AccountSettingsRequestContext {
+  optional int32 seq = 1;
+}
+
+message AccountSettingsRequest {
+  optional .STS.AccountSettingsRequestContext requestContext = 1;
+  optional .STS.AccountSetting accountSetting = 2;
+}
+
+message AccountSettingsResponse {
+  enum RequestType {
+    GET = 0;
+    SET = 1;
+  }
+  optional .STS.AccountSettingsResponse.RequestType requestType = 1;
+  optional .STS.AccountSettingsRequestContext requestContext = 2;
+  optional .STS.SettingStatus status = 3;
+  optional .STS.AccountSettings accountSettings = 4;
+}
+
+message ServiceSetting {
+  required string name = 1;
+  optional string value = 2;
+}
+
+message ServiceSettings {
+  repeated .STS.ServiceSetting serviceSetting = 1;
+}
+
+message ServiceSettingsRequestContext {
+  optional int32 seq = 1;
+}
+
+message ServiceSettingsRequest {
+  optional .STS.ServiceSettingsRequestContext requestContext = 1;
+  optional .STS.ServiceSetting accountSetting = 2;
+}
+
+message ServiceSettingsResponse {
+  enum RequestType {
+    GET = 0;
+    SET = 1;
+  }
+  optional .STS.ServiceSettingsResponse.RequestType requestType = 1;
+  optional .STS.ServiceSettingsRequestContext requestContext = 2;
+  optional .STS.SettingStatus status = 3;
+  optional .STS.ServiceSettings serviceSettings = 4;
+}

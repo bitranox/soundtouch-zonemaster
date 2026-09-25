@@ -1,0 +1,124 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Status.proto";
+import "SoundTouchInterface/initializationcompleteaction.proto";
+import "SoundTouchInterface/ContentItem.proto";
+
+enum CriticalErrorType {
+  ERROR_NONE = 0;
+  ERROR_BATTERY_EXTREME_TEMP = 1;
+  ERROR_BATTERY_PRECHARGE = 2;
+  ERROR_AMP_FAULT = 3;
+  ERROR_FACTORY_RESET = 4;
+  ERROR_PRODUCT_UPDATE_REQUIRED = 5;
+}
+
+enum DisplayLanguage {
+  DISPLAY_LANGUAGE_UNINITIALIZED = 0;
+  DISPLAY_LANGUAGE_DANISH = 1;
+  DISPLAY_LANGUAGE_GERMAN = 2;
+  DISPLAY_LANGUAGE_ENGLISH = 3;
+  DISPLAY_LANGUAGE_SPANISH = 4;
+  DISPLAY_LANGUAGE_FRENCH = 5;
+  DISPLAY_LANGUAGE_ITALIAN = 6;
+  DISPLAY_LANGUAGE_DUTCH = 7;
+  DISPLAY_LANGUAGE_SWEDISH = 8;
+  DISPLAY_LANGUAGE_JAPANESE = 9;
+  DISPLAY_LANGUAGE_SIMPLIFIED_CHINESE = 10;
+  DISPLAY_LANGUAGE_TRADITIONAL_CHINESE = 11;
+  DISPLAY_LANGUAGE_KOREAN = 12;
+  DISPLAY_LANGUAGE_THAI = 13;
+  DISPLAY_LANGUAGE_ARABIC = 14;
+  DISPLAY_LANGUAGE_CZECH = 15;
+  DISPLAY_LANGUAGE_FINNISH = 16;
+  DISPLAY_LANGUAGE_GREEK = 17;
+  DISPLAY_LANGUAGE_NORWEGIAN = 18;
+  DISPLAY_LANGUAGE_POLISH = 19;
+  DISPLAY_LANGUAGE_PORTUGUESE = 20;
+  DISPLAY_LANGUAGE_ROMANIAN = 21;
+  DISPLAY_LANGUAGE_RUSSIAN = 22;
+  DISPLAY_LANGUAGE_SLOVENIAN = 23;
+  DISPLAY_LANGUAGE_TURKISH = 24;
+  DISPLAY_LANGUAGE_HUNGARIAN = 25;
+  DISPLAY_LANGUAGE_LAST = 26;
+}
+
+enum SoundTouchConfigurationState {
+  SOUNDTOUCH_CONFIGURED = 0;
+  SOUNDTOUCH_NOT_CONFIGURED = 1;
+  SOUNDTOUCH_CONFIGURING = 2;
+}
+
+message CriticalError {
+  optional .SoundTouchInterface.CriticalErrorType type = 1;
+  optional string desc = 2;
+}
+
+message criticalErrorUpdate {
+  required string deviceID = 1;
+  optional .SoundTouchInterface.CriticalError criticalError = 2;
+}
+
+message sysLanguage {
+  optional int32 text = 1;
+}
+
+message name {
+  optional string text = 1;
+}
+
+message reboot {
+}
+
+message SoundTouchConfigurationStatus {
+  optional .SoundTouchInterface.SoundTouchConfigurationState status = 1;
+}
+
+message SerialNumber {
+  optional string serialNumber = 1;
+}
+
+message SoftwareVersion {
+  optional string softwareVersion = 1;
+}
+
+message ComponentSoftwareVersion {
+  optional int32 ComponentType = 1;
+  optional string ComponentVersion = 2;
+}
+
+message initializationCompleteRequest {
+  optional bool update = 1;
+}
+
+message initializationCompleteResponse {
+  optional .SoundTouchInterface.sourceAction action = 1;
+  optional .SoundTouchInterface.ContentItem contentItem = 2;
+}
+
+message toggleStandbyRequest {
+}
+
+message toggleStandbyResponse {
+  optional bool status = 1;
+}
+
+message LowPowerStandbyUpdate {
+  required string deviceID = 1;
+}
+
+message BluetoothInfo {
+  optional string BluetoothMACAddress = 1;
+  optional int32 NumberOfPairedDevices = 2;
+}
+
+message systemtimeout {
+  message enablePowerSaving {
+    optional bool text = 1 [default = true];
+  }
+  optional string deviceID = 1;
+  optional .SoundTouchInterface.systemtimeout.enablePowerSaving powersaving_enabled = 2;
+}

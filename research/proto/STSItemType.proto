@@ -1,0 +1,37 @@
+syntax = "proto2";
+
+package STS.ItemType;
+
+enum Enum {
+  dir = 0;
+  previous = 1;
+  station = 2;
+  track = 3;
+  locale = 4;
+  display = 5;
+  playall = 6;
+  album = 7;
+  artist = 8;
+  playlist = 9;
+  user = 10;
+  genre = 11;
+  topAlbum = 12;
+  topArtist = 13;
+  topTrack = 14;
+  chart = 15;
+  recommendation = 16;
+  artistHeader = 17;
+  artistStation = 18;
+  radio = 19;
+  artistRadio = 20;
+  themedRadio = 21;
+  tracklistRadio = 23;
+  activity = 24;
+  tracklist = 25;
+  podcast = 26;
+  episode = 27;
+  composer = 28;
+  allTracks = 29;
+  tracklisturl = 30;
+  stationurl = 31;
+}

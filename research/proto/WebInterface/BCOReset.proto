@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package WebInterface;
+
+enum BCOResetState {
+  DISABLED = 0;
+  ENABLED = 1;
+}
+
+message bcoResetState {
+  optional .WebInterface.BCOResetState state = 1;
+}

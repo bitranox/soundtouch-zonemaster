@@ -1,0 +1,74 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "SoundTouchInterface/ContentItem.proto";
+import "Common.proto";
+
+enum ItemType {
+  dir = 0;
+  previous = 1;
+  station = 2;
+  track = 3;
+  locale = 4;
+  display = 5;
+  playall = 6;
+  album = 7;
+  artist = 8;
+  playlist = 9;
+  user = 10;
+  genre = 11;
+  topAlbum = 12;
+  topArtist = 13;
+  topTrack = 14;
+  chart = 15;
+  recommendation = 16;
+  artistHeader = 17;
+  artistStation = 18;
+  radio = 19;
+  artistRadio = 20;
+  themedRadio = 21;
+}
+
+enum AvailabilityEnum {
+  OK = 0;
+  USER_RESTRICTION = 1;
+  GEO_RESTRICTION = 2;
+  LICENSE_RESTRICTION = 3;
+}
+
+message Item {
+  message Type {
+    required .WebInterface.ItemType text = 1;
+  }
+  message MediaItemContainer {
+    required .SoundTouchInterface.ContentItem ContentItem = 1;
+    optional uint32 offset = 2;
+  }
+  message Availability {
+    required .WebInterface.AvailabilityEnum text = 1;
+  }
+  required .Common.String name = 1;
+  required .WebInterface.Item.Type type = 2;
+  optional .Common.String url = 3;
+  optional .Common.String backupurl = 4;
+  optional .Common.String format = 5;
+  optional .Common.String description = 6;
+  optional .Common.String location = 7;
+  optional .Common.String mime = 8;
+  optional .Common.String bitrate = 9;
+  optional .Common.String logo = 10;
+  optional .Common.String reliability = 11;
+  optional .Common.String token = 12;
+  optional .WebInterface.Item.MediaItemContainer mediaItemContainer = 13;
+  optional .SoundTouchInterface.ContentItem ContentItem = 14;
+  optional .Common.UInt64 utcTime = 15;
+  optional .Common.String proto = 16;
+  optional int32 Playable = 17;
+  optional .WebInterface.Item.Type containerType = 18;
+  optional .Common.String containerToken = 19;
+  optional .Common.String containerName = 20;
+  optional .Common.String artistName = 21;
+  optional .Common.String albumName = 22;
+  optional .WebInterface.Item.Availability availability = 23;
+}

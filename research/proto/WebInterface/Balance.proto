@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "Common.proto";
+
+message BalanceMin {
+  optional int32 text = 1 [default = -7];
+}
+
+message BalanceMax {
+  optional int32 text = 1 [default = 7];
+}
+
+message balance {
+  optional string deviceID = 1;
+  optional .Common.Bool balanceAvailable = 2;
+  optional .WebInterface.BalanceMin balanceMin = 3;
+  optional .WebInterface.BalanceMax balanceMax = 4;
+  optional .Common.Int32Zero balanceDefault = 5;
+  optional .Common.Int32 targetBalance = 6;
+  optional .Common.Int32 actualBalance = 7;
+}

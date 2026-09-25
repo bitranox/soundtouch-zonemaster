@@ -1,0 +1,25 @@
+# Default configuration for the research scripts. It carries no settings itself: they live one
+# scope per file in defaultconfig.d/, which loads after this one in lexicographic order.
+#
+#   10-capture.toml   capture_zone.py: which speakers a run never touches, the speakers' ssh user
+#   20-golden.toml    golden_check.py: which recorded capture it replays
+#   30-mpd-ab.toml    mpd_seek_ab.py:  where the live MPD keeps its configuration and database
+#
+# The values in those files are safe anywhere: no speaker is refused and no capture is named. A
+# house puts its own values in a gitignored file beside them, named 9N-<scope>-rnhome.toml, which
+# sorts after every tracked file and so wins; each scope ships a 9N-<scope>-rnhome.toml.example
+# showing the shape. Only *.toml is read, so an .example file is never taken as a setting.
+#
+# This is the LOWEST of six layers, read under the slug soundtouch-zonemaster-research so that it
+# never meets the service's own files:
+#   defaults -> app -> host -> user -> dotenv -> env
+#
+#   app     /etc/xdg/soundtouch-zonemaster-research/config.toml   (plus config.d/*)
+#   host    /etc/xdg/soundtouch-zonemaster-research/hosts/<hostname>.toml
+#   user    ~/.config/soundtouch-zonemaster-research/config.toml
+#   dotenv  a .env found by walking up from the working directory
+#   env     prefix SOUNDTOUCH_ZONEMASTER_RESEARCH___, key path joined by double underscores:
+#           golden.capture is SOUNDTOUCH_ZONEMASTER_RESEARCH___GOLDEN__CAPTURE
+#
+# A script copied to another host without this tree beside it still runs, on the same safe
+# values: research/_settings.py holds each one as its fallback, and a test keeps the two equal.

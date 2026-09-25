@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message account_profile {
+  optional string id = 1;
+  optional .Common.String accountId = 2;
+  optional .Common.String streamingURL = 3;
+  optional .Common.String updateURL = 4;
+  optional .Common.String environmentName = 5;
+  optional bool isEfeSwitch = 6 [default = true];
+  optional .Common.String accounttoken = 7;
+  optional .Common.String currentmargeurl = 8;
+  optional .Common.String currentupdateurl = 9;
+}

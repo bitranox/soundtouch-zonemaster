@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "MargePreset.proto";
+
+message presets {
+  repeated .MargePB.preset preset = 1;
+}

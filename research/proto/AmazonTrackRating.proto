@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package Amazon;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AmazonTrackRatingRequest {
+  optional string thumbRating = 1;
+  optional uint64 trackPosition = 2;
+  optional string wallClockTime = 3;
+}
+
+message AmazonTrackRatingResponse {
+  optional bool shouldSkip = 1 [default = false];
+  optional string message = 2;
+}

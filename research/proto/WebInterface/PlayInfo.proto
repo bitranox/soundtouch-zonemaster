@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message play_info {
+  optional .Common.String url = 1;
+  optional .Common.String service = 2;
+  optional .Common.String reason = 3;
+  optional .Common.String message = 4;
+  optional .Common.UInt32 volume = 5;
+  optional .Common.String app_key = 6;
+}

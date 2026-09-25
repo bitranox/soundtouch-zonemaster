@@ -1,0 +1,62 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Setup.proto";
+import "SoundTouchInterface/GetActiveWirelessProfile.proto";
+import "SoundTouchInterface/Status.proto";
+
+enum NetworkState {
+  NETWORK_UNKNOWN = 0;
+  NETWORK_WIFI_CONNECTED = 1;
+  NETWORK_WIFI_CONNECTING = 2;
+  NETWORK_WIFI_DISCONNECTED = 3;
+  NETWORK_ENTERED_AP_MODE = 4;
+  NETWORK_EXITED_AP_MODE = 5;
+  NETWORK_WIFI_RADIO_OFF = 6;
+  NETWORK_ETHERNET_CONNECTED = 7;
+  NETWORK_ETHERNET_DISCONNECTED = 8;
+}
+
+enum InterfaceType {
+  NO_INTERFACE = 0;
+  WIFI_INTERFACE = 1;
+  ETHERNET_INTERFACE = 2;
+}
+
+enum InterfaceMode {
+  STATION = 0;
+  ACCESS_POINT = 1;
+}
+
+enum Signal {
+  INVALID_SIGNAL = 0;
+  POOR_SIGNAL = 1;
+  MARGINAL_SIGNAL = 2;
+  GOOD_SIGNAL = 3;
+  EXCELLENT_SIGNAL = 4;
+}
+
+message networkInfo {
+  message Interface {
+    optional .SoundTouchInterface.InterfaceType type = 1;
+    optional string name = 2;
+    optional string macAddress = 3;
+    optional string ipAddress = 4;
+    optional string ssid = 5;
+    optional int32 frequencyKHz = 6;
+    optional .SoundTouchInterface.NetworkState state = 7;
+    optional .SoundTouchInterface.Signal signal = 8;
+    optional .SoundTouchInterface.InterfaceMode mode = 9;
+  }
+  message Interfaces {
+    repeated .SoundTouchInterface.networkInfo.Interface interface = 1;
+  }
+  optional int32 wifiProfileCount = 1;
+  optional .SoundTouchInterface.networkInfo.Interfaces interfaces = 2;
+}
+
+message SetWiFiRadio {
+  optional bool on = 1;
+}

@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message live_stream_config {
+  message pbd_mountpoints {
+    message pbd_mountpoint {
+      message pbd_servers {
+        message pbd_server {
+          message pbd_ports {
+            message pbd_port {
+              optional string type = 1;
+              optional string text = 2;
+            }
+            repeated .live_stream_config.pbd_mountpoints.pbd_mountpoint.pbd_servers.pbd_server.pbd_ports.pbd_port port = 1;
+          }
+          optional string sid = 1;
+          repeated .Common.String ip = 2;
+          repeated .live_stream_config.pbd_mountpoints.pbd_mountpoint.pbd_servers.pbd_server.pbd_ports ports = 3;
+        }
+        repeated .live_stream_config.pbd_mountpoints.pbd_mountpoint.pbd_servers.pbd_server server = 1;
+      }
+      repeated .live_stream_config.pbd_mountpoints.pbd_mountpoint.pbd_servers servers = 1;
+      optional .Common.String mount = 2;
+    }
+    repeated .live_stream_config.pbd_mountpoints.pbd_mountpoint mountpoint = 1;
+  }
+  required .live_stream_config.pbd_mountpoints mountpoints = 1;
+}

@@ -1,0 +1,153 @@
+syntax = "proto2";
+
+package ExternalMediaPlayer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "TPDAHeader.proto";
+import "TPDAPlaybackStateReporter.proto";
+
+message ExternalMediaPlayerHeader {
+  required string namespace = 1 [default = "ExternalMediaPlayer"];
+  required string name = 2;
+  optional string messageId = 3;
+  optional string correlationToken = 4;
+}
+
+message ExternalMediaPlayerPlayPayload {
+  optional string playbackContextToken = 1;
+  optional int64 index = 2;
+  optional int64 offset = 3;
+  optional string playerId = 4;
+  optional string correlationToken = 5;
+}
+
+message DirectiveFields {
+  required .ExternalMediaPlayer.ExternalMediaPlayerHeader header = 1;
+  optional .ExternalMediaPlayer.ExternalMediaPlayerPlayPayload payload = 2;
+}
+
+message ExternalMediaPlayerPlayDirective {
+  required .ExternalMediaPlayer.DirectiveFields directive = 1;
+}
+
+message ExternalMediaPlayerLoginPayload {
+  optional string accessToken = 1;
+  optional string username = 2;
+  optional int64 tokenRefreshIntervalInMilliseconds = 3;
+  optional bool forceLogin = 4;
+  optional string playerId = 5;
+}
+
+message ExternalMediaPlayer_LoginDirectiveFields {
+  required .ExternalMediaPlayer.ExternalMediaPlayerHeader header = 1;
+  required .ExternalMediaPlayer.ExternalMediaPlayerLoginPayload payload = 2;
+}
+
+message ExternalMediaPlayerLoginDirective {
+  required .ExternalMediaPlayer.ExternalMediaPlayer_LoginDirectiveFields directive = 1;
+}
+
+message ExternalMediaPlayerInfo {
+  optional string playerId = 1;
+  optional string endpointId = 2;
+  optional bool loggedIn = 3;
+  optional string username = 4;
+  optional bool isGuest = 5;
+  optional bool launched = 6;
+  optional bool active = 7;
+}
+
+message ExternalMediaPlayerState {
+  optional string playerInFocus = 1;
+  repeated .ExternalMediaPlayer.ExternalMediaPlayerInfo players = 2;
+}
+
+message ExternalMediaPlayer_Context1 {
+  optional .ExternalMediaPlayer.ExternalMediaPlayerHeader header = 1;
+  optional .ExternalMediaPlayer.ExternalMediaPlayerState payload = 2;
+}
+
+message ExternalMediaPlayer_Context2 {
+  optional .TPDA.Header header = 1;
+  optional .TPDA.Value payload = 2;
+}
+
+message ExternalMediaPlayer_EventContext {
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_Context1 context1 = 1;
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_Context2 context2 = 2;
+}
+
+message ExternalMediaPlayer_PlayerEventPayload {
+  optional string eventName = 1;
+  optional string playerId = 2;
+}
+
+message ExternalMediaPlayer_PlayerEventFormat {
+  required .ExternalMediaPlayer.ExternalMediaPlayerHeader header = 1;
+  required .ExternalMediaPlayer.ExternalMediaPlayer_PlayerEventPayload payload = 2;
+}
+
+message ExternalMediaPlayer_PlayerEvent {
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_EventContext context = 1;
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_PlayerEventFormat event = 2;
+}
+
+message ExternalMediaPlayer_PlayerErrorEventPayload {
+  optional string errorName = 1;
+  optional int64 code = 2;
+  optional string description = 3;
+  optional bool fatal = 4;
+  optional string playerId = 5;
+}
+
+message ExternalMediaPlayer_PlayerErrorEventFormat {
+  required .ExternalMediaPlayer.ExternalMediaPlayerHeader header = 1;
+  required .ExternalMediaPlayer.ExternalMediaPlayer_PlayerErrorEventPayload payload = 2;
+}
+
+message ExternalMediaPlayer_PlayerErrorEvent {
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_EventContext context = 1;
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_PlayerErrorEventFormat event = 2;
+}
+
+message ExternalMediaPlayer_CommonEvent_Payload {
+  optional string playerId = 1;
+}
+
+message ExternalMediaPlayer_CommonEvent_Format {
+  required .ExternalMediaPlayer.ExternalMediaPlayerHeader header = 1;
+  required .ExternalMediaPlayer.ExternalMediaPlayer_CommonEvent_Payload payload = 2;
+}
+
+message ExternalMediaPlayer_CommonEvent {
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_EventContext context = 1;
+  optional .ExternalMediaPlayer.ExternalMediaPlayer_CommonEvent_Format event = 2;
+}
+
+message ExternalMediaPlayerChangeReportEventPayloadCause {
+  required string type = 1 [default = "APP_INTERACTION"];
+}
+
+message SeekControllerHeader {
+  required string namespace = 1 [default = "Alexa.SeekController"];
+  required string name = 2;
+  optional string messageId = 3;
+}
+
+message SeekControllerPayload {
+  optional int64 deltaPositionMilliseconds = 1;
+  optional int64 positionMilliseconds = 2;
+  optional string playerId = 3;
+}
+
+message SeekPositionDirectiveFields {
+  optional .ExternalMediaPlayer.SeekControllerHeader header = 1;
+  optional .ExternalMediaPlayer.SeekControllerPayload payload = 2;
+}
+
+message SeekPositionDirective {
+  optional .ExternalMediaPlayer.SeekPositionDirectiveFields directive = 1;
+}
+
+message Void {
+}

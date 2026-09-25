@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package Spotify;
+
+import "STSPlaybackRequest.proto";
+import "SpotifyPreset.proto";
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message InternalPlaybackRequest {
+  optional .STS.PlaybackRequest STSPlaybackRequest = 1;
+  optional string index = 2;
+  optional string offset = 3;
+  optional .Spotify.Preset spotifyPreset = 4;
+  optional bool alexaPlaybackRequest = 5 [default = false];
+}

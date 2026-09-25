@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+import "ZeroconfTxtRecord.proto";
+
+message ZeroconfRegisterService {
+  optional string deviceName = 1;
+  required string serviceType = 2;
+  required uint32 port = 3;
+  repeated .TxtRecord txtRecord = 4;
+}

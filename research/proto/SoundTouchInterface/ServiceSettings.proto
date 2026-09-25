@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message ServiceSettings {
+  message StreamingQuality {
+    optional uint32 text = 1;
+  }
+  required string source = 1;
+  optional .SoundTouchInterface.ServiceSettings.StreamingQuality streamingQuality = 2;
+}

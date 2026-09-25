@@ -1,0 +1,35 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "Common.proto";
+
+enum ComponentCategory {
+  SCM = 0;
+  PackagedProduct = 1;
+  SpeakerPackage = 2;
+  Lightswitch = 3;
+  SMSC = 4;
+  LPM = 5;
+  LPMBL = 6;
+  LLW = 7;
+  DSP = 8;
+  F0 = 9;
+  BLOB = 10;
+  MAXWELL_L = 11;
+  MAXWELL_R = 12;
+  BASS = 13;
+  HDMI = 14;
+}
+
+message VersionedComponents {
+  message VersionedComponent {
+    message ComponentCategoryMessage {
+      required .WebInterface.ComponentCategory text = 1;
+    }
+    required .WebInterface.VersionedComponents.VersionedComponent.ComponentCategoryMessage componentCategory = 1;
+    optional .Common.String softwareVersion = 2;
+    required .Common.String serialNumber = 3;
+  }
+  repeated .WebInterface.VersionedComponents.VersionedComponent component = 1;
+}

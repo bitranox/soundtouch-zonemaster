@@ -1,0 +1,33 @@
+# What this master IS on the network.
+#
+# Neither setting here has a useful default, because both describe one machine. bind_ip must be
+# given somewhere - here, on the command line, or in the environment - or the service refuses to
+# start and says so. device_id is the exception: left unset it falls back to this host's own MAC.
+
+[zone]
+
+# The address the master serves on: the HTTP API on 8090, the clock on UDP 40005, and the two
+# IPC channels on TCP 40002 and 40003 all bind to it.
+#
+# Default: none. Effect: the speakers are told this address and connect back to it, so it has to
+# be one this machine holds on the LAN the speakers are on, and never 127.0.0.1 - a loopback
+# address parses, binds, and then no box can reach it, which looks like speakers that ignore the
+# zone rather than like a configuration mistake.
+# When to set: always. Change it when the host moves to a different address.
+# Consequence of changing it while the house is playing: every slave keeps the OLD address until
+# it rejoins, so turn the switch off first and let the zone dissolve.
+#   env: SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP
+# bind_ip = "192.168.0.190"
+
+# Twelve hex digits, the shape a real speaker's device id has.
+#
+# Default: this host's own MAC, which is stable for as long as the machine is. Effect: it is how
+# the speakers tell this master apart from each other, and it is written into the zone document
+# every slave receives.
+# When to set: when the host's MAC is not stable (a container that gets a fresh one on every
+# start), or when two masters have to coexist on one LAN for a test.
+# Consequence: a master whose id changes between restarts looks to the speakers like a DIFFERENT
+# master, so a box that survived the restart in a zone has to be taken in again rather than
+# recognised. Setting it explicitly is the fix, and costs nothing otherwise.
+#   env: SOUNDTOUCH_ZONEMASTER___ZONE__DEVICE_ID
+# device_id = "AABBCC001122"

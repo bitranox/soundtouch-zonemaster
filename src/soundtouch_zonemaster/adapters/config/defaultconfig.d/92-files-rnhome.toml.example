@@ -1,0 +1,15 @@
+# This checkout's own [files] paths, over the public default in 20-files.toml.
+#
+# Copy this file to 92-files-rnhome.toml (the same name without .example) and put the real paths
+# in the copy. The copy is gitignored: every file named <anything>-rnhome.<ext> is private to the
+# machine it sits on, and the wheel build excludes it as well. This example is tracked so the
+# shape can be found.
+#
+# The three are commented out here because where they live is a property of one machine; a
+# checkout that runs the service names them here, on the command line, or in the environment.
+
+[files]
+
+# channel_file = "/var/lib/zonemaster/channels.json"
+# switch_file = "/var/lib/zonemaster/zone.switch"
+# state_file = "/var/lib/zonemaster/zone-state.json"

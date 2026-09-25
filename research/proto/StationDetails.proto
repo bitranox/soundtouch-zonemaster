@@ -1,0 +1,31 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+import "Streams.proto";
+import "Market.proto";
+
+message StationDetails {
+  message Genre {
+    optional string name = 2;
+    optional bool primary = 4;
+  }
+  message Hit {
+    optional int32 id = 1;
+    optional string name = 3;
+    optional string description = 5;
+    optional string callLetters = 7;
+    optional string logo = 8;
+    optional .IHeart.Streams streams = 12;
+    optional bool isActive = 13;
+    repeated .IHeart.Market markets = 15;
+    repeated .IHeart.StationDetails.Genre genres = 16;
+  }
+  repeated .IHeart.Error errors = 1;
+  optional .IHeart.Error firstError = 2;
+  optional int32 total = 4;
+  repeated .IHeart.StationDetails.Hit hits = 5;
+  optional .IHeart.Error error = 6;
+}

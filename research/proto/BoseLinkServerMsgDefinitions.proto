@@ -1,0 +1,384 @@
+syntax = "proto2";
+
+import "SoundTouchInterface/ContentItem.proto";
+import "SoundTouchInterface/PlayerService.proto";
+import "SoundTouchInterface/Presets.proto";
+
+enum BoseLinkSourceType {
+  BL_SOURCE_INVALID = 0;
+  BL_SOURCE_NETWORK_STANDBY = 1;
+  BL_SOURCE_LOCAL = 2;
+  BL_SOURCE_SOUNDTOUCH = 3;
+  BL_SOURCE_SOUNDTOUCH_LASTWIFI = 4;
+  BL_SOURCE_SOUNDTOUCH_BT = 5;
+}
+
+enum BoseLinkSourceActivationAckType {
+  BL_SOURCE_ACTIVATION_NACK = 0;
+  BL_SOURCE_ACTIVATION_ACK = 1;
+  BL_SOURCE_ACTIVATION_DONE = 2;
+  BL_SOURCE_ACTIVATION_FAIL = 3;
+}
+
+message BoseLinkServerMsgRegisterSlave {
+  enum SlaveType {
+    BoseApp = 0;
+    UpdateApp = 1;
+    APServer = 2;
+  }
+  optional .BoseLinkServerMsgRegisterSlave.SlaveType typeofslave = 1;
+}
+
+message BoseLinkServerMsgRDispClntBaseInfo {
+  optional uint32 sourceid = 1;
+  optional bool isupdate = 2;
+  optional bool cleardevicestatus = 3;
+  optional uint32 zone = 4;
+  optional int32 selectedfield = 5;
+  optional string pinfo1 = 6;
+  optional string pinfo2 = 7;
+  optional string pinfo3 = 8;
+}
+
+message BoseLinkServerMsgRDispClntMediaMetaData {
+  optional .BoseLinkServerMsgRDispClntBaseInfo base = 1;
+  optional bool clear = 2;
+  optional bool elapsedtime = 3;
+  optional bool duration = 4;
+  optional uint32 elapsedtimehours = 5;
+  optional uint32 elapsedtimemins = 6;
+  optional uint32 elapsedtimesecs = 7;
+  optional uint32 durationhours = 8;
+  optional uint32 durationmins = 9;
+  optional uint32 durationsecs = 10;
+}
+
+message BoseLinkServerMsgRDispClntStatus {
+  optional .BoseLinkServerMsgRDispClntBaseInfo base = 1;
+  optional bool playmodevalid = 2;
+  optional bool presetvalid = 3;
+  optional uint32 playmode = 4;
+  optional uint32 preset = 5;
+  optional bool wearepaused = 6;
+  optional bool wearebuffering = 7;
+  optional bool wearestopped = 8;
+}
+
+message BoseLinkServerMsgRDispClntStatusBcast {
+  optional .BoseLinkServerMsgRDispClntStatus status = 1;
+  optional bool tuning = 2;
+  optional bool signalqualityvalid = 3;
+  optional bool signalratingvalid = 4;
+  optional bool unavailable = 5;
+  optional uint32 signalquality = 6;
+  optional uint32 signalrating = 7;
+}
+
+message BoseLinkServerMsgRDispClntStatusPlayer {
+  optional .BoseLinkServerMsgRDispClntStatus status = 1;
+  optional bool trackinfovalid = 2;
+  repeated uint32 trackinfo = 3;
+}
+
+message BoseLinkServerMsgRControlSourceSelection {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 length = 3;
+  optional uint32 flags = 4;
+  optional uint32 audiosource = 5;
+}
+
+message BoseLinkServerMsgRControlKeyRegistration {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 length = 3;
+  optional uint32 sequencenum = 4;
+  optional uint32 commandid = 5;
+  optional uint32 flags = 6;
+  optional uint32 nextstate = 7;
+  optional uint32 listlength = 8;
+}
+
+message BoseLinkServerMsgRControlKeyDefinition {
+  optional uint32 class = 1;
+  optional uint32 id = 2;
+}
+
+message BoseLinkServerMsgRControlCommandExecution {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 length = 3;
+  optional uint32 id = 4;
+}
+
+message BoseLinkServerMsgRControlKeyEvent {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 length = 3;
+  optional uint32 key = 4;
+  optional uint32 state = 5;
+  optional uint32 producer = 6;
+}
+
+message BoseLinkServerMsgRControlRegistrationDone {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 statecount = 3;
+  optional uint32 keycount = 4;
+}
+
+message BoseLinkServerMsgRControlRegistrationError {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 statecount = 3;
+  optional uint32 keycount = 4;
+}
+
+message BoseLinkServerMsgRControlActivationDone {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 status = 3;
+}
+
+message BoseLinkServerMsgRControlStaticCommandExecute {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 size = 3;
+  optional uint32 cmd = 4;
+}
+
+message BoseLinkServerMsgRControlBootupWait {
+  optional uint32 type = 1;
+  optional uint32 version = 2;
+  optional uint32 timeout = 3;
+}
+
+message BoseLinkServerMsgVolumeInfo {
+  optional uint32 volume = 1;
+}
+
+message BoseLinkServerMsgMuteInfo {
+  optional bool usermute = 1;
+  optional bool internalmute = 2;
+}
+
+message BoseLinkServerMsgDeviceDiscovery {
+  enum DevType {
+    DEV_TYPE_NONE = 0;
+    DEV_TYPE_MARCONI_RESOLUTE = 1;
+    DEV_TYPE_MARCONI_MARLEY = 2;
+    DEV_TYPE_SEINE_CD = 3;
+    DEV_TYPE_SEINE_RADIO = 4;
+    DEV_TYPE_COLIN = 5;
+    DEV_TYPE_LUKE = 6;
+    DEV_TYPE_TRIODE = 7;
+    DEV_TYPE_BARDEEN = 8;
+    DEV_TYPE_GINGER = 9;
+    DEV_TYPE_UNKNOWN = 255;
+  }
+  enum SourceType {
+    ABL_CLIENT_SOURCE_UNKNOWN = 0;
+    ABL_CLIENT_SOURCE_ZONE1 = 1;
+    ABL_CLIENT_SOURCE_ZONE2 = 2;
+    ABL_CLIENT_SOURCE_LOCAL = 3;
+    ABL_CLIENT_SOURCE_OFF = 4;
+  }
+  optional .BoseLinkServerMsgDeviceDiscovery.DevType devicetype = 1;
+  optional string version = 2;
+  optional string serialnumber = 3;
+  optional bool emergencyupdate = 4;
+  optional uint32 sourcetype = 5;
+}
+
+message BoseLinkServerMsgPowerMgmt {
+  optional uint32 powerflags = 1;
+}
+
+message BoseLinkServerMsgSelectMe {
+  optional bool selectme = 1;
+}
+
+message BoseLinkServerMsgTurnOffPower {
+  optional int32 timeout_ms = 1;
+}
+
+message BoseLinkServerMsgStartStop {
+  optional bool startStop = 1;
+}
+
+message BoseLinkServerMsgTest {
+  optional int32 value = 1 [default = 0];
+}
+
+message BoseLinkServerMsgStartSystemUpdate {
+  optional bool update = 1 [default = false];
+}
+
+message BoseLinkServerMsgStartDownloadRequest {
+  optional uint32 expectedimagesize = 1 [default = 0];
+  optional uint32 checksum = 2 [default = 0];
+  optional string version = 3 [default = ""];
+  optional uint32 deviceid = 4 [default = 0];
+}
+
+message BoseLinkServerMsgStartDownloadResponse {
+  optional bool success = 1 [default = false];
+}
+
+message BoseLinkServerMsgDataResponse {
+  optional uint32 size = 1 [default = 0];
+  optional bytes data = 2;
+  optional bool endofstream = 3 [default = false];
+}
+
+message BoseLinkServerMsgDataRequest {
+  optional uint32 size = 1 [default = 0];
+}
+
+message BoseLinkServerMsgStartAuthenticationRequest {
+}
+
+message BoseLinkServerMsgStartAuthenticationResponse {
+  optional bool success = 1 [default = true];
+}
+
+message BoseLinkServerMsgStartInstallRequest {
+}
+
+message BoseLinkServerMsgStartInstallResponse {
+}
+
+message BoseLinkServerMsgStatusAndUserError {
+  optional uint32 timeout = 1;
+  optional string statusmessage = 2;
+  optional bool istransient = 3;
+}
+
+message BoseLinkServerMsgSendKey {
+  optional uint32 key = 1;
+}
+
+message BoseLinkServerPassthroughMsg {
+  enum MsgId {
+    PASS_THROUGH_EVT_LOCAL_SOURCE = 0;
+    PASS_THROUGH_EVT_SHELBY_SOURCE = 1;
+    PASS_THROUGH_EVT_NETWORK_STANDBY = 2;
+    PASS_THROUGH_EVT_LOWPOWER_STANDBY = 3;
+    PASS_THROUGH_EVT_WAKEUP_FROM_SLEEP = 4;
+    PASS_THROUGH_EVT_SELECT_ME_ON = 5;
+    PASS_THROUGH_EVT_SELECT_ME_OFF = 6;
+    PASS_THROUGH_EVT_SLAVE_SOURCE = 7;
+    PASS_THROUGH_EVT_ETHERNET_CONNECTED = 8;
+    PASS_THROUGH_EVT_WIRELESS_CONNECTING = 9;
+    PASS_THROUGH_EVT_WIRELESS_CONNECTED = 10;
+    PASS_THROUGH_EVT_WIRELESS_DISCONNECTED = 11;
+    PASS_THROUGH_EVT_WIRELESS_RADIO_OFF = 12;
+    PASS_THROUGH_EVT_SOFTWARE_UPDATE_START = 13;
+    PASS_THROUGH_EVT_LISA_BUTTON_PnH = 14;
+    PASS_THROUGH_EVT_ENTERED_SETUPAP = 15;
+    PASS_THROUGH_EVT_EXITED_SETUPAP = 16;
+    PASS_THROUGH_EVT_SYSTEM_SETUP_LANG_NOT_SET = 17;
+    PASS_THROUGH_EVT_SYSTEM_SETUP_DEFAULT = 18;
+    PASS_THROUGH_EVT_INACTIVITY_EXPIRED = 19;
+    PASS_THROUGH_EVT_ABL_HANDLE_LISA_SW_UPDATE_ABORT = 20;
+    PASS_THROUGH_EVT_ABL_STATION_UNAVAILABLE = 21;
+    PASS_THROUGH_EVT_ABL_SERVICE_UNAVAILABLE = 22;
+    PASS_THROUGH_EVT_ABL_LIBRARY_NOT_FOUND = 23;
+    PASS_THROUGH_EVT_ABL_EXPLORE_MUSIC_ON_SOUNDTOUCH_APP = 24;
+    PASS_THROUGH_EVT_ABL_SERVER_NOT_FOUND = 25;
+    PASS_THROUGH_EVT_ABL_SPEAKER_PACKAGE_REQUIRES_UPDATE = 26;
+    PASS_THROUGH_EVT_ABL_ACTION_UNAVAILABLE = 27;
+    PASS_THROUGH_EVT_SELECT_BT_SOURCE = 28;
+    PASS_THROUGH_EVT_SELECT_NON_BT_SHELBY_SOURCE = 29;
+    PASS_THROUGH_EVT_BLUETOOTH_PAIRING_ENABLED = 30;
+    PASS_THROUGH_EVT_BLUETOOTH_PAIRING_DISABLED = 31;
+    PASS_THROUGH_EVT_GOTO_BLUETOOTH_PAIRING_MODE = 32;
+    PASS_THROUGH_EVT_ABL_CUSTOM_RADIO_DISABLED = 33;
+    PASS_THROUGH_EVT_ABL_LOGGED_IN_ELSEWHERE = 34;
+    PASS_THROUGH_EVT_ABL_INACTIVITY_TIMEOUT = 35;
+    PASS_THROUGH_EVT_ABL_CONTENT_UNAVAILABLE = 36;
+    PASS_THROUGH_EVT_ABL_WAITING_ENTER = 37;
+    PASS_THROUGH_EVT_ABL_WAITING_EXIT = 38;
+    PASS_THROUGH_EVT_BLUETOOTH_CLEAR_PAIRING_LIST = 39;
+    PASS_THROUGH_EVT_FACTORY_DEFAULT = 40;
+    PASS_THROUGH_EVT_AP_MODE_ON = 41;
+    PASS_THROUGH_EVT_AP_MODE_OFF = 42;
+    PASS_THROUGH_EVT_AP_MODE_TOGGLE = 43;
+    PASS_THROUGH_EVT_WIRELESS_RADIO_ON = 44;
+    PASS_THROUGH_EVT_WIRELESS_RADIO_TOGGLE = 45;
+    PASS_THROUGH_EVT_SYSTEM_ASSERT_AMP_FAULT = 46;
+    PASS_THROUGH_EVT_SYSTEM_UPDATE_FORCE_START = 47;
+    PASS_THROUGH_EVT_SYSTEM_INIT_COMPLETE = 48;
+    PASS_THROUGH_EVT_PRODUCT_NOT_READY = 49;
+  }
+  optional .BoseLinkServerPassthroughMsg.MsgId messageid = 1;
+}
+
+message BoseLinkPassthroughPresetStatus {
+  enum PresetStatus {
+    PRESET_STATUS_NONE = 0;
+    PRESET_IS_EMPTY = 1;
+    PRESET_NEWLY_ASSIGNED = 2;
+    PRESET_SELECTED = 3;
+    PRESET_NOT_SET_ERROR = 4;
+  }
+  optional .SoundTouchInterface.PresetID presetid = 1;
+  optional .SoundTouchInterface.ContentItem contentitem = 2;
+  optional .BoseLinkPassthroughPresetStatus.PresetStatus status = 3;
+}
+
+message BoseLinkPassthroughSkipStatus {
+  enum SkipStatus {
+    DISPLAY_SKIP_FORWARD = 1;
+    DISPLAY_SKIP_BACK = 2;
+    DISPLAY_SKIP_NOT_ALLOWED = 3;
+    DISPLAY_SKIP_LIMIT_REACHED = 4;
+  }
+  optional .BoseLinkPassthroughSkipStatus.SkipStatus status = 1;
+}
+
+message BoseLinkPassthroughWifiStatus {
+  optional bool wificonnectionstatus = 1;
+}
+
+message BoseLinkPassthroughNowSelection {
+  optional .SoundTouchInterface.PresetID presetid = 1;
+  optional .SoundTouchInterface.preset nowselectioninfo = 2;
+}
+
+message BoseLinkPassthroughNowPlaying {
+  optional .SoundTouchInterface.PresetID presetid = 1;
+  optional .SoundTouchInterface.nowPlaying nowplayinginfo = 2;
+}
+
+message BoseLinkPassthroughSetPresets {
+  optional .SoundTouchInterface.presets presets = 1;
+}
+
+message BoseLinkServerMsgCurrentSource {
+  optional .BoseLinkSourceType currentsource = 1;
+}
+
+message BoseLinkServerMsgSourceUpdateAck {
+  optional .BoseLinkSourceType currentsource = 1;
+  optional .BoseLinkSourceActivationAckType ack = 2;
+}
+
+message BoseLinkServerMsgBTDeviceData {
+  optional string MACAddress = 1;
+  optional string DeviceName = 2;
+}
+
+message BoseLinkServerMsgWLANData {
+  optional uint32 WLAN0 = 1;
+  optional uint32 WLAN1 = 2;
+}
+
+message BoseLinkServerMsgZoneInfo {
+  optional bool ismaster = 1;
+  optional bool zonestate = 2;
+}
+
+message BoseLinkServerMsgLanguage {
+  required int32 language = 1;
+}

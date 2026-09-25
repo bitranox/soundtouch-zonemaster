@@ -1,0 +1,46 @@
+# The three files this deployment owns.
+#
+# None of them has a default, because where they live is a property of the machine and a guess
+# here would put a house's state somewhere nobody chose. All three must be given.
+#
+# On the deployed unit they sit in /var/lib/zonemaster, which systemd creates and owns through
+# StateDirectory=. They are not interchangeable and they are not caches: two of the three are the
+# only copy of something a person built or decided.
+
+[files]
+
+# The house's channel list, in a file a person can read and repair.
+#
+# Default: none. Effect: it holds the dialable numbers and what each one plays. Places 1 to 6 are
+# seeded on a first start from the presets of the FIRST box somebody switches on, so the file is
+# absent until then and that is normal.
+# When to set: always. Point it somewhere that survives a reboot.
+# Consequence of losing it: the list is rebuilt from a box's presets the next time one is switched
+# on, so places 1 to 6 come back and anything a person added beyond them does not. A file that
+# exists but cannot be parsed is REFUSED rather than started empty, for exactly that reason.
+#   env: SOUNDTOUCH_ZONEMASTER___FILES__CHANNEL_FILE
+# channel_file = "/var/lib/zonemaster/channels.json"
+
+# The switch. The word "off" in it stands the house down; anything else, including the file being
+# missing, empty or unreadable, means on.
+#
+# Default: none. Effect: it is read every switch.poll_s seconds while the service runs, so writing
+# it takes effect without restarting anything. That is the gentler way round: stopping the unit
+# also stops it watching the speakers.
+# When to set: always. Put it where whoever operates the house can write it.
+# Consequence: a deploy never writes over this file, so an update cannot silence a house somebody
+# turned on, and cannot switch on a house somebody turned off.
+#   env: SOUNDTOUCH_ZONEMASTER___FILES__SWITCH_FILE
+# switch_file = "/var/lib/zonemaster/zone.switch"
+
+# What a restart starts from: the remembered channel, the membership, which boxes were muted and
+# at what volume, and which a person has switched out of multiroom.
+#
+# Default: none. Effect: written on every membership change. Its DIRECTORY has to exist and is
+# checked at startup rather than hours later when the first speaker joins and nothing can save.
+# When to set: always. It must not live in /tmp.
+# Consequence of losing it: the house comes back on its default channel, every box is back in
+# multiroom, and a speaker that was muted mid-join stays muted with nothing recording its old
+# level - which reads as broken hardware rather than as lost state.
+#   env: SOUNDTOUCH_ZONEMASTER___FILES__STATE_FILE
+# state_file = "/var/lib/zonemaster/zone-state.json"

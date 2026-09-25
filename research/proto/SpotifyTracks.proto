@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package STS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Tracks {
+  optional uint32 total = 1;
+}
+
+message SpotifyTracks {
+  required .STS.Tracks tracks = 1;
+}

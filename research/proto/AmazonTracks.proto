@@ -1,0 +1,74 @@
+syntax = "proto2";
+
+package Amazon;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AmazonTrackPointer {
+  optional string chunk = 1;
+  optional int32 indexWithInChunk = 2;
+}
+
+message AmazonImage {
+  optional string uri = 1;
+  optional string contentType = 2;
+  optional uint32 width = 3;
+  optional uint32 height = 4;
+}
+
+message AmazonAudio {
+  optional string uri = 1;
+  optional string contentType = 2;
+  optional string expires = 3;
+}
+
+message AmazonTrackRating {
+  enum ThumbRating {
+    neutral = 0;
+    thumbs_down = 1;
+    thumbs_up = 2;
+  }
+  optional .Amazon.AmazonTrackRating.ThumbRating thumbRating = 1;
+  optional string ratingUri = 2;
+}
+
+message AmazonTrack {
+  optional string title = 1;
+  optional string trackTag = 2;
+  optional .Amazon.AmazonAudio audioInfo = 3;
+  optional .Amazon.AmazonImage imageInfo = 4;
+  optional uint32 duration = 5;
+  optional string artistName = 6;
+  optional string albumName = 7;
+  optional string playbackEventCollectorUri = 8;
+  optional .Amazon.AmazonTrackPointer shuffleToggledTrackPointer = 9;
+  optional .Amazon.AmazonTrackRating trackRating = 10;
+  optional .Amazon.AmazonGeneralError error = 11;
+  optional bool isValidTrack = 12 [default = true];
+  optional bool autoSkipOnError = 13 [default = false];
+}
+
+message AmazonTrackContainerChunk {
+  optional .Amazon.AmazonTrackPointer firstTrackPointer = 1;
+  optional .Amazon.AmazonTrackPointer nextTrackPointer = 2;
+  optional .Amazon.AmazonTrackPointer prevTrackPointer = 3;
+  optional .Amazon.AmazonTrackPointer lastTrackPointer = 4;
+  repeated .Amazon.AmazonTrack tracks = 5;
+  optional string chunkUri = 6;
+  optional string chunkId = 7;
+  optional bool permitsTrackRatings = 8 [default = false];
+}
+
+message AmazonGeneralErrorOptions {
+  optional string label = 1;
+  optional bool resume = 2 [default = false];
+  optional string action = 3;
+  optional string uri = 4;
+}
+
+message AmazonGeneralError {
+  optional string brief = 1;
+  optional string explanation = 2;
+  optional string terse = 3;
+  repeated .Amazon.AmazonGeneralErrorOptions options = 4;
+}

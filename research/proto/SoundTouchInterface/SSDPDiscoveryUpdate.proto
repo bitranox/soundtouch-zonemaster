@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Text {
+  optional string text = 1;
+}
+
+message ssdpDiscoveryUpdate {
+  optional .SoundTouchInterface.Text uuid = 1;
+  optional .SoundTouchInterface.Text ipAddr = 2;
+  optional .SoundTouchInterface.Text port = 3;
+  required string source = 4;
+  required string sourceAccount = 5;
+}

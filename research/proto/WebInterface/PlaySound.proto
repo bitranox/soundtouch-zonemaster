@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package WebInterface;
+
+enum SoundID {
+  SOUND_LEFT = 1;
+  SOUND_RIGHT = 2;
+  SOUND_GROUPED = 3;
+}
+
+message playSound {
+  required .WebInterface.SoundID soundID = 1;
+}

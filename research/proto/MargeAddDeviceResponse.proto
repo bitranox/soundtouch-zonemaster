@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message adddeviceresponse {
+  optional string margetoken = 1;
+}

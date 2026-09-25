@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+package STS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message external_urls {
+  optional string spotify = 1;
+}
+
+message images {
+  optional string height = 1;
+  optional string url = 2;
+  optional string width = 3;
+}
+
+message OAuthUserInfo {
+  optional string country = 1;
+  optional string display_name = 2;
+  optional string email = 3;
+  optional .STS.external_urls external_urls = 4;
+  optional string href = 5;
+  optional string id = 6;
+  repeated .STS.images images = 7;
+  optional string product = 8;
+  optional string type = 9;
+  optional string uri = 10;
+  optional bool connect_enabled = 11;
+}

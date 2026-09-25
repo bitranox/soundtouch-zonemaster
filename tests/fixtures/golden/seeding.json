@@ -1,0 +1,535 @@
+{
+  "meta": {
+    "corpus": "seeding",
+    "note": "seed_from_presets: the list and the log lines, in order.",
+    "source": "soundtouch-zonemaster before the template rebuild",
+    "source_head": "887934c7c05d80ea48180c72986584271873cf4c",
+    "python": "3.14.5",
+    "versions": {
+      "pydantic": "2.13.5",
+      "pydantic_core": "2.46.5",
+      "httpx": "0.28.1",
+      "lib_layered_config": "5.6.2",
+      "lib_cli_exit_tools": "2.3.4",
+      "rich-click": "1.9.9",
+      "protobuf": "7.36.1",
+      "websockets": "17.1"
+    },
+    "placeholders": {
+      "<WORK>": "a scratch directory that exists; substitute your own",
+      "<PACKAGE>": "the installed package directory",
+      "<ARCHIVE>": "the pre-template checkout",
+      "<HOST_MAC>": "default_device_id() on the generating host",
+      "<PORT>": "the loopback port the registry double bound",
+      "<INPUT_FRAME>": "the frame field equals the input frame",
+      "<ARRIVAL_TIME>": "time.time() at arrival"
+    },
+    "divergences": "5 case(s) carry a 'divergence' key: Channel gained the mpd_entry field on 2026-09-20 with M3a Task 1, so those no longer record the pre-rebuild shape. Every other case in this file still does."
+  },
+  "cases": [
+    {
+      "name": "every key set",
+      "input": {
+        "presets": [
+          [
+            1,
+            {
+              "name": "S1",
+              "url": "http://192.0.2.1/1"
+            }
+          ],
+          [
+            2,
+            {
+              "name": "S2",
+              "url": "http://192.0.2.1/2"
+            }
+          ],
+          [
+            3,
+            {
+              "name": "S3",
+              "url": "http://192.0.2.1/3"
+            }
+          ],
+          [
+            4,
+            {
+              "name": "S4",
+              "url": "http://192.0.2.1/4"
+            }
+          ],
+          [
+            5,
+            {
+              "name": "S5",
+              "url": "http://192.0.2.1/5"
+            }
+          ],
+          [
+            6,
+            {
+              "name": "S6",
+              "url": "http://192.0.2.1/6"
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "S1",
+                "kind": "radio",
+                "url": "http://192.0.2.1/1",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "2",
+                "name": "S2",
+                "kind": "radio",
+                "url": "http://192.0.2.1/2",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "3",
+                "name": "S3",
+                "kind": "radio",
+                "url": "http://192.0.2.1/3",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "4",
+                "name": "S4",
+                "kind": "radio",
+                "url": "http://192.0.2.1/4",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "5",
+                "name": "S5",
+                "kind": "radio",
+                "url": "http://192.0.2.1/5",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "6",
+                "name": "S6",
+                "kind": "radio",
+                "url": "http://192.0.2.1/6",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "seeded 6 channel(s) from presets"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "holes at 2, 4 and 5",
+      "input": {
+        "presets": [
+          [
+            1,
+            {
+              "name": "A",
+              "url": "http://192.0.2.1/a"
+            }
+          ],
+          [
+            2,
+            null
+          ],
+          [
+            3,
+            {
+              "name": "C",
+              "url": "http://192.0.2.1/c"
+            }
+          ],
+          [
+            4,
+            null
+          ],
+          [
+            5,
+            null
+          ],
+          [
+            6,
+            {
+              "name": "F",
+              "url": "https://192.0.2.1/f"
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "A",
+                "kind": "radio",
+                "url": "http://192.0.2.1/a",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "3",
+                "name": "C",
+                "kind": "radio",
+                "url": "http://192.0.2.1/c",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "6",
+                "name": "F",
+                "kind": "radio",
+                "url": "https://192.0.2.1/f",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "preset 2: no preset there, so channel 2 stays free"
+          ],
+          [
+            "channels",
+            "preset 4: no preset there, so channel 4 stays free"
+          ],
+          [
+            "channels",
+            "preset 5: no preset there, so channel 5 stays free"
+          ],
+          [
+            "channels",
+            "seeded 3 channel(s) from presets"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "no key set",
+      "input": {
+        "presets": [
+          [
+            1,
+            null
+          ],
+          [
+            2,
+            null
+          ],
+          [
+            3,
+            null
+          ],
+          [
+            4,
+            null
+          ],
+          [
+            5,
+            null
+          ],
+          [
+            6,
+            null
+          ]
+        ]
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": []
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "preset 1: no preset there, so channel 1 stays free"
+          ],
+          [
+            "channels",
+            "preset 2: no preset there, so channel 2 stays free"
+          ],
+          [
+            "channels",
+            "preset 3: no preset there, so channel 3 stays free"
+          ],
+          [
+            "channels",
+            "preset 4: no preset there, so channel 4 stays free"
+          ],
+          [
+            "channels",
+            "preset 5: no preset there, so channel 5 stays free"
+          ],
+          [
+            "channels",
+            "preset 6: no preset there, so channel 6 stays free"
+          ],
+          [
+            "channels",
+            "seeded 0 channel(s) from presets"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "keys handed over in reverse order",
+      "input": {
+        "presets": [
+          [
+            6,
+            {
+              "name": "F",
+              "url": "http://192.0.2.1/f"
+            }
+          ],
+          [
+            2,
+            null
+          ],
+          [
+            1,
+            {
+              "name": "A",
+              "url": "http://192.0.2.1/a"
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "A",
+                "kind": "radio",
+                "url": "http://192.0.2.1/a",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "6",
+                "name": "F",
+                "kind": "radio",
+                "url": "http://192.0.2.1/f",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "preset 2: no preset there, so channel 2 stays free"
+          ],
+          [
+            "channels",
+            "seeded 2 channel(s) from presets"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "a single key",
+      "input": {
+        "presets": [
+          [
+            2,
+            {
+              "name": "B",
+              "url": "http://192.0.2.1/b"
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "2",
+                "name": "B",
+                "kind": "radio",
+                "url": "http://192.0.2.1/b",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "seeded 1 channel(s) from presets"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "nothing at all",
+      "input": {
+        "presets": []
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": []
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "seeded 0 channel(s) from presets"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a hole, then a preset URL that is not http",
+      "input": {
+        "presets": [
+          [
+            1,
+            null
+          ],
+          [
+            2,
+            {
+              "name": "B",
+              "url": "file:///music/b.mp3"
+            }
+          ],
+          [
+            3,
+            {
+              "name": "C",
+              "url": "http://192.0.2.1/c"
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nurl\n  Value error, a channel is fetched over http or https, not 'file:///music/b.mp3' [type=value_error, input_value='file:///music/b.mp3', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "url"
+              ],
+              "type": "value_error",
+              "msg": "Value error, a channel is fetched over http or https, not 'file:///music/b.mp3'"
+            }
+          ]
+        },
+        "logs": [
+          [
+            "channels",
+            "preset 1: no preset there, so channel 1 stays free"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a name that is not ASCII",
+      "input": {
+        "presets": [
+          [
+            1,
+            {
+              "name": "Ö1 Klassik",
+              "url": "http://192.0.2.1/oe1"
+            }
+          ]
+        ]
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "Ö1 Klassik",
+                "kind": "radio",
+                "url": "http://192.0.2.1/oe1",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "seeded 1 channel(s) from presets"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+syntax = "proto2";
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/SoftwareUpdateService.proto";
+import "Common.proto";
+
+message swUpdateQueryResponse {
+  message State {
+    required .swUpdateQueryResponse.StateValue text = 1;
+  }
+  message FailureCode {
+    optional .SoundTouchInterface.SoftwareUpdateFailure.FailureCondition text = 1;
+  }
+  enum StateValue {
+    IDLE = 1;
+    DOWNLOADING = 2;
+    AUTHENTICATING = 3;
+    INSTALLING = 4;
+    COMPLETED = 5;
+    CHECKING = 6;
+  }
+  required string deviceID = 1;
+  required .swUpdateQueryResponse.State state = 2;
+  optional .Common.Int32Zero percentComplete = 3;
+  optional .Common.Bool canAbort = 4;
+  optional .swUpdateQueryResponse.FailureCode failureCode = 5;
+  optional uint32 failureId = 6;
+}

@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package STS.Deployment;
+
+enum Enum {
+  INTEGRATION = 0;
+  PRODUCTION = 1;
+  EVALUATION = 2;
+  MANUFACTURING = 3;
+  DEVELOPMENT = 4;
+}

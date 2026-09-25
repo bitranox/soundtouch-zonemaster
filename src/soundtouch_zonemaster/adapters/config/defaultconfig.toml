@@ -1,0 +1,47 @@
+# Default configuration for soundtouch-zonemaster, shipped inside the wheel.
+#
+# This file carries no settings. They live one scope per file in defaultconfig.d/, which loads
+# after this one in lexicographic order, and a config file may hold any number of those sections.
+#
+#   10-zone.toml         what this master IS on the network
+#   20-files.toml        the three files this deployment owns
+#   30-registry.toml     where the speaker list comes from
+#   40-membership.toml   who is allowed into the zone, and when a box stops counting
+#   50-dialling.toml     how a channel number is typed on a speaker's preset keys
+#   60-switch.toml       how quickly the on/off file is noticed
+#   70-observer.toml     each speaker's notification channel
+#   80-prototype.toml    which speakers the prototype never touches
+#   90-mpd.toml          where the Music Player Daemon answers
+#
+# A checkout that needs values of its own - the address it serves on, a speaker the prototype
+# must never reach - puts them in a higher-numbered file in the same directory named
+# 9N-<scope>-rnhome.toml. It sorts after every default above, so its values win; the -rnhome
+# suffix keeps it out of git and out of the wheel. A tracked 9N-<scope>-rnhome.toml.example beside
+# it shows the shape: copy it to the name without .example. Only .toml, .yaml, .yml and .json
+# files are read, so the example itself never is.
+#
+# This is the LOWEST of six layers. Anything below overrides it, and a command-line option
+# overrides all six, so a setting named in a systemd ExecStart is still what the service uses.
+#
+# Precedence (lowest to highest):
+#   defaults -> app -> host -> user -> dotenv -> env -> command line
+#
+# Where the layers live on Linux, which is the only platform this house runs on:
+#   app     /etc/xdg/soundtouch-zonemaster/config.toml       (plus /etc/xdg/soundtouch-zonemaster/config.d/*)
+#   host    /etc/xdg/soundtouch-zonemaster/hosts/<hostname>.toml
+#   user    ~/.config/soundtouch-zonemaster/config.toml      (honours $XDG_CONFIG_HOME)
+#   dotenv  a .env found by walking up from the working directory
+#   env     process environment, prefix SOUNDTOUCH_ZONEMASTER___
+#
+# Write yourself a copy of this whole tree, this file and the directory beside it, with:
+#   soundtouch-zonemaster-service config-deploy --target user
+# and read back what the merged answer is and which file each value came from, with:
+#   soundtouch-zonemaster-service config
+#
+# An environment variable is the prefix, then the key path with DOUBLE underscores between the
+# segments: registry.poll_s is SOUNDTOUCH_ZONEMASTER___REGISTRY__POLL_S.
+#
+# You do not have to keep this layout. A deployed config.d/ file may be deleted, and a section may
+# be moved into config.toml, without changing what the service reads: the loader merges every file
+# key by key and only the merged answer matters. Splitting it this way means a change to one
+# concern is a change to one file.

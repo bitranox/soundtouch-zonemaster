@@ -1,0 +1,26 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ClockConfiguration.proto";
+
+message timeSpec {
+  optional uint32 year = 1 [default = 0];
+  optional uint32 month = 2 [default = 0];
+  optional uint32 dayOfMonth = 3 [default = 0];
+  optional uint32 dayOfWeek = 4 [default = 0];
+  optional uint32 hour = 5 [default = 0];
+  optional uint32 minute = 6 [default = 0];
+  optional uint32 second = 7 [default = 0];
+}
+
+message clockTime {
+  optional string deviceID = 1;
+  optional int64 utcTime = 2 [default = 0];
+  optional .WebInterface.timeSpec localTime = 3;
+  optional uint32 cueMusic = 4 [default = 0];
+  optional .TimeFormatType timeFormat = 5 [default = TIME_FORMAT_12HOUR_ID];
+  optional uint32 brightness = 6 [default = 70];
+  optional uint32 clockError = 7 [default = 0];
+  optional uint64 utcSyncTime = 8 [default = 0];
+}

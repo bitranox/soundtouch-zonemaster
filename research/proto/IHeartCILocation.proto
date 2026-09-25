@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message LocationType {
+  enum Value {
+    UNKNOWN = 1;
+    COUNTRY = 2;
+    STATE = 3;
+    LOCAL = 4;
+    MARKET = 5;
+    GENRE_ID = 6;
+    GENRE_NAME = 7;
+    LIVE_STATION = 8;
+    CUSTOM_STATION = 9;
+    FAVORITE_SONGS = 10;
+    TALK_THEME = 11;
+    TALK_SHOW = 12;
+    TALK_EPISODE = 13;
+    NAV_TRACK = 14;
+    FEATURED_STATION = 15;
+    ALBUM = 16;
+    ARTIST = 17;
+    SEARCH_TRACK = 18;
+    FEATURED_ARTIST = 19;
+    ACTIVITY = 20;
+  }
+}
+
+message IHeartCILocation {
+  optional string id = 1;
+  optional string containerId = 2;
+  optional .IHeart.LocationType.Value locationType = 3;
+}

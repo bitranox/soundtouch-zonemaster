@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "DeezerError.proto";
+
+message UserBatchResponseEntry {
+  optional string type = 1;
+  optional int64 status = 2;
+  optional bool preview = 3;
+  optional .Deezer.error error = 4;
+}
+
+message UserBatch {
+  repeated .Deezer.UserBatchResponseEntry batch_result = 1;
+  optional .Deezer.error error = 2;
+}

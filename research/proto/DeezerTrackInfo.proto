@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "ArtistInfo.proto";
+import "DeezerError.proto";
+
+message TrackInfo {
+  message Album {
+    optional string title = 2;
+    optional string cover = 4;
+  }
+  optional int64 id = 1;
+  optional bool readable = 2;
+  optional string title = 3;
+  optional int64 duration = 6;
+  optional .Deezer.TrackInfo alternative = 7;
+  optional string preview = 12;
+  optional .Deezer.ArtistInfo artist = 16;
+  optional .Deezer.TrackInfo.Album album = 17;
+  optional string url = 19;
+  optional string url_320 = 20;
+  optional .Deezer.error error = 21;
+}

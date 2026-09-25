@@ -1,0 +1,42 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+import "Common.proto";
+
+message PerfectFor {
+  message pfData {
+    message icon {
+      optional string image_url = 1;
+    }
+    message station {
+      optional string description = 1;
+      optional string id = 2;
+      optional string img = 3;
+      optional string kind = 4;
+      optional string link = 5;
+      optional string name = 6;
+    }
+    message playlist {
+      optional bool default = 1;
+      optional string name = 2;
+      repeated .IHeart.PerfectFor.pfData.station stations = 3;
+    }
+    message activity {
+      optional string activity_name = 1;
+      repeated .IHeart.PerfectFor.pfData.icon icons = 2;
+      repeated .IHeart.PerfectFor.pfData.playlist playlists = 3;
+    }
+    repeated .IHeart.Error errors = 1;
+    optional .IHeart.Error firstError = 2;
+    repeated .IHeart.PerfectFor.pfData.activity activities = 3;
+    optional string daypart = 4;
+    optional string weekday_name = 5;
+  }
+  repeated .IHeart.Error errors = 1;
+  optional .IHeart.Error firstError = 2;
+  optional .IHeart.PerfectFor.pfData data = 3;
+  optional .IHeart.Error error = 4;
+}

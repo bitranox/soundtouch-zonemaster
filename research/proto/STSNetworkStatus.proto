@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package STS;
+
+message NetworkStatus {
+  required bool connected = 1;
+  optional bool soundtouch_account_server_connected = 2;
+  optional bool device_not_in_marge_account = 3;
+}

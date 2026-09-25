@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package AudioNotificationProxy;
+
+import "WebInterface/PlayInfo.proto";
+
+message AudioNotificationProxyPlayInfo {
+  optional .WebInterface.play_info playInfo = 1;
+  optional int32 resumeVolume = 2;
+}

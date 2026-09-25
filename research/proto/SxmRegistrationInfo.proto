@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message SxmRegistrationInfo {
+  optional string registrationId = 1;
+  optional string registrationKey = 2;
+  optional string hwid = 3;
+  optional string ethernetMac = 4;
+}

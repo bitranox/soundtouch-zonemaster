@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message monoStereo {
+  required bool enable = 1;
+}
+
+message DSPMonoStereo {
+  optional string deviceID = 1;
+  optional .WebInterface.monoStereo mono = 2;
+}

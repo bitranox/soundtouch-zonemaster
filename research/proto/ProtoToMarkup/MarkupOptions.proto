@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+import "google/protobuf/descriptor.proto";
+
+extend .google.protobuf.MessageOptions {
+  optional bool ignore_unexpected_markup = 50001;
+}
+extend .google.protobuf.FieldOptions {
+  optional bool enum_by_number = 50001;
+  optional bool display_when_empty = 50002;
+  optional bool embedded_document = 50003;
+  optional bool repeated_field_accept_single_value = 50004;
+  optional bool value_only = 50005;
+}

@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSItemType.proto";
+import "STSItems.proto";
+
+message Section {
+  optional string title = 1;
+  optional .STS.ItemType.Enum type = 2;
+  optional .STS.Items items = 3;
+}
+
+message Sections {
+  repeated .STS.Section section = 1;
+}

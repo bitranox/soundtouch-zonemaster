@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package ZoneService;
+
+import "SoundTouchInterface/Zone.proto";
+
+message ZoneState {
+  optional bool isInAZone = 1;
+  optional bool isMaster = 2;
+  optional string masterIPAddress = 3;
+  optional string masterMACAddress = 4;
+  optional .SoundTouchInterface.zone zonelist = 5;
+}

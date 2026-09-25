@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message RegisterClientResponse {
+  repeated .IHeart.Error errors = 3;
+  optional .IHeart.Error firstError = 4;
+}

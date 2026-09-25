@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+import "Common.proto";
+
+message AirPlay2Persistent {
+  optional .Common.String homeName = 1;
+  optional .Common.String homePassword = 2;
+  optional .Common.String homeData = 3;
+}

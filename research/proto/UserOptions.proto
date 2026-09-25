@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "DeezerError.proto";
+
+message UserOptions {
+  optional bool preview = 10;
+  optional .Deezer.error error = 11;
+}

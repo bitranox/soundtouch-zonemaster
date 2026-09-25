@@ -1,0 +1,11 @@
+# This checkout's own [prototype] values, over the public default in 80-prototype.toml.
+#
+# Copy this file to 98-prototype-rnhome.toml (the same name without .example) and put the real
+# values in the copy. The copy is gitignored: every file named <anything>-rnhome.<ext> is private
+# to the machine it sits on, and the wheel build excludes it as well. This example is tracked so
+# the shape can be found; the address below is a placeholder from the documentation range.
+
+[prototype]
+
+# The speakers the prototype refuses as --slave or --late-slave; see 80-prototype.toml.
+never_touch = [{ ip = "192.0.2.30", name = "Room5", why = "the Lifestyle console" }]

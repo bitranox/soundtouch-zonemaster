@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+package Persistence;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "WebInterface/Navigate.proto";
+import "Common.proto";
+
+message Pandora {
+  message StationsTag {
+    message StationTag {
+      message SkipList {
+        message Timestamp {
+          optional uint32 text = 1;
+        }
+        repeated .Persistence.Pandora.StationsTag.StationTag.SkipList.Timestamp timestamp = 1;
+      }
+      optional .Common.String token = 1;
+      optional .Common.Bool allowAddMusic = 2;
+      optional .Common.Bool allowDelete = 3;
+      optional .Common.Bool allowRename = 4;
+      optional .Common.Bool isQuickMix = 5;
+      optional .Common.Bool isShared = 6;
+      optional .Common.String artUrl = 7;
+      optional .Common.String dateCreated = 8;
+      optional .Common.String id = 9;
+      optional .Common.String name = 10;
+      optional .Persistence.Pandora.StationsTag.StationTag.SkipList skipList = 11;
+    }
+    optional .WebInterface.SortOrder sort = 1 [default = dateCreated];
+    optional string stationListChksum = 2;
+    repeated .Persistence.Pandora.StationsTag.StationTag station = 3;
+  }
+  optional .Common.String currentStationToken = 1;
+  optional .Persistence.Pandora.StationsTag stations = 2;
+}

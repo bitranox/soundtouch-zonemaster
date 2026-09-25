@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message tokenResponse {
+  message Messages {
+    optional uint32 code = 1;
+    optional string message = 2;
+  }
+  message HlsUrls {
+    optional uint32 size = 1;
+    optional string system = 2;
+    optional string url = 3;
+  }
+  repeated .Sxm.tokenResponse.Messages messages = 1;
+  optional uint32 status = 2;
+  optional string desc = 3;
+  repeated .Sxm.tokenResponse.HlsUrls hlsUrls = 4;
+  optional string tokenUpdateUrl = 5;
+  optional string tokenUpdateSecondaryUrl = 6;
+  optional uint32 version = 7;
+  optional string tokenData = 8;
+}

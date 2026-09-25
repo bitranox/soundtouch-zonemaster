@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package STS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message RalphError {
+  optional string statusCode = 1;
+  optional string message = 2;
+}

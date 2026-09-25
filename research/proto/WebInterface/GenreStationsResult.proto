@@ -1,0 +1,26 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "Common.proto";
+
+message genreStationsResult {
+  message Categories {
+    message Category {
+      message Stations {
+        message Station {
+          required .Common.String name = 1;
+          required .Common.String token = 2;
+        }
+        repeated .WebInterface.genreStationsResult.Categories.Category.Stations.Station station = 1;
+      }
+      required .Common.String name = 1;
+      required .WebInterface.genreStationsResult.Categories.Category.Stations stations = 2;
+    }
+    repeated .WebInterface.genreStationsResult.Categories.Category category = 1;
+  }
+  required string deviceID = 1;
+  required string source = 2;
+  required string sourceAccount = 3;
+  required .WebInterface.genreStationsResult.Categories categories = 4;
+}

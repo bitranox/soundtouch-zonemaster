@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/ErrorType.proto";
+
+message serviceAvailability {
+  message Services {
+    message Service {
+      required string type = 1;
+      required bool isAvailable = 2 [default = false];
+      optional .SoundTouchInterface.ErrorType reason = 3;
+    }
+    repeated .WebInterface.serviceAvailability.Services.Service service = 1;
+  }
+  required .WebInterface.serviceAvailability.Services services = 1;
+}

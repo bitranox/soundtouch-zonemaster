@@ -1,0 +1,13 @@
+# golden_check.py replays one recorded capture through analyze_capture.py and
+# analyze_late_join.py and requires their output to equal what is recorded beside it.
+
+[golden]
+# The capture directory, relative to research/. It must hold the pcap below plus the two
+# recorded outputs, analysis-master-side.md and analysis-late-join.md. Empty in the tracked file:
+# captures are device-specific and gitignored, so the check exits 2 naming this setting.
+capture = ""
+
+# The pcap inside that directory, and the two speakers it recorded.
+pcap = ""
+master = ""
+slave = ""

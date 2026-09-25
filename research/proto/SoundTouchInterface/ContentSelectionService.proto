@@ -1,0 +1,45 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Presets.proto";
+import "SoundTouchInterface/ContentItem.proto";
+import "SoundTouchInterface/Status.proto";
+import "SoundTouchInterface/Recents.proto";
+
+enum SourceStatus {
+  UNAVAILABLE = 0;
+  READY = 1;
+}
+
+enum activationStatus {
+  PRODUCT_READY = 0;
+  PRODUCT_NOT_READY = 1;
+}
+
+message selectPreset {
+  required .SoundTouchInterface.PresetID id = 1;
+}
+
+message sources {
+  message SourceItem {
+    required string source = 1;
+    optional string sourceAccount = 2;
+    optional string text = 3;
+    required .SoundTouchInterface.SourceStatus status = 4;
+    optional bool isLocal = 5;
+    optional bool multiroomallowed = 6;
+  }
+  required string deviceID = 1;
+  repeated .SoundTouchInterface.sources.SourceItem sourceItem = 2;
+}
+
+message activateProductRequest {
+  optional string source = 1;
+  optional string account = 2;
+}
+
+message activateProductResponse {
+  required .SoundTouchInterface.activationStatus status = 1;
+}

@@ -1,0 +1,70 @@
+syntax = "proto2";
+
+package SoftwareUpdate;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message VERSION_TYPE {
+  optional string MAJOR = 1;
+  optional string MINOR = 2;
+  optional string PATCH = 3;
+  optional string REV = 4;
+  optional string BUILD = 5;
+}
+
+message IMAGE_TYPE {
+  optional .SoftwareUpdate.VERSION_TYPE VERSION = 1;
+  optional int32 SUBID = 2;
+  optional uint32 LENGTH = 3;
+  optional string CRC = 4;
+  optional string FILENAME = 5;
+}
+
+message RELEASE_TYPE {
+  optional string REVISION = 1;
+  optional string HTTPHOST = 2;
+  optional string URLPATH = 3;
+  repeated .SoftwareUpdate.IMAGE_TYPE IMAGE = 4;
+}
+
+message REGEX_TYPE {
+  optional int32 SUBID = 1;
+  optional string MATCH = 2;
+}
+
+message PATTERNMATCH_TYPE {
+  repeated .SoftwareUpdate.REGEX_TYPE REGEX = 1;
+}
+
+message HARDWARE_TYPE {
+  optional string REVISION = 1;
+  repeated .SoftwareUpdate.PATTERNMATCH_TYPE PATTERNMATCH = 2;
+  optional .SoftwareUpdate.RELEASE_TYPE RELEASE = 3;
+}
+
+message PLATFORMS_TYPE {
+  repeated .SoftwareUpdate.PLATFORM_TYPE PLATFORM = 1;
+}
+
+message PLATFORM_TYPE {
+  optional string TYPE = 1;
+  optional string URL = 2;
+}
+
+message UPDATERULES_TYPE {
+  optional string MAJORPOS = 1;
+  optional string LASTSUPPORTED = 2;
+}
+
+message DEVICE_TYPE {
+  optional string ID = 1;
+  optional string PRODUCTNAME = 2;
+  repeated .SoftwareUpdate.HARDWARE_TYPE HARDWARE = 3;
+  optional .SoftwareUpdate.PLATFORMS_TYPE PLATFORMS = 4;
+  optional .SoftwareUpdate.UPDATERULES_TYPE UPDATERULES = 5;
+}
+
+message INDEX {
+  optional string REVISION = 1;
+  repeated .SoftwareUpdate.DEVICE_TYPE DEVICE = 2;
+}

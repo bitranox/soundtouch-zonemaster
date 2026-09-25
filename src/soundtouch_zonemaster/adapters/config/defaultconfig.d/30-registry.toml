@@ -1,0 +1,31 @@
+# Where the speaker list comes from.
+#
+# The master takes no speaker addresses. It asks the replacement SoundTouch service, on the
+# loopback of the same machine, who the speakers are and where each one currently is - so a box
+# that moves to a new address needs no restart here.
+
+[registry]
+
+# The replacement service's base URL.
+#
+# Default: http://127.0.0.1:8000. Effect: every device lookup goes here.
+# When to change it: only if that service is moved or given a different port. It is the loopback
+# on purpose - the registry is a neighbour on the same host, not something to reach over the LAN.
+# Consequence of pointing it somewhere unreachable: the service starts, holds no zone, and retries;
+# it does not crash, because a registry that is down is a normal transient and the speakers are
+# not ours to take over blindly.
+#   env: SOUNDTOUCH_ZONEMASTER___REGISTRY__URL
+url = "http://127.0.0.1:8000"
+
+# How often the device list is read again, in seconds.
+#
+# Default: 30.0. Effect: it is how the service learns of a box that has APPEARED or MOVED. Nothing
+# that has to happen quickly waits for it: what a speaker is doing arrives on that speaker's own
+# notification channel in milliseconds, not here.
+# When to lower it: a house where boxes are power-cycled often and a 30 s wait before a newly woken
+# box can be taken in is noticeable. 10.0 is a reasonable floor.
+# When to raise it: never usefully. The read is cheap and local.
+# Consequence of lowering it a lot: more HTTP requests to the neighbouring service for no gain,
+# because the thing it detects changes on the scale of somebody walking to a socket.
+#   env: SOUNDTOUCH_ZONEMASTER___REGISTRY__POLL_S
+poll_s = 30.0

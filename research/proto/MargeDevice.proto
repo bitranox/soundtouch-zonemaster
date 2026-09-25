@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "MargePresets.proto";
+import "MargeRecents.proto";
+import "Common.proto";
+
+message device {
+  required string deviceid = 1;
+  optional .Common.String name = 2;
+  optional .MargePB.recents recents = 3;
+  optional .MargePB.presets presets = 4;
+}

@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message swUpdateCheckResponse {
+  message Release {
+    required string revision = 1 [default = ""];
+  }
+  required string deviceID = 1;
+  required .WebInterface.swUpdateCheckResponse.Release release = 2;
+  required string indexFileUrl = 3;
+}

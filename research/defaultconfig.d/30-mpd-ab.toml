@@ -1,0 +1,7 @@
+# mpd_seek_ab.py starts a spare MPD beside the live one, reading the live one's music and a copy
+# of its tag database.
+
+[mpd_ab]
+# Debian's locations for the live MPD's configuration and database.
+live_conf = "/etc/mpd.conf"
+live_db = "/var/lib/mpd/tag_cache"

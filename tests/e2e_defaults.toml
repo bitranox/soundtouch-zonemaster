@@ -1,0 +1,20 @@
+# Defaults for the end-to-end tests. Tracked, so it holds NO house data: every value here is
+# either empty or the safe answer. A machine that can reach the speakers puts its own values in
+# e2e_defaults.d/90-e2e-rnhome.toml beside this file (gitignored; copy the tracked
+# 90-e2e-rnhome.toml.example), which the loader reads after this one (see tests/e2e_config.py).
+#
+# Empty e2e_host or e2e_speakers means "no hardware available", and every hardware test skips.
+# That is the fail-safe direction: a machine with only this file never reaches a speaker.
+
+# The host on the speaker LAN that the read-only probe is shipped to and run on, the user to log in
+# as, and the path of the ssh key file that logs in there.
+e2e_host = ""
+e2e_user = "root"
+e2e_key = ""
+
+# The speakers the read-only probe may query, as a list of addresses.
+e2e_speakers = []
+
+# Whether a test may do anything AUDIBLE in the house. False here on purpose: turning it on is a
+# deliberate act in an untracked file, by someone who knows who is at home.
+e2e_audible = false

@@ -1,0 +1,133 @@
+syntax = "proto2";
+
+package TPDA;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "TPDAHeader.proto";
+import "TPDAEndpoint.proto";
+import "AVSContext.proto";
+
+enum ChangeCauseValue {
+  VOICE_INTERACTION = 1;
+  PHYSICAL_INTERACTION = 2;
+  APP_INTERACTION = 3;
+  RULE_TRIGGER = 4;
+  PERIODIC_POLL = 5;
+}
+
+enum PlayStateValue {
+  IDLE = 1;
+  PLAYING = 2;
+  PAUSED = 3;
+  STOPPED = 4;
+  FINISHED = 5;
+}
+
+enum ShuffleValue {
+  SHUFFLED = 1;
+  NOT_SHUFFLED = 2;
+}
+
+enum RepeatValue {
+  NOT_REPEATED = 1;
+  ONE_REPEATED = 2;
+  REPEATED = 3;
+}
+
+enum FavoriteValue {
+  NOT_RATED = 1;
+  UNFAVORITED = 2;
+  FAVORITED = 3;
+}
+
+enum MediaTypeValue {
+  TRACK = 1;
+  PODCAST = 2;
+  STATION = 3;
+  AD = 4;
+  SAMPLE = 5;
+  OTHER = 6;
+}
+
+message MediaStructure {
+  message MediaStructureValue {
+    message CoverUrlsValue {
+      optional string tiny = 1;
+      optional string small = 2;
+      optional string medium = 3;
+      optional string large = 4;
+      optional string full = 5;
+    }
+    optional string playbackSource = 1;
+    optional string playbackSourceId = 2;
+    optional string trackName = 3;
+    optional string trackId = 4;
+    optional string trackNumber = 5;
+    optional string artist = 6;
+    optional string artistId = 7;
+    optional string album = 8;
+    optional string albumId = 9;
+    optional .TPDA.MediaStructure.MediaStructureValue.CoverUrlsValue coverUrls = 10;
+    optional string coverId = 11;
+    optional string mediaProvider = 12;
+    optional .TPDA.MediaTypeValue mediaType = 13;
+    optional uint64 durationInMilliseconds = 14;
+  }
+  optional string type = 1;
+  optional .TPDA.MediaStructure.MediaStructureValue value = 2;
+}
+
+message PlayerStructure {
+  optional string playerId = 1;
+  optional .TPDA.PlayStateValue state = 2;
+  repeated string supportedOperations = 3;
+  optional .TPDA.MediaStructure media = 4;
+  optional uint64 positionMilliseconds = 5;
+  optional .TPDA.ShuffleValue shuffle = 6;
+  optional .TPDA.RepeatValue repeat = 7;
+  optional .TPDA.FavoriteValue favorite = 8;
+}
+
+message Value {
+  optional .TPDA.PlayStateValue state = 1;
+  repeated string supportedOperations = 2;
+  optional .TPDA.MediaStructure media = 3;
+  optional uint64 positionMilliseconds = 4;
+  optional .TPDA.ShuffleValue shuffle = 5;
+  optional .TPDA.RepeatValue repeat = 6;
+  optional .TPDA.FavoriteValue favorite = 7;
+  repeated .TPDA.PlayerStructure players = 8;
+}
+
+message Properties {
+  optional string namespace = 1;
+  optional string name = 2;
+  optional .TPDA.Value value = 3;
+  optional string timeOfSample = 4;
+  optional uint64 uncertaintyInMilliseconds = 5;
+}
+
+message PlaybackState {
+  optional .TPDA.Header header = 1;
+  optional .TPDA.Value payload = 2;
+}
+
+message PlaybackStateReporterEvent {
+  message Payload {
+    message Change {
+      message Cause {
+        optional .TPDA.ChangeCauseValue type = 1;
+      }
+      optional .TPDA.PlaybackStateReporterEvent.Payload.Change.Cause cause = 1;
+      repeated .TPDA.Properties properties = 2;
+    }
+    optional .TPDA.PlaybackStateReporterEvent.Payload.Change change = 1;
+  }
+  optional .TPDA.Header header = 1;
+  optional .TPDA.PlaybackStateReporterEvent.Payload payload = 2;
+}
+
+message PlaybackStateReporterEventEnvelope {
+  repeated .AVS.ContextElement context = 1;
+  optional .TPDA.PlaybackStateReporterEvent event = 2;
+}

@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package STS;
+
+enum StatusEnum {
+  UNAVAILABLE = 0;
+  READY = 1;
+}
+
+message Status {
+  required .STS.StatusEnum status = 1;
+}

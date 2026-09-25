@@ -1,0 +1,17 @@
+# This checkout's own [zone] values, over the public default in 10-zone.toml.
+#
+# Copy this file to 91-zone-rnhome.toml (the same name without .example) and put the real values
+# in the copy. The copy is gitignored: every file named <anything>-rnhome.<ext> is private to the
+# machine it sits on, and the wheel build excludes it as well. This example is tracked so the
+# shape can be found; the values below are placeholders from the documentation address ranges.
+#
+# The number sorts after every tracked NN-<scope>.toml, so the loader reads this file last and
+# its values win over the defaults. Every layer above the defaults (app, host, user, dotenv, env
+# and the command line) still wins over it.
+
+[zone]
+
+# The address this master serves on; see 10-zone.toml for what it does.
+bind_ip = "192.0.2.10"
+
+# device_id = "AABBCC001122"

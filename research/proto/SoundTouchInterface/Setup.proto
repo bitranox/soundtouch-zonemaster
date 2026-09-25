@@ -1,0 +1,39 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum SetupRequestState {
+  SETUP_ENTER = 0;
+  SETUP_LANG = 1;
+  SETUP_WIFI = 2;
+  SETUP_LEAVE = 3;
+  SETUP_WIFI_LEAVE = 4;
+  SETUP_ENTER_SETUPAP = 5;
+  SETUP_IDENTIFY_DEVICE_ENTER = 6;
+  SETUP_IDENTIFY_DEVICE_LEAVE = 7;
+  SETUP_START = 8;
+}
+
+enum SetupResponseState {
+  SETUP_INACTIVE = 0;
+  SETUP_GENERAL = 1;
+  SETUP_WIFI_ACTIVE = 2;
+  SETUP_AP_OOB = 3;
+}
+
+enum SystemSetupResponseState {
+  SETUP_LANG_NOT_SET = 0;
+  SETUP_LANG_SET = 1;
+}
+
+message setupState {
+  required .SoundTouchInterface.SetupRequestState state = 1;
+  optional uint32 timeout = 2;
+}
+
+message setupStateResponse {
+  required .SoundTouchInterface.SetupResponseState state = 1;
+  required .SoundTouchInterface.SystemSetupResponseState systemstate = 2;
+}

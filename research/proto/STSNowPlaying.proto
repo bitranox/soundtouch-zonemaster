@@ -1,0 +1,71 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSContentItem.proto";
+import "STSRating.proto";
+import "STSPlayStatus.proto";
+import "STSShuffleMode.proto";
+import "STSRepeatMode.proto";
+import "STSStreamType.proto";
+import "STSConnectionStatus.proto";
+
+message Links {
+  optional string moreInfo = 1;
+}
+
+message SeekRelativeInfo {
+  optional bool enabled = 1 [default = false];
+  optional uint32 offset = 2;
+}
+
+message NowPlaying {
+  optional .STS.ContentItem contentItem = 1;
+  optional string trackName = 2;
+  optional string artistName = 3;
+  optional string albumName = 4;
+  optional string stationName = 5;
+  optional string artUrl = 6;
+  optional uint64 timetotal = 7;
+  optional uint64 timeOffset = 8;
+  optional .STS.Rating.Enum rating = 9;
+  optional bool skipEnabled = 10;
+  optional bool rateEnabled = 11;
+  optional .STS.PlayStatus.Enum playStatus = 12;
+  optional .STS.ShuffleMode.Enum shuffleMode = 13;
+  optional .STS.RepeatMode.Enum repeatMode = 14;
+  optional .STS.StreamType.Enum streamType = 15;
+  optional bool skipPreviousEnabled = 16;
+  optional bool isAdvertisement = 17;
+  optional bool userAccountSuspended = 18;
+  optional bool inactivityTimeoutExpired = 19;
+  optional bool favoriteEnabled = 20;
+  optional bool isFavorite = 21;
+  optional string description = 22;
+  optional string stationLocation = 23;
+  optional string genre = 24;
+  optional .STS.ConnectionStatusInfo connectionStatusInfo = 25;
+  optional string artistID = 26;
+  optional string trackID = 27;
+  optional string sessioniD = 28;
+  optional uint32 trackIndex = 29;
+  optional bool skipPreviousSupported = 30 [default = false];
+  optional bool seekSupported = 31 [default = false];
+  optional .STS.Links links = 32;
+  optional bool resumeSupported = 33 [default = true];
+  optional string sourceDisplayName = 34;
+  optional bool canPause = 35;
+  optional bool canStop = 36;
+  optional bool collectData = 37 [default = true];
+  optional .STS.SeekRelativeInfo seekRelativeForward = 38;
+  optional .STS.SeekRelativeInfo seekRelativeBackward = 39;
+  optional string subscriptiontype = 40;
+}
+
+message NowPlayingResponse {
+  optional .STS.NowPlaying nowPlaying = 1;
+}
+
+message NowPlayingChange {
+  optional .STS.NowPlaying nowPlaying = 1;
+}

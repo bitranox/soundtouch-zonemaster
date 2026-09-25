@@ -1,0 +1,42 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Startup {
+  message PagePos {
+    optional int32 page_pos_click_banner = 1;
+    optional int32 page_pos_click_player_large = 2;
+    optional int32 page_pos_click_player_small = 3;
+    optional int32 page_pos_click_stream = 4;
+    optional int32 page_pos_request_banner = 5;
+    optional int32 page_pos_request_player = 6;
+    optional int32 page_pos_request_splash = 7;
+    optional int32 page_pos_request_stream = 8;
+    optional int32 page_pos_impression_banner = 9;
+    optional int32 page_pos_impression_banner_secondary = 10;
+    optional int32 page_pos_impression_player_large = 11;
+    optional int32 page_pos_impression_player_small = 12;
+    optional int32 page_pos_impression_splash = 13;
+    optional int32 page_pos_impression_stream = 14;
+    optional int32 page_pos_ipad_banner = 15;
+    optional int32 page_pos_ipad_sponsor = 16;
+    optional int32 page_pos_ipad_station_sponsorship = 17;
+    optional int32 page_pos_ipad_video = 18;
+    optional int32 page_pos_ipad_photo_gallery_leaderboard = 19;
+    optional int32 page_pos_ipad_stations_tab = 20;
+  }
+  message Ads {
+    optional int32 ads_gateway_display_time = 1;
+    optional int32 ads_gateway_enable_user_abort = 2;
+    optional int32 ads_gateway_interval = 3;
+    optional int32 ads_gateway_listen_seconds = 4;
+    optional string ads_splash_dart_url = 5;
+    optional int32 ads_splash_display_time = 6;
+    optional int32 ads_banner_refresh_interval = 7;
+    optional string ads_dart_url_prefix = 8;
+    optional int32 ads_percent_apple = 9;
+    optional .IHeart.Startup.PagePos page_pos = 10;
+  }
+}

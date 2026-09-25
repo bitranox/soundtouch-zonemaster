@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Track {
+  optional string album = 1;
+  optional string artist = 5;
+  optional string artistName = 7;
+  optional string imagePath = 13;
+  optional string title = 25;
+  optional int32 trackDuration = 26;
+  optional int32 trackId = 27;
+}

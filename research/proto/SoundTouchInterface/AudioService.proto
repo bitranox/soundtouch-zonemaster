@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Status.proto";
+
+message volume {
+  message TargetVolume {
+    optional int32 text = 1;
+  }
+  message ActualVolume {
+    optional int32 text = 1;
+  }
+  message MuteEnabled {
+    optional bool text = 1;
+  }
+  optional string deviceID = 1;
+  optional .SoundTouchInterface.volume.TargetVolume targetvolume = 2;
+  optional .SoundTouchInterface.volume.ActualVolume actualvolume = 3;
+  optional .SoundTouchInterface.volume.MuteEnabled muteenabled = 4;
+  optional int32 text = 5;
+}
+
+message audioSource {
+  optional string pathToFile = 1;
+}

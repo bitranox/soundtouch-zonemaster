@@ -1,0 +1,37 @@
+syntax = "proto2";
+
+package WebInterface;
+
+enum SecurityType {
+  none = 0;
+  wep = 1;
+  wpatkip = 2;
+  wpaaes = 3;
+  wpa2tkip = 4;
+  wpa2aes = 5;
+  wpa_or_wpa2 = 6;
+}
+
+message WirelessProfile {
+  message DHCPOverrideSettings {
+    required string useIPAddress = 1;
+    required string subnetMask = 2;
+    optional string defaultGateway = 3;
+    optional string dns1 = 4;
+    optional string dns2 = 5;
+    optional string proxyServer = 6;
+    optional string proxyPort = 7;
+  }
+  required string ssid = 1;
+  optional string password = 2;
+  optional .WebInterface.SecurityType securityType = 3;
+  optional .WebInterface.WirelessProfile.DHCPOverrideSettings dhcpOverrideSettings = 4;
+}
+
+message AddWirelessProfile {
+  required .WebInterface.WirelessProfile profile = 1;
+  optional float timeout = 2 [default = 90];
+}
+
+message AddWirelessProfileResponse {
+}

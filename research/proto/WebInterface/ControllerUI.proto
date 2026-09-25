@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "WebInterface/SourceIcon.proto";
+
+message ControllerUI {
+  required uint32 capabilities = 1;
+  required .WebInterface.SourceIcon ctlrIconUrl = 2;
+}

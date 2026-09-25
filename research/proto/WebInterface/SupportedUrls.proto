@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message supportedURLs {
+  message Url {
+    required string location = 1;
+  }
+  required string deviceID = 1;
+  repeated .WebInterface.supportedURLs.Url URL = 2;
+}

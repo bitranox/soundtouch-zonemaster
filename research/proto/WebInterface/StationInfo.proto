@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message stationInfoRequest {
+}
+
+message stationInfoResponse {
+  optional string deviceID = 1;
+  optional string featuring = 2;
+}

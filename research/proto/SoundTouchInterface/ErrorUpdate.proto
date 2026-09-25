@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Status.proto";
+
+message errorUpdate {
+  required string deviceID = 1;
+  optional .SoundTouchInterface.Error error = 2;
+}

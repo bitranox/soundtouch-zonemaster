@@ -1,0 +1,32 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSZoneStatus.proto";
+import "STSGroupStatus.proto";
+import "STSDeployment.proto";
+import "STSDeviceStatus.proto";
+
+message DeviceInfo {
+  optional string deviceId = 1;
+  optional string deviceName = 2;
+  optional string primaryMacAddress = 3;
+  optional string interfaceMacAddress = 4;
+  optional string type = 5;
+  optional string soundTouchAccountId = 6;
+  optional .STS.ZoneStatus.Enum zoneStatus = 7;
+  optional string softwareVersion = 8;
+  optional .STS.DeviceStatus.Enum status = 9;
+  optional .STS.Deployment.Enum deployment = 10;
+  optional string groupName = 11;
+  optional .STS.GroupStatus.Enum groupStatus = 12;
+  optional string language = 13;
+  optional string productName = 14;
+  optional string swUpdateDeviceId = 15;
+  optional string serialNumber = 16;
+  optional int32 outputLatency = 17;
+}
+
+message DeviceInfoResponse {
+  required .STS.DeviceInfo deviceInfo = 1;
+}

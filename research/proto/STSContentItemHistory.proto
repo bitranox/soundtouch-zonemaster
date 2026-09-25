@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSContentItem.proto";
+
+message ContentItemHistory {
+  message Track {
+    optional .STS.ContentItem track = 1;
+    optional string offset = 2;
+  }
+  message Entry {
+    optional .STS.ContentItem key = 1;
+    optional .STS.ContentItemHistory.Track value = 2;
+  }
+  optional int32 maxSize = 1;
+  repeated .STS.ContentItemHistory.Entry entry = 2;
+}

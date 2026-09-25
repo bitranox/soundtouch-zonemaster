@@ -1,0 +1,20 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message MarketList {
+  message Market {
+    optional string city = 1;
+    optional int32 marketId = 6;
+    optional string name = 7;
+    optional string stateName = 10;
+  }
+  optional int32 total = 2;
+  optional .IHeart.Error firstError = 3;
+  optional .IHeart.Error error = 4;
+  repeated .IHeart.Error errors = 5;
+  repeated .IHeart.MarketList.Market hits = 6;
+}

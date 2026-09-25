@@ -1,0 +1,127 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message onDemandMetadataResponse {
+  message Messages {
+    optional uint32 code = 1;
+    optional string message = 2;
+  }
+  message Metadata {
+    message OnDemand {
+      message Show {
+        message ChannelNumber {
+          optional uint32 number = 1;
+          optional string type = 2;
+        }
+        message Channel {
+          optional string channelContentType = 1;
+          repeated .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.ChannelNumber channelNumber = 2;
+          optional string contentId = 3;
+          optional string title = 4;
+        }
+        message Series {
+          message Episode {
+            message DmcaInfo {
+              optional uint32 backSkipDur = 1;
+              optional string channelContentType = 2;
+              optional uint32 fwdSkipDur = 3;
+              optional string irNavClass = 4;
+              optional uint32 maxBackSkips = 5;
+              optional uint32 maxFwdSkips = 6;
+              optional string playOnSelect = 7;
+            }
+            message DrmInfo {
+              optional string activationDateTime = 1;
+              optional string expirationDateTime = 2;
+              optional int32 numberOfPlays = 3;
+              optional string recordRestriction = 4;
+              repeated string recordRestrictionDistribution = 5;
+              optional bool sharedFlag = 6;
+            }
+            message Scheduling {
+              optional uint32 duration = 1;
+              optional string startTime = 2;
+            }
+            message Segment {
+              message Cut {
+                message CreativeArt {
+                  optional bool encrypted = 1;
+                  optional uint32 id = 2;
+                  optional uint32 keyIndex = 3;
+                  optional uint32 length = 4;
+                  optional string size = 5;
+                  optional string type = 6;
+                  optional string url = 7;
+                  optional uint32 width = 8;
+                }
+                message Album {
+                  repeated .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Segment.Cut.CreativeArt creativeArt = 1;
+                  optional string title = 2;
+                }
+                message Artist {
+                  optional string id = 1;
+                  optional string title = 2;
+                }
+                message ExternalIds {
+                  optional string id = 1;
+                }
+                optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Segment.Cut.Album album = 1;
+                optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Segment.Cut.Artist artist = 2;
+                optional string composer = 3;
+                optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Segment.Cut.ExternalIds externalIds = 4;
+                optional string id = 5;
+                optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Scheduling scheduling = 6;
+                optional string siriusXMId = 7;
+                optional string title = 8;
+              }
+              repeated .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Segment.Cut cut = 1;
+              optional string id = 2;
+              optional string longDescription = 3;
+              optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Scheduling scheduling = 4;
+              optional string shortDescription = 5;
+              optional string shortId = 6;
+            }
+            optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.DmcaInfo dmcaInfo = 1;
+            optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.DrmInfo drmInfo = 2;
+            optional bool firstShowing = 3;
+            optional bool lastShowing = 4;
+            optional string longDescription = 5;
+            optional string longTitle = 6;
+            optional string mediumTitle = 7;
+            optional string originalAirDate = 8;
+            optional bool repeat = 9;
+            optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Scheduling scheduling = 10;
+            optional string shortDescription = 11;
+            optional string shortId = 12;
+            repeated .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode.Segment segment = 13;
+          }
+          optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series.Episode episode = 1;
+        }
+        optional string longDescription = 1;
+        optional string longTitle = 2;
+        optional string mediumTitle = 3;
+        optional string shortDescription = 4;
+        optional string shortId = 5;
+        optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Channel channel = 6;
+        optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show.Series series = 7;
+      }
+      optional float sxmSchemaVersion = 1;
+      optional string sxmSchemaType = 2;
+      optional string creationDate = 3;
+      optional string title = 4;
+      optional string copyright = 5;
+      optional bool useMediaContentKey = 6;
+      optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand.Show show = 7;
+    }
+    optional string accessControlIdentifier = 1;
+    optional .Sxm.onDemandMetadataResponse.Metadata.OnDemand onDemand = 2;
+  }
+  optional string lastModified = 1;
+  repeated .Sxm.onDemandMetadataResponse.Messages messages = 2;
+  optional bool modified = 3;
+  optional uint32 status = 4;
+  optional .Sxm.onDemandMetadataResponse.Metadata metadata = 5;
+}

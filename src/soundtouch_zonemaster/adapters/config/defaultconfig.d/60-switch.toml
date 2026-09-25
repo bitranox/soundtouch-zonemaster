@@ -1,0 +1,17 @@
+# How quickly the on/off file is noticed.
+
+[switch]
+
+# How often the switch file is read, in seconds.
+#
+# Default: 1.0. Effect: it bounds how long after somebody writes "off" the house actually stands
+# down, and how long after they write anything else it comes back.
+# When to change it: rarely. One second is about as fast as somebody can walk back into the room,
+# which is the timescale that matters for the one setting a person changes expecting to HEAR the
+# result.
+# Consequence of raising it: the delay between flipping the switch and the house reacting grows,
+# and a person who does not hear anything tends to flip it again.
+# Consequence of lowering it: one extra stat() per second per step, which is free, and no benefit
+# a person can perceive.
+#   env: SOUNDTOUCH_ZONEMASTER___SWITCH__POLL_S
+poll_s = 1.0

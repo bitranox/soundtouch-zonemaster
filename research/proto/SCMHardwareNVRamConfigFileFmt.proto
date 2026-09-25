@@ -1,0 +1,38 @@
+syntax = "proto2";
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message TextAndKind {
+  optional string text = 1;
+  required string kind = 2;
+}
+
+message serialNumbers {
+  repeated .TextAndKind sn = 1;
+}
+
+message macAddrs {
+  repeated .TextAndKind macAddr = 1;
+}
+
+message calData {
+  repeated .TextAndKind calElt = 1;
+}
+
+message bcoPersistentSettings {
+  message settingT {
+    optional string text = 1;
+    required string name = 2;
+  }
+  repeated .bcoPersistentSettings.settingT setting = 1;
+}
+
+message manufacturingInformation {
+  required .serialNumbers serialNumbers = 1;
+  optional .macAddrs macAddrs = 2;
+  optional .calData calData = 3;
+  optional .Common.String countryCode = 4;
+  optional .Common.String variantMode = 5;
+  optional .bcoPersistentSettings bcoPersistentSettings = 6;
+}

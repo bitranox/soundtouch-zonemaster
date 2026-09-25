@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+import "Track.proto";
+
+message CustomRadioGetTracks {
+  message RadioStation {
+    optional string artistName = 1;
+    optional bool artistRadio = 2;
+    optional int32 artistSeed = 3;
+    optional int32 featuredStationId = 4;
+    optional string radioStationID = 7;
+    optional string radioStationName = 8;
+    optional string stationType = 10;
+    repeated int32 thumbsUpTracks = 11;
+    repeated int32 thumbsDownTracks = 12;
+    repeated .IHeart.Track tracks = 13;
+    optional int32 trackSeed = 14;
+  }
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  repeated .IHeart.CustomRadioGetTracks.RadioStation radioStations = 5;
+  optional .IHeart.Error error = 6;
+}

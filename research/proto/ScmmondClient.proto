@@ -1,0 +1,37 @@
+syntax = "proto2";
+
+enum ScmmondCheckMsgId {
+  SCMMOND_CLIENT_REQ = 1001;
+  SCMMOND_NOTIFY_LOWPOWER = 1003;
+  SCMMOND_UNMUTE = 1006;
+}
+
+enum ScmmondClientReqType {
+  SCMMOND_WAKEUP = 1;
+  SCMMOND_AMP_FAULT = 2;
+}
+
+enum ScmmondLowPowerStage {
+  SCMMOND_CHARGING_LOPWR = 0;
+  SCMMOND_FULL_LOPWR = 1;
+  SCMMOND_WAKEUP_CHARGING_LOPWR = 3;
+  SCMMOND_NETWORK_STANDBY = 4;
+  SCMMOND_WAKEUP_NETWORK_STANDBY = 5;
+}
+
+message ScmmondCheckReq {
+  optional .ScmmondClientReqType reqtype = 1;
+}
+
+message ScmmondCheckAck {
+}
+
+message ScmmondGoingToLowPower {
+  required .ScmmondLowPowerStage stage = 1;
+}
+
+message ScmmondUnmuteReq {
+}
+
+message ScmmondUnmuteAck {
+}

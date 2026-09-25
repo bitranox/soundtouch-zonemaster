@@ -1,0 +1,21 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message OnDemandEpisodesResponse {
+  message Messages {
+    optional uint32 code = 1;
+    optional string message = 2;
+  }
+  message OnDemandEpisode {
+    optional string accessControlId = 1;
+    optional uint32 showId = 2;
+    optional uint64 expireDate = 3;
+    optional uint64 durationMilliseconds = 4;
+    optional string baseURL = 5;
+  }
+  repeated .Sxm.OnDemandEpisodesResponse.Messages messages = 1;
+  repeated .Sxm.OnDemandEpisodesResponse.OnDemandEpisode resultSet = 2;
+}

@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package STS.GroupStatus;
+
+enum Enum {
+  NO_GROUP = 0;
+  MASTER = 1;
+  SLAVE = 2;
+}

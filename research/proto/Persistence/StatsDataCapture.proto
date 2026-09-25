@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package Persistence;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message StatsDataCaptureConfiguration {
+  message Blacklist {
+    repeated string item = 2;
+  }
+  optional .Persistence.StatsDataCaptureConfiguration.Blacklist blacklist = 1;
+  optional .Common.String authtoken = 2;
+}

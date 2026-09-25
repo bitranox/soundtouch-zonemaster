@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum Role {
+  NORMAL = 0;
+  LEFT = 1;
+  RIGHT = 2;
+  INVALID_ROLE = 3;
+}
+
+message Member {
+  optional string text = 1;
+  optional string ipaddress = 2;
+  optional .SoundTouchInterface.Role role = 3;
+}
+
+message zone {
+  optional string master = 1;
+  repeated .SoundTouchInterface.Member member = 2;
+  optional string senderIPAddress = 3;
+  optional bool senderIsMaster = 4;
+}

@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message GroupVersion {
+  optional string groupSoftwareVersion = 1 [default = ""];
+}

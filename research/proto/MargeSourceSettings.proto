@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message sourceSetting {
+  optional .Common.String keyName = 1;
+  optional .Common.String value = 2;
+}
+
+message sourceSettings {
+  repeated .MargePB.sourceSetting source_setting = 1;
+}

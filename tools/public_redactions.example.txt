@@ -1,0 +1,27 @@
+# The shape of tools/public_redactions-rnhome.txt, the private name list. Copy this file to that
+# name (it is gitignored by the *-rnhome.* rule) and replace the made-up entries below with the
+# names of your own house, machines, device ids and paths.
+#
+# Two programs read the private list:
+#   tests/test_no_private_names.py   the name guard: no TRACKED file may contain the left-hand side
+#                                    of any rule, in any case. It skips where the list is absent.
+#   tools/export_public.py           the anonymized export: every blob and commit message is run
+#                                    through the rules, then checked for the left-hand sides.
+#
+# Format is git-filter-repo's --replace-text: <literal>==><replacement>, one rule per line. Lines
+# starting with # and blank lines are commentary; any other line without ==> is refused.
+#
+# The replacement is literal and case-sensitive, so each case a name is written in needs its own
+# line; the detectors search case-insensitively, so a case with no rule is reported, not passed.
+# Rules apply top to bottom: a literal that is a substring of a longer one goes after it.
+Pantry==>Room1
+PANTRY==>ROOM1
+pantry==>room1
+Attic==>Room2
+ATTIC==>ROOM2
+attic==>room2
+media-box==>service-host
+112233445566==>AABBCC0000A1
+11:22:33:44:55:66==>aa:bb:cc:00:00:a1
+/home/alice/src/soundtouch-zonemaster==>/home/user/soundtouch-zonemaster
+alice==>user

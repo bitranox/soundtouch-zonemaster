@@ -1,0 +1,29 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message BassAvailable {
+  optional bool text = 1;
+}
+
+message BassMin {
+  optional int32 text = 1;
+}
+
+message BassMax {
+  optional int32 text = 1;
+}
+
+message BassDefault {
+  optional int32 text = 1;
+}
+
+message bassCapabilities {
+  optional string deviceID = 1;
+  optional .WebInterface.BassAvailable bassAvailable = 2;
+  optional .WebInterface.BassMin bassMin = 3;
+  optional .WebInterface.BassMax bassMax = 4;
+  optional .WebInterface.BassDefault bassDefault = 5;
+}

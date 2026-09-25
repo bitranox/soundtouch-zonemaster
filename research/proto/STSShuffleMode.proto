@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+package STS.ShuffleMode;
+
+enum Enum {
+  OFF = 0;
+  ON = 1;
+}

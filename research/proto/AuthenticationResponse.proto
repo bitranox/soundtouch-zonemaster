@@ -1,0 +1,44 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AuthenticationResponse {
+  message Messages {
+    optional uint32 code = 1;
+    optional string message = 2;
+  }
+  message Account {
+    optional uint32 accountType = 1;
+    optional uint32 channelLineupId = 2;
+    optional string subscriberType = 3;
+    optional string consumerSuffix = 4;
+    optional uint32 trialBalance = 5;
+  }
+  message UserInfo {
+    message Account {
+      optional uint32 accountType = 1;
+      optional uint32 channelLineupId = 2;
+      optional string subscriberType = 3;
+      optional string consumerSuffix = 4;
+    }
+    optional .Sxm.AuthenticationResponse.UserInfo.Account account = 1;
+    optional string email = 2;
+    optional string firstName = 3;
+    optional string lastName = 4;
+    optional string presets = 5;
+    optional uint32 status = 6;
+  }
+  repeated .Sxm.AuthenticationResponse.Messages messages = 1;
+  optional string salt = 2;
+  optional uint32 iterationsCount = 3;
+  optional string authenticationChallenge = 4;
+  optional uint32 passwordHashType = 5;
+  optional string hashMethod = 6;
+  optional uint32 status = 7;
+  optional string timestamp = 8;
+  optional string sessionId = 9;
+  optional .Sxm.AuthenticationResponse.UserInfo userInfo = 10;
+  optional bool registered = 11;
+}

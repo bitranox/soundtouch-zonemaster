@@ -1,0 +1,19 @@
+syntax = "proto2";
+
+message IPCMessageEnvelopeBase {
+  enum MsgType {
+    MSG_TYPE_UNKNOWN = 0;
+    MSG_TYPE_EVENT = 1;
+    MSG_TYPE_REQUEST = 2;
+    MSG_TYPE_RESPONSE = 3;
+  }
+  enum MsgModuleId {
+    MSG_MODULE_ID_UNKNOWN = 0;
+  }
+  required .IPCMessageEnvelopeBase.MsgType msg_type = 1 [default = MSG_TYPE_UNKNOWN];
+  required .IPCMessageEnvelopeBase.MsgModuleId msg_module_id = 2 [default = MSG_MODULE_ID_UNKNOWN];
+  required int32 msg_id = 3 [default = 0];
+  required bytes msg_contents = 6;
+  optional uint32 sequence = 7;
+  optional string msg_typename = 8;
+}

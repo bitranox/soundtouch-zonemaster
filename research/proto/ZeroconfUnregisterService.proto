@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+message ZeroconfUnregisterService {
+  optional string deviceName = 1;
+  required string serviceType = 2;
+  optional uint32 port = 3;
+}

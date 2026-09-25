@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+import "STSShuffleMode.proto";
+import "Common.proto";
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message SpotifyPersistent {
+  optional .Common.String account = 1;
+  optional .STS.ShuffleMode.Enum shuffleMode = 2 [default = OFF];
+}

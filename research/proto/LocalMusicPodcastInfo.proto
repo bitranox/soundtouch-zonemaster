@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package LocalMusic;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "LocalMusicError.proto";
+
+message PodcastInfo {
+  optional int64 id = 1;
+  optional string name = 2;
+  optional string imageURL = 3;
+  optional .LocalMusic.error error = 4;
+}

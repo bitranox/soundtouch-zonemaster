@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package AlexaSeek;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum SeekType {
+  ABSOLUTE = 0;
+  RELATIVE = 1;
+}
+
+message SeekDirective {
+  required int64 seekOffset_ms = 1;
+  required .AlexaSeek.SeekType seektype = 2;
+}

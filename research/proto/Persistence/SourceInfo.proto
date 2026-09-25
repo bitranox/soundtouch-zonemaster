@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package Persistence;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message SourceInfo {
+  repeated string info = 1;
+}

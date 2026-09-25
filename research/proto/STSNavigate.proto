@@ -1,0 +1,26 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSMenuType.proto";
+import "STSItems.proto";
+import "STSSortOrder.proto";
+import "STSSections.proto";
+
+message NavigateRequest {
+  optional .STS.MenuType.Enum menu = 1;
+  optional uint32 startItem = 2;
+  optional uint32 numItems = 3;
+  optional .STS.Item item = 4;
+  optional .STS.SortOrder.Enum sortOrder = 5;
+  optional string lang = 6;
+  optional string localTime = 7;
+}
+
+message NavigateResponse {
+  optional .STS.MenuType.Enum menu = 1;
+  optional uint32 totalItems = 2;
+  optional uint64 utcTime = 3;
+  optional .STS.Items items = 4;
+  optional .STS.Sections sections = 5;
+}

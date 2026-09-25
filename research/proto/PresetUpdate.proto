@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/ContentItem.proto";
+import "SoundTouchInterface/Presets.proto";
+
+message PresetUpdate {
+  repeated .SoundTouchInterface.PresetID removeIds = 1;
+  optional .SoundTouchInterface.preset newPreset = 2;
+}

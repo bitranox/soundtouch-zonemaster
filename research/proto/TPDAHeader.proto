@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package TPDA;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message EmptyPayload {
+}
+
+message EmptyContext {
+}
+
+message Header {
+  required string namespace = 1 [default = "Alexa.PlaybackController"];
+  required string name = 2;
+  optional string messageId = 3;
+  optional string payloadVersion = 4;
+}

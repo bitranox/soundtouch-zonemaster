@@ -1,0 +1,48 @@
+# The Music Player Daemon that holds the house's own music.
+#
+# A channel whose kind is "mpd" names a stored PLAYLIST rather than a URL to fetch, and the
+# service asks MPD to load it before it points the zone at the stream. The sound itself costs the
+# master nothing new: MPD's httpd output is an ordinary HTTP MP3 stream, which is what a radio
+# channel already is.
+#
+# These two say where that daemon answers its CONTROL protocol. Where the music FILES live is
+# MPD's own configuration and not this program's: all three ways of getting them to the machine -
+# a bind mount from the host, a network mount, a copy onto its own disk - present at one path
+# that MPD is told about, and this service never learns which of the three is in use.
+#
+# A house with nothing but radio channels never opens this connection at all, so a wrong value
+# here costs nothing until somebody dials an MPD channel. That is deliberate: a service that
+# refused to hold the zone because a daemon it may never need is absent would take the radio down
+# with it.
+
+[mpd]
+
+# The host MPD answers on.
+#
+# Default: 127.0.0.1, because MPD runs beside this service in the same container.
+# When to change it: a deployment that puts the music on another machine.
+# Consequence of getting it wrong: every MPD channel is silent and says so in the log, once per
+# channel change; every radio channel keeps playing.
+#   env: SOUNDTOUCH_ZONEMASTER___MPD__HOST
+host = "127.0.0.1"
+
+# The port its control protocol answers on.
+#
+# Default: 6600, MPD's own default.
+# When to change it: an mpd.conf that moved it.
+# Consequence of getting it wrong: the same as the host above. A value outside 1 to 65535 is
+# refused at startup rather than carried around as something nothing can dial.
+#   env: SOUNDTOUCH_ZONEMASTER___MPD__PORT
+port = 6600
+
+# How far back a channel starts when the house comes back to it, in seconds.
+#
+# Default: 20, about a sentence and a half of speech, so that somebody returning to an audiobook
+# hears their way back in rather than landing mid-sentence. The place the house stopped at is
+# recorded exactly; this only moves where the resume starts, so changing it never rewrites
+# anything already written down. An offset shorter than this starts that same file again rather
+# than stepping into the one before it, which is a different recording.
+# When to change it: music rather than speech wants less of it, or none.
+# Consequence of getting it wrong: every return to an MPD channel repeats too much or too little.
+#   env: SOUNDTOUCH_ZONEMASTER___MPD__REWIND_S
+rewind_s = 20.0

@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package STS;
+
+message SSDPDiscoveryStatusChange {
+  optional string uuid = 1;
+  optional string ipAddr = 2;
+  optional string port = 3;
+}
+
+message SSDPDiscoveryStatusResponse {
+  optional string xml = 1;
+}

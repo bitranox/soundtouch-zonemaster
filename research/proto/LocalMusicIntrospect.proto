@@ -1,0 +1,21 @@
+syntax = "proto2";
+
+package LocalMusic;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "STSContentItemHistory.proto";
+import "STSNowPlaying.proto";
+import "STSPlayQueueIntrospect.proto";
+import "Common.proto";
+
+message ServiceIntrospectResponse {
+  optional string stsServerIP = 1;
+  optional .Common.Accounts accounts = 2;
+}
+
+message AccountIntrospectResponse {
+  optional string state = 1;
+  optional .STS.NowPlaying nowPlaying = 2;
+  optional .STS.ContentItemHistory contentItemHistory = 3;
+  optional .STS.PlayQueueIntrospect playQueue = 4;
+}

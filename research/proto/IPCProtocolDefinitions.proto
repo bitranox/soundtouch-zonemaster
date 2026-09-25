@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+import "google/protobuf/descriptor.proto";
+
+enum ProtocolDescriptor {
+  OPTIONAL = 0;
+  REQUIRED = 1;
+}
+
+enum IPCCapabilitiesInternalMsgIDs {
+  IPC_CAPABILITIES_INTERNALS_START = 10000;
+  IPC_CAPABILITIES_MSG = 10001;
+  IPC_CAPABILITIES_INTERNALS_END = 10999;
+}
+
+message IPCProtocolDescriptor {
+  message ProtocolDefinition {
+    optional uint32 msg_id = 1;
+    optional string msg_id_string = 2;
+    optional .ProtocolDescriptor protocol_descriptor = 3;
+  }
+  repeated .IPCProtocolDescriptor.ProtocolDefinition protocol_definitions = 1;
+}
+
+extend .google.protobuf.EnumValueOptions {
+  optional .ProtocolDescriptor protocol_descriptor = 50004;
+}

@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package STS;
+
+message STSLogAutomation {
+  optional string logString = 1;
+}

@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message StationType {
+  enum Value {
+    UNKNOWN = 1;
+    LIVE = 2;
+    ARTIST = 3;
+    TRACK = 4;
+    TALK_THEME = 5;
+    TALK_SHOW = 6;
+    TALK_EPISODE = 7;
+    MOOD = 8;
+  }
+}

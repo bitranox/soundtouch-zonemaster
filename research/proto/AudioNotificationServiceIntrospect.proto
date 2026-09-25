@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package AudioNotificationPB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AudioNotificationServiceIntrospectResponse {
+  optional string serviceName = 1;
+  optional uint32 stsVersionMajor = 2;
+  optional uint32 stsVersionMinor = 3;
+}

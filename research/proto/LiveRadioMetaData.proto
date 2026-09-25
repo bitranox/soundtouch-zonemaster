@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message LiveRadioMetaData {
+  message Track {
+    optional string artistName = 4;
+    optional string title = 13;
+    optional int32 trackDuration = 14;
+    optional int32 trackId = 15;
+  }
+  optional string stationId = 1;
+  repeated .IHeart.LiveRadioMetaData.Track trackRestLiteValues = 2;
+  repeated .IHeart.Error errors = 4;
+  optional .IHeart.Error firstError = 5;
+  optional .IHeart.Error error = 6;
+}
+
+message QuickIoMetaData {
+  optional string artist = 3;
+  optional int32 artistId = 4;
+  optional int32 stationId = 6;
+  optional int32 trackId = 7;
+  optional string track = 8;
+  optional .IHeart.Error firstError = 9;
+  repeated .IHeart.Error errors = 10;
+}

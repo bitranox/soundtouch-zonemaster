@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message MargeConfiguration {
+  message PasswordType {
+    optional string version = 1;
+    optional string text = 2;
+  }
+  optional .MargePB.MargeConfiguration.PasswordType margeAuthServerToken = 1;
+}

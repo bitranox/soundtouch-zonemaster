@@ -1,0 +1,210 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/ContentItem.proto";
+import "SoundTouchInterface/Status.proto";
+
+enum RatingValue {
+  DOWN = 0;
+  NONE = 1;
+  UP = 2;
+}
+
+enum PlayStatusValue {
+  PLAY_STATE = 0;
+  PAUSE_STATE = 1;
+  STOP_STATE = 2;
+  BUFFERING_STATE = 3;
+  INVALID_PLAY_STATUS = 4;
+}
+
+enum AlbumArtDownloadStatus {
+  INVALID = 0;
+  SHOW_DEFAULT_IMAGE = 1;
+  IMAGE_PRESENT = 3;
+}
+
+enum ShuffleMode {
+  SHUFFLE_OFF = 0;
+  SHUFFLE_ON = 1;
+}
+
+enum RepeatMode {
+  REPEAT_OFF = 0;
+  REPEAT_ONE = 1;
+  REPEAT_ALL = 2;
+}
+
+enum StreamType {
+  TRACK_ONDEMAND = 0;
+  RADIO_STREAMING = 1;
+  RADIO_TRACKS = 2;
+  NO_TRANSPORT_CONTROLS = 3;
+}
+
+enum ConnectionStatus {
+  UNDEFINED = 0;
+  CONNECTED = 1;
+  CONNECTING = 2;
+  DISCONNECTED = 3;
+  DISCOVERABLE = 4;
+}
+
+enum PlayControlValue {
+  PLAY_CONTROL = 0;
+  PAUSE_CONTROL = 1;
+  STOP_CONTROL = 2;
+  PLAY_PAUSE_CONTROL = 3;
+  INVALID_CONTROL = 4;
+}
+
+enum TrackControlValue {
+  NEXT_TRACK = 1;
+  PREV_TRACK = 2;
+  PREV_TRACK_FORCE = 3;
+  REPEAT_ONE_TRACK = 5;
+  REPEAT_ALL_TRACKS = 6;
+  REPEAT_TRACKS_OFF = 7;
+  SHUFFLE_TRACKS_ON = 8;
+  SHUFFLE_TRACKS_OFF = 9;
+  SEEK_TO_TIME = 4;
+}
+
+enum ProductControlValue {
+  PLAY_PAUSE_STOP_CONTROL = 0;
+  SEEK_SCAN_UP_CONTROL = 1;
+  SEEK_SCAN_DOWN_CONTROL = 2;
+  INVALID_PRODUCT_CONTROL = 3;
+}
+
+message nowPlaying {
+  message Art {
+    required .SoundTouchInterface.AlbumArtDownloadStatus artImageStatus = 1;
+    optional string text = 2;
+  }
+  message Artist {
+    optional string text = 1;
+  }
+  message Album {
+    optional string text = 1;
+  }
+  message Track {
+    optional string text = 1;
+  }
+  message Time {
+    required string total = 1;
+    optional string text = 2;
+  }
+  message Rating {
+    required .SoundTouchInterface.RatingValue text = 1;
+  }
+  message StationName {
+    optional string text = 1;
+  }
+  message Description {
+    optional string text = 1;
+  }
+  message SkipEnabled {
+  }
+  message RateEnabled {
+  }
+  message FavoriteEnabled {
+  }
+  message ShuffleSetting {
+    required .SoundTouchInterface.ShuffleMode text = 1;
+  }
+  message RepeatSetting {
+    required .SoundTouchInterface.RepeatMode text = 1;
+  }
+  message PlayStatus {
+    required .SoundTouchInterface.PlayStatusValue text = 1 [default = INVALID_PLAY_STATUS];
+  }
+  message SkipPreviousEnabled {
+  }
+  message SkipPreviousSupported {
+    optional bool value = 1;
+  }
+  message SeekSupported {
+    optional bool value = 1;
+  }
+  message IsAdvertisement {
+  }
+  message IsFavorite {
+  }
+  message UserAccountSuspended {
+  }
+  message InactivityTimeoutExpired {
+  }
+  message Offset {
+    optional uint32 text = 1;
+  }
+  message StreamTypeField {
+    optional .SoundTouchInterface.StreamType text = 1;
+  }
+  message StationLocation {
+    optional string text = 1;
+  }
+  message TextElement {
+    optional string text = 1;
+  }
+  message ConnectionStatusInfo {
+    optional .SoundTouchInterface.ConnectionStatus status = 1;
+    optional string deviceName = 2;
+  }
+  message Account {
+    optional string subscriptionType = 1;
+  }
+  required string deviceID = 1;
+  required string source = 2;
+  optional string sourceAccount = 3;
+  optional .SoundTouchInterface.ContentItem ContentItem = 4;
+  optional .SoundTouchInterface.nowPlaying.Track track = 5;
+  optional .SoundTouchInterface.nowPlaying.Artist artist = 6;
+  optional .SoundTouchInterface.nowPlaying.Album album = 7;
+  optional .SoundTouchInterface.nowPlaying.Offset offset = 8;
+  optional .SoundTouchInterface.nowPlaying.StationName stationName = 9;
+  optional .SoundTouchInterface.nowPlaying.Art art = 10;
+  optional .SoundTouchInterface.nowPlaying.Time time = 11;
+  optional .SoundTouchInterface.nowPlaying.Rating rating = 12;
+  optional .SoundTouchInterface.nowPlaying.SkipEnabled skipEnabled = 13;
+  optional .SoundTouchInterface.nowPlaying.RateEnabled rateEnabled = 14;
+  optional .SoundTouchInterface.nowPlaying.FavoriteEnabled favoriteEnabled = 15;
+  optional .SoundTouchInterface.nowPlaying.PlayStatus playStatus = 16;
+  optional .SoundTouchInterface.nowPlaying.ShuffleSetting shuffleSetting = 17;
+  optional .SoundTouchInterface.nowPlaying.RepeatSetting repeatSetting = 18;
+  optional .SoundTouchInterface.nowPlaying.SkipPreviousEnabled skipPreviousEnabled = 19;
+  optional .SoundTouchInterface.nowPlaying.SkipPreviousSupported skipPreviousSupported = 20;
+  optional .SoundTouchInterface.nowPlaying.SeekSupported seekSupported = 21;
+  optional .SoundTouchInterface.nowPlaying.IsAdvertisement isAdvertisement = 22;
+  optional .SoundTouchInterface.nowPlaying.Account account = 23;
+  optional .SoundTouchInterface.nowPlaying.UserAccountSuspended userAccountSuspended = 24;
+  optional .SoundTouchInterface.nowPlaying.InactivityTimeoutExpired inactivityTimeoutExpired = 25;
+  optional .SoundTouchInterface.nowPlaying.StreamTypeField streamType = 26;
+  optional .SoundTouchInterface.nowPlaying.IsFavorite isFavorite = 27;
+  optional .SoundTouchInterface.nowPlaying.Description description = 28;
+  optional .SoundTouchInterface.nowPlaying.StationLocation stationLocation = 29;
+  optional .SoundTouchInterface.nowPlaying.TextElement genre = 30;
+  optional .SoundTouchInterface.nowPlaying.ConnectionStatusInfo connectionStatusInfo = 31;
+  optional .SoundTouchInterface.nowPlaying.TextElement artistID = 32;
+  optional .SoundTouchInterface.nowPlaying.TextElement trackID = 33;
+  optional .SoundTouchInterface.nowPlaying.TextElement sessionID = 34;
+}
+
+message PlayControl {
+  required .SoundTouchInterface.PlayControlValue text = 1 [default = INVALID_CONTROL];
+}
+
+message TrackControl {
+  required .SoundTouchInterface.TrackControlValue text = 1;
+  optional uint32 startSecond = 2;
+}
+
+message ProductControl {
+  required .SoundTouchInterface.ProductControlValue text = 1 [default = INVALID_PRODUCT_CONTROL];
+}
+
+message ProductControlResponse {
+  optional bool status = 1;
+}

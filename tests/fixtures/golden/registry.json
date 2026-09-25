@@ -1,0 +1,503 @@
+{
+  "meta": {
+    "corpus": "registry",
+    "note": "fetch_speakers against a loopback double: speakers, or the RegistryError message.",
+    "source": "soundtouch-zonemaster before the template rebuild",
+    "source_head": "887934c7c05d80ea48180c72986584271873cf4c",
+    "python": "3.14.5",
+    "versions": {
+      "pydantic": "2.13.5",
+      "pydantic_core": "2.46.5",
+      "httpx": "0.28.1",
+      "lib_layered_config": "5.6.2",
+      "lib_cli_exit_tools": "2.3.4",
+      "rich-click": "1.9.9",
+      "protobuf": "7.36.1",
+      "websockets": "17.1"
+    },
+    "placeholders": {
+      "<WORK>": "a scratch directory that exists; substitute your own",
+      "<PACKAGE>": "the installed package directory",
+      "<ARCHIVE>": "the pre-template checkout",
+      "<HOST_MAC>": "default_device_id() on the generating host",
+      "<PORT>": "the loopback port the registry double bound",
+      "<INPUT_FRAME>": "the frame field equals the input frame",
+      "<ARRIVAL_TIME>": "time.time() at arrival"
+    },
+    "divergences": "Five cases carry a 'divergence' key: the registry parse was deliberately changed on 2026-09-19 and those five no longer record the pre-rebuild behaviour. Every other case in this file still does."
+  },
+  "cases": [
+    {
+      "name": "the fixture",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "WwogIHsKICAgICJkZXZpY2VfaWQiOiAiQUFCQkNDMDAwMDEwIiwKICAgICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsCiAgICAiZGV2aWNlX3NlcmlhbF9udW1iZXIiOiAiUzAwMDAwMDAwMDAwMDAwMDAwMDAwMTAiLAogICAgInByb2R1Y3Rfc2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTBBRSIsCiAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLAogICAgImlwX2FkZHJlc3MiOiAiMTkyLjAuMi4xMCIsCiAgICAibmFtZSI6ICJCb3NlIFN0dWRpbyIsCiAgICAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEwIiwKICAgICJkaXNjb3ZlcnlfbWV0aG9kIjogIlNTRFAvVVBuUCIsCiAgICAiYWNjb3VudF9pZCI6ICIxMDAwMDAxIiwKICAgICJjb21wb25lbnRzIjogWwogICAgICB7CiAgICAgICAgInR5cGUiOiAiIiwKICAgICAgICAiY2F0ZWdvcnkiOiAiU0NNIiwKICAgICAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLAogICAgICAgICJzZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEwIgogICAgICB9LAogICAgICB7CiAgICAgICAgInR5cGUiOiAiIiwKICAgICAgICAiY2F0ZWdvcnkiOiAiUGFja2FnZWRQcm9kdWN0IiwKICAgICAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIiLAogICAgICAgICJzZXJpYWxfbnVtYmVyIjogIjAwMDAwMDAwMDAwMDAxMEFFIgogICAgICB9CiAgICBdCiAgfSwKICB7CiAgICAiZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMSIsCiAgICAicHJvZHVjdF9jb2RlIjogIlNvdW5kVG91Y2giLAogICAgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDExIiwKICAgICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDExQUUiLAogICAgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwKICAgICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTEiLAogICAgIm5hbWUiOiAiQm9zZSBIYWxsd2F5IiwKICAgICJtYWNfYWRkcmVzcyI6ICJBQUJCQ0MwMDAwMTEiLAogICAgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwKICAgICJhY2NvdW50X2lkIjogIjEwMDAwMDEiLAogICAgImNvbXBvbmVudHMiOiBbXQogIH0sCiAgewogICAgImRldmljZV9pZCI6ICJBQUJCQ0MwMDAwMTIiLAogICAgInByb2R1Y3RfY29kZSI6ICJMaWZlc3R5bGUiLAogICAgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEyIiwKICAgICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEyQUUiLAogICAgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwKICAgICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTIiLAogICAgIm5hbWUiOiAiQm9zZSBDaW5lbWEiLAogICAgIm1hY19hZGRyZXNzIjogIkFBQkJDQzAwMDAxMiIsCiAgICAiZGlzY292ZXJ5X21ldGhvZCI6ICJTU0RQL1VQblAiLAogICAgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsCiAgICAiY29tcG9uZW50cyI6IFtdCiAgfQpdCg==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": [
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000010",
+              "name": "Bose Studio",
+              "ip": "192.0.2.10",
+              "mac": "AABBCC000010",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000011",
+              "name": "Bose Hallway",
+              "ip": "192.0.2.11",
+              "mac": "AABBCC000011",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000012",
+              "name": "Bose Cinema",
+              "ip": "192.0.2.12",
+              "mac": "AABBCC000012",
+              "product_code": "Lifestyle",
+              "account_id": "1000001"
+            },
+            "is_console": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "an empty list",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W10=",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": []
+      }
+    },
+    {
+      "name": "a product code nobody has seen",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W3siZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMCIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaFBhc3Nwb3J0IiwgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEwIiwgInByb2R1Y3Rfc2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTBBRSIsICJmaXJtd2FyZV92ZXJzaW9uIjogIjI3LjAuNi40NjMzMC41MDQzNTAwIGVwZGJ1aWxkLnRydW5rLmV4YW1wbGUuMjAyMi0wOC0wNFQxMToyMDoyOSIsICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTAiLCAibmFtZSI6ICJCb3NlIFN0dWRpbyIsICJtYWNfYWRkcmVzcyI6ICJBQUJCQ0MwMDAwMTAiLCAiZGlzY292ZXJ5X21ldGhvZCI6ICJTU0RQL1VQblAiLCAiYWNjb3VudF9pZCI6ICIxMDAwMDAxIiwgImNvbXBvbmVudHMiOiBbeyJ0eXBlIjogIiIsICJjYXRlZ29yeSI6ICJTQ00iLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAic2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMCJ9LCB7InR5cGUiOiAiIiwgImNhdGVnb3J5IjogIlBhY2thZ2VkUHJvZHVjdCIsICJmaXJtd2FyZV92ZXJzaW9uIjogIiIsICJzZXJpYWxfbnVtYmVyIjogIjAwMDAwMDAwMDAwMDAxMEFFIn1dfSwgeyJkZXZpY2VfaWQiOiAiQUFCQkNDMDAwMDExIiwgInByb2R1Y3RfY29kZSI6ICJTb3VuZFRvdWNoIiwgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDExIiwgInByb2R1Y3Rfc2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTFBRSIsICJmaXJtd2FyZV92ZXJzaW9uIjogIjI3LjAuNi40NjMzMC41MDQzNTAwIGVwZGJ1aWxkLnRydW5rLmV4YW1wbGUuMjAyMi0wOC0wNFQxMToyMDoyOSIsICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTEiLCAibmFtZSI6ICJCb3NlIEhhbGx3YXkiLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDExIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW119LCB7ImRldmljZV9pZCI6ICJBQUJCQ0MwMDAwMTIiLCAicHJvZHVjdF9jb2RlIjogIkxpZmVzdHlsZSIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMiIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEyQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjEyIiwgIm5hbWUiOiAiQm9zZSBDaW5lbWEiLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEyIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW119XQ==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": [
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000010",
+              "name": "Bose Studio",
+              "ip": "192.0.2.10",
+              "mac": "AABBCC000010",
+              "product_code": "SoundTouchPassport",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000011",
+              "name": "Bose Hallway",
+              "ip": "192.0.2.11",
+              "mac": "AABBCC000011",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000012",
+              "name": "Bose Cinema",
+              "ip": "192.0.2.12",
+              "mac": "AABBCC000012",
+              "product_code": "Lifestyle",
+              "account_id": "1000001"
+            },
+            "is_console": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "an entry without its address",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W3siZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMCIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMCIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEwQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjEwIiwgIm5hbWUiOiAiQm9zZSBTdHVkaW8iLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEwIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW3sidHlwZSI6ICIiLCAiY2F0ZWdvcnkiOiAiU0NNIiwgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwgInNlcmlhbF9udW1iZXIiOiAiUzAwMDAwMDAwMDAwMDAwMDAwMDAwMTAifSwgeyJ0eXBlIjogIiIsICJjYXRlZ29yeSI6ICJQYWNrYWdlZFByb2R1Y3QiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIiLCAic2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTBBRSJ9XX0sIHsiZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMSIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMSIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDExQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAibmFtZSI6ICJCb3NlIEhhbGx3YXkiLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDExIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW119LCB7ImRldmljZV9pZCI6ICJBQUJCQ0MwMDAwMTIiLCAicHJvZHVjdF9jb2RlIjogIkxpZmVzdHlsZSIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMiIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEyQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjEyIiwgIm5hbWUiOiAiQm9zZSBDaW5lbWEiLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEyIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW119XQ==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": [
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000010",
+              "name": "Bose Studio",
+              "ip": "192.0.2.10",
+              "mac": "AABBCC000010",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000012",
+              "name": "Bose Cinema",
+              "ip": "192.0.2.12",
+              "mac": "AABBCC000012",
+              "product_code": "Lifestyle",
+              "account_id": "1000001"
+            },
+            "is_console": true
+          }
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-19. The old parse discarded the WHOLE device list when any one entry failed validation; this one keeps the usable entries, names each dropped one through log, and refuses only when NOTHING in a non-empty list validates. Measured in the flat that day: AfterTouch writes a placeholder entry for anything answering SSDP before it can read its details, so a non-Bose device took the real speakers out of the service's view and the zone could hold nobody. This case is therefore NOT evidence of equivalence with the old code; the cases without this key still are."
+    },
+    {
+      "name": "an entry whose name is a number",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W3siZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMCIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMCIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEwQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjEwIiwgIm5hbWUiOiA1LCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEwIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW3sidHlwZSI6ICIiLCAiY2F0ZWdvcnkiOiAiU0NNIiwgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwgInNlcmlhbF9udW1iZXIiOiAiUzAwMDAwMDAwMDAwMDAwMDAwMDAwMTAifSwgeyJ0eXBlIjogIiIsICJjYXRlZ29yeSI6ICJQYWNrYWdlZFByb2R1Y3QiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIiLCAic2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTBBRSJ9XX0sIHsiZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMSIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMSIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDExQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjExIiwgIm5hbWUiOiAiQm9zZSBIYWxsd2F5IiwgIm1hY19hZGRyZXNzIjogIkFBQkJDQzAwMDAxMSIsICJkaXNjb3ZlcnlfbWV0aG9kIjogIlNTRFAvVVBuUCIsICJhY2NvdW50X2lkIjogIjEwMDAwMDEiLCAiY29tcG9uZW50cyI6IFtdfSwgeyJkZXZpY2VfaWQiOiAiQUFCQkNDMDAwMDEyIiwgInByb2R1Y3RfY29kZSI6ICJMaWZlc3R5bGUiLCAiZGV2aWNlX3NlcmlhbF9udW1iZXIiOiAiUzAwMDAwMDAwMDAwMDAwMDAwMDAwMTIiLCAicHJvZHVjdF9zZXJpYWxfbnVtYmVyIjogIjAwMDAwMDAwMDAwMDAxMkFFIiwgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwgImlwX2FkZHJlc3MiOiAiMTkyLjAuMi4xMiIsICJuYW1lIjogIkJvc2UgQ2luZW1hIiwgIm1hY19hZGRyZXNzIjogIkFBQkJDQzAwMDAxMiIsICJkaXNjb3ZlcnlfbWV0aG9kIjogIlNTRFAvVVBuUCIsICJhY2NvdW50X2lkIjogIjEwMDAwMDEiLCAiY29tcG9uZW50cyI6IFtdfV0=",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": [
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000011",
+              "name": "Bose Hallway",
+              "ip": "192.0.2.11",
+              "mac": "AABBCC000011",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000012",
+              "name": "Bose Cinema",
+              "ip": "192.0.2.12",
+              "mac": "AABBCC000012",
+              "product_code": "Lifestyle",
+              "account_id": "1000001"
+            },
+            "is_console": true
+          }
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-19. The old parse discarded the WHOLE device list when any one entry failed validation; this one keeps the usable entries, names each dropped one through log, and refuses only when NOTHING in a non-empty list validates. Measured in the flat that day: AfterTouch writes a placeholder entry for anything answering SSDP before it can read its details, so a non-Bose device took the real speakers out of the service's view and the zone could hold nobody. This case is therefore NOT evidence of equivalence with the old code; the cases without this key still are."
+    },
+    {
+      "name": "an entry with a null device id",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W3siZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMCIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMCIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEwQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjEwIiwgIm5hbWUiOiAiQm9zZSBTdHVkaW8iLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEwIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW3sidHlwZSI6ICIiLCAiY2F0ZWdvcnkiOiAiU0NNIiwgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwgInNlcmlhbF9udW1iZXIiOiAiUzAwMDAwMDAwMDAwMDAwMDAwMDAwMTAifSwgeyJ0eXBlIjogIiIsICJjYXRlZ29yeSI6ICJQYWNrYWdlZFByb2R1Y3QiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIiLCAic2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTBBRSJ9XX0sIHsiZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMSIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMSIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDExQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjExIiwgIm5hbWUiOiAiQm9zZSBIYWxsd2F5IiwgIm1hY19hZGRyZXNzIjogIkFBQkJDQzAwMDAxMSIsICJkaXNjb3ZlcnlfbWV0aG9kIjogIlNTRFAvVVBuUCIsICJhY2NvdW50X2lkIjogIjEwMDAwMDEiLCAiY29tcG9uZW50cyI6IFtdfSwgeyJkZXZpY2VfaWQiOiBudWxsLCAicHJvZHVjdF9jb2RlIjogIkxpZmVzdHlsZSIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMiIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEyQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjEyIiwgIm5hbWUiOiAiQm9zZSBDaW5lbWEiLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEyIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsICJjb21wb25lbnRzIjogW119XQ==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": [
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000010",
+              "name": "Bose Studio",
+              "ip": "192.0.2.10",
+              "mac": "AABBCC000010",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000011",
+              "name": "Bose Hallway",
+              "ip": "192.0.2.11",
+              "mac": "AABBCC000011",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          }
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-19. The old parse discarded the WHOLE device list when any one entry failed validation; this one keeps the usable entries, names each dropped one through log, and refuses only when NOTHING in a non-empty list validates. Measured in the flat that day: AfterTouch writes a placeholder entry for anything answering SSDP before it can read its details, so a non-Bose device took the real speakers out of the service's view and the zone could hold nobody. This case is therefore NOT evidence of equivalence with the old code; the cases without this key still are."
+    },
+    {
+      "name": "two entries each missing a field",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W3siZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMCIsICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsICJkZXZpY2Vfc2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMCIsICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEwQUUiLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAiaXBfYWRkcmVzcyI6ICIxOTIuMC4yLjEwIiwgIm5hbWUiOiAiQm9zZSBTdHVkaW8iLCAiZGlzY292ZXJ5X21ldGhvZCI6ICJTU0RQL1VQblAiLCAiYWNjb3VudF9pZCI6ICIxMDAwMDAxIiwgImNvbXBvbmVudHMiOiBbeyJ0eXBlIjogIiIsICJjYXRlZ29yeSI6ICJTQ00iLCAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLCAic2VyaWFsX251bWJlciI6ICJTMDAwMDAwMDAwMDAwMDAwMDAwMDAxMCJ9LCB7InR5cGUiOiAiIiwgImNhdGVnb3J5IjogIlBhY2thZ2VkUHJvZHVjdCIsICJmaXJtd2FyZV92ZXJzaW9uIjogIiIsICJzZXJpYWxfbnVtYmVyIjogIjAwMDAwMDAwMDAwMDAxMEFFIn1dfSwgeyJkZXZpY2VfaWQiOiAiQUFCQkNDMDAwMDExIiwgInByb2R1Y3RfY29kZSI6ICJTb3VuZFRvdWNoIiwgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDExIiwgInByb2R1Y3Rfc2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTFBRSIsICJmaXJtd2FyZV92ZXJzaW9uIjogIjI3LjAuNi40NjMzMC41MDQzNTAwIGVwZGJ1aWxkLnRydW5rLmV4YW1wbGUuMjAyMi0wOC0wNFQxMToyMDoyOSIsICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTEiLCAibmFtZSI6ICJCb3NlIEhhbGx3YXkiLCAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDExIiwgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwgImNvbXBvbmVudHMiOiBbXX0sIHsiZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMiIsICJwcm9kdWN0X2NvZGUiOiAiTGlmZXN0eWxlIiwgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEyIiwgInByb2R1Y3Rfc2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTJBRSIsICJmaXJtd2FyZV92ZXJzaW9uIjogIjI3LjAuNi40NjMzMC41MDQzNTAwIGVwZGJ1aWxkLnRydW5rLmV4YW1wbGUuMjAyMi0wOC0wNFQxMToyMDoyOSIsICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTIiLCAibmFtZSI6ICJCb3NlIENpbmVtYSIsICJtYWNfYWRkcmVzcyI6ICJBQUJCQ0MwMDAwMTIiLCAiZGlzY292ZXJ5X21ldGhvZCI6ICJTU0RQL1VQblAiLCAiYWNjb3VudF9pZCI6ICIxMDAwMDAxIiwgImNvbXBvbmVudHMiOiBbXX1d",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": [
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000012",
+              "name": "Bose Cinema",
+              "ip": "192.0.2.12",
+              "mac": "AABBCC000012",
+              "product_code": "Lifestyle",
+              "account_id": "1000001"
+            },
+            "is_console": true
+          }
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-19. The old parse discarded the WHOLE device list when any one entry failed validation; this one keeps the usable entries, names each dropped one through log, and refuses only when NOTHING in a non-empty list validates. Measured in the flat that day: AfterTouch writes a placeholder entry for anything answering SSDP before it can read its details, so a non-Bose device took the real speakers out of the service's view and the zone could hold nobody. This case is therefore NOT evidence of equivalence with the old code; the cases without this key still are."
+    },
+    {
+      "name": "an entry that is not an object",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "WyJBQUJCQ0MwMDAwMTAiXQ==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: no device entry is usable: an entry of type str: model_type",
+          "cause": "ValidationError"
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-19. The old parse discarded the WHOLE device list when any one entry failed validation; this one keeps the usable entries, names each dropped one through log, and refuses only when NOTHING in a non-empty list validates. Measured in the flat that day: AfterTouch writes a placeholder entry for anything answering SSDP before it can read its details, so a non-Bose device took the real speakers out of the service's view and the zone could hold nobody. This case is therefore NOT evidence of equivalence with the old code; the cases without this key still are."
+    },
+    {
+      "name": "an object instead of a list",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "eyJlcnJvciI6ICJub3BlIn0=",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: expected a list of devices, got dict"
+        }
+      }
+    },
+    {
+      "name": "JSON null",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "bnVsbA==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: expected a list of devices, got NoneType"
+        }
+      }
+    },
+    {
+      "name": "a body that is not JSON",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "NDA0IHBhZ2Ugbm90IGZvdW5k",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: the body is not JSON",
+          "cause": "JSONDecodeError"
+        }
+      }
+    },
+    {
+      "name": "an HTML page answered 200",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "PGh0bWw+PC9odG1sPg==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: the body is not JSON",
+          "cause": "JSONDecodeError"
+        }
+      }
+    },
+    {
+      "name": "a 404",
+      "input": {
+        "status_line": "404 Not Found",
+        "body_base64": "NDA0IHBhZ2Ugbm90IGZvdW5k",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: the registry answered 404",
+          "cause": "HTTPStatusError"
+        }
+      }
+    },
+    {
+      "name": "a 500 carrying a valid list",
+      "input": {
+        "status_line": "500 Internal Server Error",
+        "body_base64": "WwogIHsKICAgICJkZXZpY2VfaWQiOiAiQUFCQkNDMDAwMDEwIiwKICAgICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsCiAgICAiZGV2aWNlX3NlcmlhbF9udW1iZXIiOiAiUzAwMDAwMDAwMDAwMDAwMDAwMDAwMTAiLAogICAgInByb2R1Y3Rfc2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTBBRSIsCiAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLAogICAgImlwX2FkZHJlc3MiOiAiMTkyLjAuMi4xMCIsCiAgICAibmFtZSI6ICJCb3NlIFN0dWRpbyIsCiAgICAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEwIiwKICAgICJkaXNjb3ZlcnlfbWV0aG9kIjogIlNTRFAvVVBuUCIsCiAgICAiYWNjb3VudF9pZCI6ICIxMDAwMDAxIiwKICAgICJjb21wb25lbnRzIjogWwogICAgICB7CiAgICAgICAgInR5cGUiOiAiIiwKICAgICAgICAiY2F0ZWdvcnkiOiAiU0NNIiwKICAgICAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLAogICAgICAgICJzZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEwIgogICAgICB9LAogICAgICB7CiAgICAgICAgInR5cGUiOiAiIiwKICAgICAgICAiY2F0ZWdvcnkiOiAiUGFja2FnZWRQcm9kdWN0IiwKICAgICAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIiLAogICAgICAgICJzZXJpYWxfbnVtYmVyIjogIjAwMDAwMDAwMDAwMDAxMEFFIgogICAgICB9CiAgICBdCiAgfSwKICB7CiAgICAiZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMSIsCiAgICAicHJvZHVjdF9jb2RlIjogIlNvdW5kVG91Y2giLAogICAgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDExIiwKICAgICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDExQUUiLAogICAgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwKICAgICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTEiLAogICAgIm5hbWUiOiAiQm9zZSBIYWxsd2F5IiwKICAgICJtYWNfYWRkcmVzcyI6ICJBQUJCQ0MwMDAwMTEiLAogICAgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwKICAgICJhY2NvdW50X2lkIjogIjEwMDAwMDEiLAogICAgImNvbXBvbmVudHMiOiBbXQogIH0sCiAgewogICAgImRldmljZV9pZCI6ICJBQUJCQ0MwMDAwMTIiLAogICAgInByb2R1Y3RfY29kZSI6ICJMaWZlc3R5bGUiLAogICAgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEyIiwKICAgICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEyQUUiLAogICAgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwKICAgICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTIiLAogICAgIm5hbWUiOiAiQm9zZSBDaW5lbWEiLAogICAgIm1hY19hZGRyZXNzIjogIkFBQkJDQzAwMDAxMiIsCiAgICAiZGlzY292ZXJ5X21ldGhvZCI6ICJTU0RQL1VQblAiLAogICAgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsCiAgICAiY29tcG9uZW50cyI6IFtdCiAgfQpdCg==",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: the registry answered 500",
+          "cause": "HTTPStatusError"
+        }
+      }
+    },
+    {
+      "name": "a byte order mark before the list",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "77u/W10=",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": []
+      }
+    },
+    {
+      "name": "a base URL with a trailing slash",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "WwogIHsKICAgICJkZXZpY2VfaWQiOiAiQUFCQkNDMDAwMDEwIiwKICAgICJwcm9kdWN0X2NvZGUiOiAiU291bmRUb3VjaCIsCiAgICAiZGV2aWNlX3NlcmlhbF9udW1iZXIiOiAiUzAwMDAwMDAwMDAwMDAwMDAwMDAwMTAiLAogICAgInByb2R1Y3Rfc2VyaWFsX251bWJlciI6ICIwMDAwMDAwMDAwMDAwMTBBRSIsCiAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLAogICAgImlwX2FkZHJlc3MiOiAiMTkyLjAuMi4xMCIsCiAgICAibmFtZSI6ICJCb3NlIFN0dWRpbyIsCiAgICAibWFjX2FkZHJlc3MiOiAiQUFCQkNDMDAwMDEwIiwKICAgICJkaXNjb3ZlcnlfbWV0aG9kIjogIlNTRFAvVVBuUCIsCiAgICAiYWNjb3VudF9pZCI6ICIxMDAwMDAxIiwKICAgICJjb21wb25lbnRzIjogWwogICAgICB7CiAgICAgICAgInR5cGUiOiAiIiwKICAgICAgICAiY2F0ZWdvcnkiOiAiU0NNIiwKICAgICAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIyNy4wLjYuNDYzMzAuNTA0MzUwMCBlcGRidWlsZC50cnVuay5leGFtcGxlLjIwMjItMDgtMDRUMTE6MjA6MjkiLAogICAgICAgICJzZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEwIgogICAgICB9LAogICAgICB7CiAgICAgICAgInR5cGUiOiAiIiwKICAgICAgICAiY2F0ZWdvcnkiOiAiUGFja2FnZWRQcm9kdWN0IiwKICAgICAgICAiZmlybXdhcmVfdmVyc2lvbiI6ICIiLAogICAgICAgICJzZXJpYWxfbnVtYmVyIjogIjAwMDAwMDAwMDAwMDAxMEFFIgogICAgICB9CiAgICBdCiAgfSwKICB7CiAgICAiZGV2aWNlX2lkIjogIkFBQkJDQzAwMDAxMSIsCiAgICAicHJvZHVjdF9jb2RlIjogIlNvdW5kVG91Y2giLAogICAgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDExIiwKICAgICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDExQUUiLAogICAgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwKICAgICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTEiLAogICAgIm5hbWUiOiAiQm9zZSBIYWxsd2F5IiwKICAgICJtYWNfYWRkcmVzcyI6ICJBQUJCQ0MwMDAwMTEiLAogICAgImRpc2NvdmVyeV9tZXRob2QiOiAiU1NEUC9VUG5QIiwKICAgICJhY2NvdW50X2lkIjogIjEwMDAwMDEiLAogICAgImNvbXBvbmVudHMiOiBbXQogIH0sCiAgewogICAgImRldmljZV9pZCI6ICJBQUJCQ0MwMDAwMTIiLAogICAgInByb2R1Y3RfY29kZSI6ICJMaWZlc3R5bGUiLAogICAgImRldmljZV9zZXJpYWxfbnVtYmVyIjogIlMwMDAwMDAwMDAwMDAwMDAwMDAwMDEyIiwKICAgICJwcm9kdWN0X3NlcmlhbF9udW1iZXIiOiAiMDAwMDAwMDAwMDAwMDEyQUUiLAogICAgImZpcm13YXJlX3ZlcnNpb24iOiAiMjcuMC42LjQ2MzMwLjUwNDM1MDAgZXBkYnVpbGQudHJ1bmsuZXhhbXBsZS4yMDIyLTA4LTA0VDExOjIwOjI5IiwKICAgICJpcF9hZGRyZXNzIjogIjE5Mi4wLjIuMTIiLAogICAgIm5hbWUiOiAiQm9zZSBDaW5lbWEiLAogICAgIm1hY19hZGRyZXNzIjogIkFBQkJDQzAwMDAxMiIsCiAgICAiZGlzY292ZXJ5X21ldGhvZCI6ICJTU0RQL1VQblAiLAogICAgImFjY291bnRfaWQiOiAiMTAwMDAwMSIsCiAgICAiY29tcG9uZW50cyI6IFtdCiAgfQpdCg==",
+        "base_url_suffix": "/",
+        "listening": true,
+        "answers": true
+      },
+      "expect": {
+        "value": [
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000010",
+              "name": "Bose Studio",
+              "ip": "192.0.2.10",
+              "mac": "AABBCC000010",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000011",
+              "name": "Bose Hallway",
+              "ip": "192.0.2.11",
+              "mac": "AABBCC000011",
+              "product_code": "SoundTouch",
+              "account_id": "1000001"
+            },
+            "is_console": false
+          },
+          {
+            "type": "Speaker",
+            "fields": {
+              "device_id": "AABBCC000012",
+              "name": "Bose Cinema",
+              "ip": "192.0.2.12",
+              "mac": "AABBCC000012",
+              "product_code": "Lifestyle",
+              "account_id": "1000001"
+            },
+            "is_console": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "nothing listening",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W10=",
+        "base_url_suffix": "",
+        "listening": false,
+        "answers": true
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: could not be reached (ConnectError)",
+          "cause": "ConnectError"
+        }
+      }
+    },
+    {
+      "name": "a registry that never answers",
+      "input": {
+        "status_line": "200 OK",
+        "body_base64": "W10=",
+        "base_url_suffix": "",
+        "listening": true,
+        "answers": false
+      },
+      "expect": {
+        "raises": {
+          "type": "RegistryError",
+          "message": "http://127.0.0.1:<PORT>/api/setup/devices: could not be reached (ReadTimeout)",
+          "cause": "ReadTimeout"
+        }
+      }
+    }
+  ]
+}

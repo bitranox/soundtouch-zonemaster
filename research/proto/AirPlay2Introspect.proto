@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package AirPlay2Introspect;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AirPlay2IntrospectResponse {
+  optional string HomeKitName = 1;
+}

@@ -1,0 +1,21 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSErrorSeverity.proto";
+import "SoundTouchInterface/ErrorType.proto";
+import "SoundTouchInterface/Status.proto";
+
+enum ErrorDest {
+  both = 0;
+  webClientsOnly = 1;
+  hardwareOnly = 2;
+}
+
+message AsyncError {
+  optional .SoundTouchInterface.ErrorType error = 1;
+  optional string desc = 2;
+  optional .STS.ErrorSeverity.Enum severity = 3;
+  optional .STS.ErrorDest dest = 4;
+  optional .SoundTouchInterface.CustomError customError = 5;
+}

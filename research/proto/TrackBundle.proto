@@ -1,0 +1,19 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message TrackBundle {
+  message RecordLabelRestValue {
+    optional string recordLabel = 1;
+    optional int32 recordLabelId = 2;
+    optional string recordProvider = 3;
+    optional string recordSublabel = 4;
+  }
+  optional int32 albumId = 1;
+  optional int32 artistId = 4;
+  optional string imagePath = 12;
+  optional string smallAlbumCover = 23;
+  optional string title = 25;
+}

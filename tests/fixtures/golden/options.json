@@ -1,0 +1,2815 @@
+{
+  "meta": {
+    "corpus": "options",
+    "note": "parse_service_options, parse_options, and the six config layers, with refusal envelopes.",
+    "source": "soundtouch-zonemaster before the template rebuild",
+    "source_head": "887934c7c05d80ea48180c72986584271873cf4c",
+    "python": "3.14.5",
+    "versions": {
+      "pydantic": "2.13.5",
+      "pydantic_core": "2.46.5",
+      "httpx": "0.28.1",
+      "lib_layered_config": "5.6.2",
+      "lib_cli_exit_tools": "2.3.4",
+      "rich-click": "1.9.9",
+      "protobuf": "7.36.1",
+      "websockets": "17.1"
+    },
+    "placeholders": {
+      "<WORK>": "a scratch directory that exists; substitute your own",
+      "<PACKAGE>": "the installed package directory",
+      "<ARCHIVE>": "the pre-template checkout",
+      "<HOST_MAC>": "default_device_id() on the generating host",
+      "<PORT>": "the loopback port the registry double bound",
+      "<INPUT_FRAME>": "the frame field equals the input frame",
+      "<ARRIVAL_TIME>": "time.time() at arrival"
+    }
+  },
+  "cases": [
+    {
+      "name": "service: the deployed unit's four settings typed",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "192.168.0.190",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "192.168.0.190",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 0.8,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: everything typed",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": "http://127.0.0.1:9000",
+          "allow_console": [
+            "AABBCC000012"
+          ],
+          "unreachable_timeout_s": 60.0,
+          "dial_window_s": 1.2
+        },
+        "configured": {}
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:9000",
+            "consoles_allowed": [
+              "AABBCC000012"
+            ],
+            "dial_window_s": 1.2,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 60.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: everything configured, typed as a file delivers it",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": "http://file",
+          "registry_poll_s": 10,
+          "consoles_allowed": [
+            "AABBCC000012"
+          ],
+          "unreachable_timeout_s": 45,
+          "dial_window_s": 1.4,
+          "switch_poll_s": 0.5,
+          "channel_policy": {
+            "port": 8081,
+            "backoff_s": [
+              1,
+              2.5
+            ]
+          }
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://file",
+            "consoles_allowed": [
+              "AABBCC000012"
+            ],
+            "dial_window_s": 1.4,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 10.0,
+            "switch_poll_s": 0.5,
+            "unreachable_timeout_s": 45.0,
+            "channel_policy": {
+              "port": 8081,
+              "backoff_s": [
+                1.0,
+                2.5
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: everything configured as strings",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_poll_s": "10",
+          "unreachable_timeout_s": "45",
+          "dial_window_s": "0.6",
+          "switch_poll_s": "0.5",
+          "channel_policy": {
+            "port": "8081",
+            "backoff_s": [
+              "1",
+              "2.5"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 0.6,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 10.0,
+            "switch_poll_s": 0.5,
+            "unreachable_timeout_s": 45.0,
+            "channel_policy": {
+              "port": 8081,
+              "backoff_s": [
+                1.0,
+                2.5
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: typed beats configured",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.3",
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": 1.2
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "dial_window_s": 1.4
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.3",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 1.2,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: an unused repeatable option leaves the configured consoles",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "consoles_allowed": [
+            "AABBCC000012"
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [
+              "AABBCC000012"
+            ],
+            "dial_window_s": 0.8,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: a typed console replaces the configured ones",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [
+            "AABBCC000099"
+          ],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "consoles_allowed": [
+            "AABBCC000012"
+          ]
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [
+              "AABBCC000099"
+            ],
+            "dial_window_s": 0.8,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: no device id anywhere falls back to this host",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": null,
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "<HOST_MAC>",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 0.8,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: nothing given anywhere",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: only the address missing",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a device id that is not hex",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "nothex",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "device id must be 12 hex digits",
+          "exit_code": 2
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"device id must be 12 hex digits\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"device id must be 12 hex digits\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "device id must be 12 hex digits\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a lowercase hex device id",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "aabbcc001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "device id must be 12 hex digits",
+          "exit_code": 2
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"device id must be 12 hex digits\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"device id must be 12 hex digits\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "device id must be 12 hex digits\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a bad device id and a missing address",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": "nothex",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "device id must be 12 hex digits",
+          "exit_code": 2
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"device id must be 12 hex digits\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"device id must be 12 hex digits\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "device id must be 12 hex digits\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a window below the floor",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": 0.1
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: the dialling window must be between 0.5 and 2.0 s, not 0.1",
+          "exit_code": 1
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: the dialling window must be between 0.5 and 2.0 s, not 0.1\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: the dialling window must be between 0.5 and 2.0 s, not 0.1\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: the dialling window must be between 0.5 and 2.0 s, not 0.1\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a window above the ceiling",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": 2.5
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: the dialling window must be between 0.5 and 2.0 s, not 2.5",
+          "exit_code": 1
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: the dialling window must be between 0.5 and 2.0 s, not 2.5\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: the dialling window must be between 0.5 and 2.0 s, not 2.5\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: the dialling window must be between 0.5 and 2.0 s, not 2.5\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: the window exactly at the floor",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": 0.5
+        },
+        "configured": {}
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 0.5,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: the window exactly at the ceiling",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": 2.0
+        },
+        "configured": {}
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 2.0,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: a window that is not a number",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "dial_window_s": "abc"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: dial_window_s: Input should be a valid number, unable to parse string as a number\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: dial_window_s: Input should be a valid number, unable to parse string as a number\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a window and a timeout that are not numbers",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "dial_window_s": "abc",
+          "unreachable_timeout_s": "x"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number; unreachable_timeout_s: Input should be a valid number, unable to parse string as a number",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: dial_window_s: Input should be a valid number, unable to parse string as a number; unreachable_timeout_s: Input should be a valid number, unable to parse string as a number\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: dial_window_s: Input should be a valid number, unable to parse string as a number; unreachable_timeout_s: Input should be a valid number, unable to parse string as a number\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number; unreachable_timeout_s: Input should be a valid number, unable to parse string as a number\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a window below the floor and a bad device id",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "nothex",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": 0.1
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "device id must be 12 hex digits",
+          "exit_code": 2
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"device id must be 12 hex digits\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"device id must be 12 hex digits\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "device id must be 12 hex digits\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a state file in a directory that does not exist",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/nope/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: <WORK>/options/nope is not a directory to write the state file in",
+          "exit_code": 1
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: <WORK>/options/nope is not a directory to write the state file in\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: <WORK>/options/nope is not a directory to write the state file in\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: <WORK>/options/nope is not a directory to write the state file in\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a missing state directory and a window that is not a number",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/nope/zone-state.json",
+          "dial_window_s": "abc"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: dial_window_s: Input should be a valid number, unable to parse string as a number\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: dial_window_s: Input should be a valid number, unable to parse string as a number\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a missing state directory and a window below the floor",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/nope/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": 0.1
+        },
+        "configured": {}
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: the dialling window must be between 0.5 and 2.0 s, not 0.1",
+          "exit_code": 1
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: the dialling window must be between 0.5 and 2.0 s, not 0.1\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: the dialling window must be between 0.5 and 2.0 s, not 0.1\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: the dialling window must be between 0.5 and 2.0 s, not 0.1\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: an observer port that is not a number",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "channel_policy": {
+            "port": "x"
+          }
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: channel_policy.port: Input should be a valid integer, unable to parse string as an integer",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: channel_policy.port: Input should be a valid integer, unable to parse string as an integer\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: channel_policy.port: Input should be a valid integer, unable to parse string as an integer\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: channel_policy.port: Input should be a valid integer, unable to parse string as an integer\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a backoff that is one string",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "channel_policy": {
+            "backoff_s": "1"
+          }
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: channel_policy.backoff_s: Input should be a valid tuple",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: channel_policy.backoff_s: Input should be a valid tuple\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: channel_policy.backoff_s: Input should be a valid tuple\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: channel_policy.backoff_s: Input should be a valid tuple\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: a registry URL that is a number",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": 5
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: registry_url: Input should be a valid string",
+          "exit_code": 2,
+          "cause": "ValidationError"
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: registry_url: Input should be a valid string\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: registry_url: Input should be a valid string\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: registry_url: Input should be a valid string\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "service: an empty address",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 0.8,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: relative file paths",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "relative/channels.json",
+          "switch_file": "zone.switch",
+          "state_file": "zone-state.json",
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {}
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "zone.switch",
+            "state_file": "zone-state.json",
+            "channel_file": "relative/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 0.8,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 900.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "service: a boolean where a number goes",
+      "input": {
+        "op": "parse_service_options",
+        "given": {
+          "bind_ip": null,
+          "device_id": null,
+          "channel_file": null,
+          "switch_file": null,
+          "state_file": null,
+          "registry_url": null,
+          "allow_console": [],
+          "unreachable_timeout_s": null,
+          "dial_window_s": null
+        },
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/channels.json",
+          "switch_file": "<WORK>/options/zone.switch",
+          "state_file": "<WORK>/options/zone-state.json",
+          "unreachable_timeout_s": true
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "ServiceOptions",
+          "fields": {
+            "bind_ip": "10.0.0.1",
+            "device_id": "AABBCC001122",
+            "switch_file": "<WORK>/options/zone.switch",
+            "state_file": "<WORK>/options/zone-state.json",
+            "channel_file": "<WORK>/options/channels.json",
+            "registry_url": "http://127.0.0.1:8000",
+            "consoles_allowed": [],
+            "dial_window_s": 0.8,
+            "hold_threshold_s": 1.0,
+            "registry_poll_s": 30.0,
+            "switch_poll_s": 1.0,
+            "unreachable_timeout_s": 1.0,
+            "channel_policy": {
+              "port": 8080,
+              "backoff_s": [
+                1.0,
+                2.0,
+                5.0,
+                10.0
+              ]
+            },
+            "mpd_host": "127.0.0.1",
+            "mpd_port": 6600,
+            "mpd_rewind_s": 20.0
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "prototype: a plain run",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Options",
+          "fields": {
+            "bind_ip": "192.0.2.190",
+            "device_id": "AABBCC001122",
+            "slaves": [
+              "192.0.2.21"
+            ],
+            "preset_from": "192.0.2.21",
+            "preset": 1,
+            "preset2": 2,
+            "switch_after": 0.0,
+            "duration": 60.0,
+            "encryption": "none",
+            "late_slaves": [],
+            "join_after": 30.0,
+            "join_mode": "schedule",
+            "ignore_selects": false
+          }
+        },
+        "logs": [],
+        "encryption_type": 1
+      }
+    },
+    {
+      "name": "prototype: the console as a slave",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21",
+            "192.168.0.30"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: Room5 (192.168.0.30) is the Lifestyle console",
+          "exit_code": 1
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (192.168.0.30) is the Lifestyle console\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (192.168.0.30) is the Lifestyle console\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: Room5 (192.168.0.30) is the Lifestyle console\n"
+          }
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, 2026-09-22, and it is a change of INPUT rather than of behaviour. The refused speaker's NAME is data: it comes from the never_touch entry in the configuration layers, which the archive had as a constant naming the flat's own room and which tests/conftest.py now writes as a neutral one (OPEN-WORK 18). The message, its shape, the exit code and all three envelopes are unchanged, and the address is still the one the entry names."
+    },
+    {
+      "name": "prototype: the console as a late slave",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [
+            "192.168.0.30"
+          ],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: Room5 (192.168.0.30) is the Lifestyle console",
+          "exit_code": 1
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (192.168.0.30) is the Lifestyle console\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (192.168.0.30) is the Lifestyle console\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: Room5 (192.168.0.30) is the Lifestyle console\n"
+          }
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, 2026-09-22, and it is a change of INPUT rather than of behaviour. The refused speaker's NAME is data: it comes from the never_touch entry in the configuration layers, which the archive had as a constant naming the flat's own room and which tests/conftest.py now writes as a neutral one (OPEN-WORK 18). The message, its shape, the exit code and all three envelopes are unchanged, and the address is still the one the entry names."
+    },
+    {
+      "name": "prototype: the console in both lists",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.168.0.30"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [
+            "192.168.0.30"
+          ],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "refused: Room5 (192.168.0.30) is the Lifestyle console",
+          "exit_code": 1
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (192.168.0.30) is the Lifestyle console\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (192.168.0.30) is the Lifestyle console\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: Room5 (192.168.0.30) is the Lifestyle console\n"
+          }
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, 2026-09-22, and it is a change of INPUT rather than of behaviour. The refused speaker's NAME is data: it comes from the never_touch entry in the configuration layers, which the archive had as a constant naming the flat's own room and which tests/conftest.py now writes as a neutral one (OPEN-WORK 18). The message, its shape, the exit code and all three envelopes are unchanged, and the address is still the one the entry names."
+    },
+    {
+      "name": "prototype: a device id that is not hex",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "nothex",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "device id must be 12 hex digits",
+          "exit_code": 2
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"device id must be 12 hex digits\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"device id must be 12 hex digits\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "device id must be 12 hex digits\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "prototype: a bad device id and the console",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "nothex",
+          "slaves": [
+            "192.168.0.30"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "OptionsError",
+          "message": "device id must be 12 hex digits",
+          "exit_code": 2
+        },
+        "logs": [],
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"device id must be 12 hex digits\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"device id must be 12 hex digits\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "device id must be 12 hex digits\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "prototype: obfuscated encryption and a restart join",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "obfuscated",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "restart",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Options",
+          "fields": {
+            "bind_ip": "192.0.2.190",
+            "device_id": "AABBCC001122",
+            "slaves": [
+              "192.0.2.21"
+            ],
+            "preset_from": "192.0.2.21",
+            "preset": 1,
+            "preset2": 2,
+            "switch_after": 0.0,
+            "duration": 60.0,
+            "encryption": "obfuscated",
+            "late_slaves": [],
+            "join_after": 30.0,
+            "join_mode": "restart",
+            "ignore_selects": false
+          }
+        },
+        "logs": [],
+        "encryption_type": 2
+      }
+    },
+    {
+      "name": "prototype: an encryption nobody offers",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "aes",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Options\nencryption\n  Input should be 'none' or 'obfuscated' [type=enum, input_value='aes', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/enum",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "encryption"
+              ],
+              "type": "enum",
+              "msg": "Input should be 'none' or 'obfuscated'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "prototype: a join mode nobody offers",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "later",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Options\njoin_mode\n  Input should be 'schedule' or 'restart' [type=enum, input_value='later', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/enum",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "join_mode"
+              ],
+              "type": "enum",
+              "msg": "Input should be 'schedule' or 'restart'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "prototype: a preset as a numeric string",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": "3",
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Options",
+          "fields": {
+            "bind_ip": "192.0.2.190",
+            "device_id": "AABBCC001122",
+            "slaves": [
+              "192.0.2.21"
+            ],
+            "preset_from": "192.0.2.21",
+            "preset": 3,
+            "preset2": 2,
+            "switch_after": 0.0,
+            "duration": 60.0,
+            "encryption": "none",
+            "late_slaves": [],
+            "join_after": 30.0,
+            "join_mode": "schedule",
+            "ignore_selects": false
+          }
+        },
+        "logs": [],
+        "encryption_type": 1
+      }
+    },
+    {
+      "name": "prototype: a duration that is not a number",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": "long",
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Options\nduration\n  Input should be a valid number, unable to parse string as a number [type=float_parsing, input_value='long', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/float_parsing",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "duration"
+              ],
+              "type": "float_parsing",
+              "msg": "Input should be a valid number, unable to parse string as a number"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "prototype: ignore selects as a word",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": "yes"
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Options",
+          "fields": {
+            "bind_ip": "192.0.2.190",
+            "device_id": "AABBCC001122",
+            "slaves": [
+              "192.0.2.21"
+            ],
+            "preset_from": "192.0.2.21",
+            "preset": 1,
+            "preset2": 2,
+            "switch_after": 0.0,
+            "duration": 60.0,
+            "encryption": "none",
+            "late_slaves": [],
+            "join_after": 30.0,
+            "join_mode": "schedule",
+            "ignore_selects": true
+          }
+        },
+        "logs": [],
+        "encryption_type": 1
+      }
+    },
+    {
+      "name": "prototype: no slaves at all",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Options",
+          "fields": {
+            "bind_ip": "192.0.2.190",
+            "device_id": "AABBCC001122",
+            "slaves": [],
+            "preset_from": "192.0.2.21",
+            "preset": 1,
+            "preset2": 2,
+            "switch_after": 0.0,
+            "duration": 60.0,
+            "encryption": "none",
+            "late_slaves": [],
+            "join_after": 30.0,
+            "join_mode": "schedule",
+            "ignore_selects": false
+          }
+        },
+        "logs": [],
+        "encryption_type": 1
+      }
+    },
+    {
+      "name": "prototype: a slave named twice",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.0.2.21",
+            "192.0.2.21"
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Options",
+          "fields": {
+            "bind_ip": "192.0.2.190",
+            "device_id": "AABBCC001122",
+            "slaves": [
+              "192.0.2.21",
+              "192.0.2.21"
+            ],
+            "preset_from": "192.0.2.21",
+            "preset": 1,
+            "preset2": 2,
+            "switch_after": 0.0,
+            "duration": 60.0,
+            "encryption": "none",
+            "late_slaves": [],
+            "join_after": 30.0,
+            "join_mode": "schedule",
+            "ignore_selects": false
+          }
+        },
+        "logs": [],
+        "encryption_type": 1
+      }
+    },
+    {
+      "name": "prototype: the console address with a trailing space",
+      "input": {
+        "op": "parse_options",
+        "given": {
+          "bind_ip": "192.0.2.190",
+          "device_id": "AABBCC001122",
+          "slaves": [
+            "192.168.0.30 "
+          ],
+          "preset_from": "192.0.2.21",
+          "preset": 1,
+          "preset2": 2,
+          "switch_after": 0.0,
+          "duration": 60.0,
+          "encryption": "none",
+          "late_slaves": [],
+          "join_after": 30.0,
+          "join_mode": "schedule",
+          "ignore_selects": false
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Options",
+          "fields": {
+            "bind_ip": "192.0.2.190",
+            "device_id": "AABBCC001122",
+            "slaves": [
+              "192.168.0.30 "
+            ],
+            "preset_from": "192.0.2.21",
+            "preset": 1,
+            "preset2": 2,
+            "switch_after": 0.0,
+            "duration": 60.0,
+            "encryption": "none",
+            "late_slaves": [],
+            "join_after": 30.0,
+            "join_mode": "schedule",
+            "ignore_selects": false
+          }
+        },
+        "logs": [],
+        "encryption_type": 1
+      }
+    },
+    {
+      "name": "layers: a user file with typed values and a misspelled key",
+      "input": {
+        "op": "layers",
+        "user_toml": "[zone]\nbind_ip = \"10.0.0.1\"\ndevice_id = \"AABBCC001122\"\n[files]\nchannel_file = \"<WORK>/ch.json\"\nswitch_file = \"<WORK>/sw\"\nstate_file = \"<WORK>/st.json\"\n[dialling]\nwindow = 1.4\nwindow_s = 1.1\n[observer]\nport = 8081\nbackoff_s = [1, 2.5]\n[membership]\nconsoles_allowed = [\"AABBCC000012\"]\n"
+      },
+      "expect": {
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/ch.json",
+          "switch_file": "<WORK>/options/sw",
+          "state_file": "<WORK>/options/st.json",
+          "registry_url": "http://127.0.0.1:8000",
+          "registry_poll_s": 30.0,
+          "consoles_allowed": [
+            "AABBCC000012"
+          ],
+          "unreachable_timeout_s": 900.0,
+          "dial_window_s": 1.1,
+          "hold_threshold_s": 1.0,
+          "switch_poll_s": 1.0,
+          "channel_policy": {
+            "port": 8081,
+            "backoff_s": [
+              1,
+              2.5
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [
+          "dialling.window"
+        ],
+        "overridden": [],
+        "parse": {
+          "value": {
+            "type": "ServiceOptions",
+            "fields": {
+              "bind_ip": "10.0.0.1",
+              "device_id": "AABBCC001122",
+              "switch_file": "<WORK>/options/sw",
+              "state_file": "<WORK>/options/st.json",
+              "channel_file": "<WORK>/options/ch.json",
+              "registry_url": "http://127.0.0.1:8000",
+              "consoles_allowed": [
+                "AABBCC000012"
+              ],
+              "dial_window_s": 1.1,
+              "hold_threshold_s": 1.0,
+              "registry_poll_s": 30.0,
+              "switch_poll_s": 1.0,
+              "unreachable_timeout_s": 900.0,
+              "channel_policy": {
+                "port": 8081,
+                "backoff_s": [
+                  1.0,
+                  2.5
+                ]
+              },
+              "mpd_host": "127.0.0.1",
+              "mpd_port": 6600,
+              "mpd_rewind_s": 20.0
+            }
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "layers: every setting from the environment",
+      "input": {
+        "op": "layers",
+        "env": {
+          "ZONE__BIND_IP": "10.0.0.2",
+          "ZONE__DEVICE_ID": "AABBCC001122",
+          "FILES__CHANNEL_FILE": "<WORK>/ch.json",
+          "FILES__SWITCH_FILE": "<WORK>/sw",
+          "FILES__STATE_FILE": "<WORK>/st.json",
+          "REGISTRY__URL": "http://env",
+          "REGISTRY__POLL_S": "12",
+          "MEMBERSHIP__CONSOLES_ALLOWED": "[\"AABBCC000012\"]",
+          "MEMBERSHIP__UNREACHABLE_TIMEOUT_S": "60",
+          "DIALLING__WINDOW_S": "0.6",
+          "SWITCH__POLL_S": "0.25",
+          "OBSERVER__PORT": "8081",
+          "OBSERVER__BACKOFF_S": "[1, 2.5]"
+        }
+      },
+      "expect": {
+        "configured": {
+          "bind_ip": "10.0.0.2",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/ch.json",
+          "switch_file": "<WORK>/options/sw",
+          "state_file": "<WORK>/options/st.json",
+          "registry_url": "http://env",
+          "registry_poll_s": 12,
+          "consoles_allowed": [
+            "AABBCC000012"
+          ],
+          "unreachable_timeout_s": 60,
+          "dial_window_s": 0.6,
+          "hold_threshold_s": 1.0,
+          "switch_poll_s": 0.25,
+          "channel_policy": {
+            "port": 8081,
+            "backoff_s": [
+              1,
+              2.5
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [],
+        "overridden": [],
+        "parse": {
+          "value": {
+            "type": "ServiceOptions",
+            "fields": {
+              "bind_ip": "10.0.0.2",
+              "device_id": "AABBCC001122",
+              "switch_file": "<WORK>/options/sw",
+              "state_file": "<WORK>/options/st.json",
+              "channel_file": "<WORK>/options/ch.json",
+              "registry_url": "http://env",
+              "consoles_allowed": [
+                "AABBCC000012"
+              ],
+              "dial_window_s": 0.6,
+              "hold_threshold_s": 1.0,
+              "registry_poll_s": 12.0,
+              "switch_poll_s": 0.25,
+              "unreachable_timeout_s": 60.0,
+              "channel_policy": {
+                "port": 8081,
+                "backoff_s": [
+                  1.0,
+                  2.5
+                ]
+              },
+              "mpd_host": "127.0.0.1",
+              "mpd_port": 6600,
+              "mpd_rewind_s": 20.0
+            }
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "layers: the environment beats the user file",
+      "input": {
+        "op": "layers",
+        "user_toml": "[zone]\nbind_ip = \"10.0.0.1\"\ndevice_id = \"AABBCC001122\"\n[files]\nchannel_file = \"<WORK>/ch.json\"\nswitch_file = \"<WORK>/sw\"\nstate_file = \"<WORK>/st.json\"\n",
+        "env": {
+          "ZONE__BIND_IP": "10.0.0.2"
+        }
+      },
+      "expect": {
+        "configured": {
+          "bind_ip": "10.0.0.2",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/ch.json",
+          "switch_file": "<WORK>/options/sw",
+          "state_file": "<WORK>/options/st.json",
+          "registry_url": "http://127.0.0.1:8000",
+          "registry_poll_s": 30.0,
+          "consoles_allowed": [],
+          "unreachable_timeout_s": 900.0,
+          "dial_window_s": 0.8,
+          "hold_threshold_s": 1.0,
+          "switch_poll_s": 1.0,
+          "channel_policy": {
+            "port": 8080,
+            "backoff_s": [
+              1.0,
+              2.0,
+              5.0,
+              10.0
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [],
+        "overridden": [],
+        "parse": {
+          "value": {
+            "type": "ServiceOptions",
+            "fields": {
+              "bind_ip": "10.0.0.2",
+              "device_id": "AABBCC001122",
+              "switch_file": "<WORK>/options/sw",
+              "state_file": "<WORK>/options/st.json",
+              "channel_file": "<WORK>/options/ch.json",
+              "registry_url": "http://127.0.0.1:8000",
+              "consoles_allowed": [],
+              "dial_window_s": 0.8,
+              "hold_threshold_s": 1.0,
+              "registry_poll_s": 30.0,
+              "switch_poll_s": 1.0,
+              "unreachable_timeout_s": 900.0,
+              "channel_policy": {
+                "port": 8080,
+                "backoff_s": [
+                  1.0,
+                  2.0,
+                  5.0,
+                  10.0
+                ]
+              },
+              "mpd_host": "127.0.0.1",
+              "mpd_port": 6600,
+              "mpd_rewind_s": 20.0
+            }
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "layers: an environment window that is not a number",
+      "input": {
+        "op": "layers",
+        "user_toml": "[zone]\nbind_ip = \"10.0.0.1\"\ndevice_id = \"AABBCC001122\"\n[files]\nchannel_file = \"<WORK>/ch.json\"\nswitch_file = \"<WORK>/sw\"\nstate_file = \"<WORK>/st.json\"\n",
+        "env": {
+          "DIALLING__WINDOW_S": "abc"
+        }
+      },
+      "expect": {
+        "configured": {
+          "bind_ip": "10.0.0.1",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/ch.json",
+          "switch_file": "<WORK>/options/sw",
+          "state_file": "<WORK>/options/st.json",
+          "registry_url": "http://127.0.0.1:8000",
+          "registry_poll_s": 30.0,
+          "consoles_allowed": [],
+          "unreachable_timeout_s": 900.0,
+          "dial_window_s": "abc",
+          "hold_threshold_s": 1.0,
+          "switch_poll_s": 1.0,
+          "channel_policy": {
+            "port": 8080,
+            "backoff_s": [
+              1.0,
+              2.0,
+              5.0,
+              10.0
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [],
+        "overridden": [],
+        "parse": {
+          "raises": {
+            "type": "OptionsError",
+            "message": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number",
+            "exit_code": 2,
+            "cause": "ValidationError"
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "layers: --set on top of a file",
+      "input": {
+        "op": "layers",
+        "user_toml": "[zone]\nbind_ip = \"10.0.0.1\"\ndevice_id = \"AABBCC001122\"\n[files]\nchannel_file = \"<WORK>/ch.json\"\nswitch_file = \"<WORK>/sw\"\nstate_file = \"<WORK>/st.json\"\n",
+        "sets": [
+          "dialling.window_s=1.6",
+          "zone.bind_ip=10.5.5.5",
+          "membership.consoles_allowed=[\"AABBCC000099\"]"
+        ]
+      },
+      "expect": {
+        "configured": {
+          "bind_ip": "10.5.5.5",
+          "device_id": "AABBCC001122",
+          "channel_file": "<WORK>/options/ch.json",
+          "switch_file": "<WORK>/options/sw",
+          "state_file": "<WORK>/options/st.json",
+          "registry_url": "http://127.0.0.1:8000",
+          "registry_poll_s": 30.0,
+          "consoles_allowed": [
+            "AABBCC000099"
+          ],
+          "unreachable_timeout_s": 900.0,
+          "dial_window_s": 1.6,
+          "hold_threshold_s": 1.0,
+          "switch_poll_s": 1.0,
+          "channel_policy": {
+            "port": 8080,
+            "backoff_s": [
+              1.0,
+              2.0,
+              5.0,
+              10.0
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [],
+        "overridden": [
+          "dialling.window_s",
+          "membership.consoles_allowed",
+          "zone.bind_ip"
+        ],
+        "parse": {
+          "value": {
+            "type": "ServiceOptions",
+            "fields": {
+              "bind_ip": "10.5.5.5",
+              "device_id": "AABBCC001122",
+              "switch_file": "<WORK>/options/sw",
+              "state_file": "<WORK>/options/st.json",
+              "channel_file": "<WORK>/options/ch.json",
+              "registry_url": "http://127.0.0.1:8000",
+              "consoles_allowed": [
+                "AABBCC000099"
+              ],
+              "dial_window_s": 1.6,
+              "hold_threshold_s": 1.0,
+              "registry_poll_s": 30.0,
+              "switch_poll_s": 1.0,
+              "unreachable_timeout_s": 900.0,
+              "channel_policy": {
+                "port": 8080,
+                "backoff_s": [
+                  1.0,
+                  2.0,
+                  5.0,
+                  10.0
+                ]
+              },
+              "mpd_host": "127.0.0.1",
+              "mpd_port": 6600,
+              "mpd_rewind_s": 20.0
+            }
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "layers: a --set without an equals sign",
+      "input": {
+        "op": "layers",
+        "sets": [
+          "nonsense"
+        ]
+      },
+      "expect": {
+        "raises": {
+          "type": "ConfigInputError",
+          "message": "refused: --set 'nonsense' must be SECTION.KEY=VALUE"
+        },
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"ConfigInputError\",\"message\":\"refused: --set 'nonsense' must be SECTION.KEY=VALUE\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"ConfigInputError\",\n  \"message\": \"refused: --set 'nonsense' must be SECTION.KEY=VALUE\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: --set 'nonsense' must be SECTION.KEY=VALUE\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "layers: a --set without a key",
+      "input": {
+        "op": "layers",
+        "sets": [
+          "zone=1"
+        ]
+      },
+      "expect": {
+        "raises": {
+          "type": "ConfigInputError",
+          "message": "refused: --set 'zone=1' needs a section and a key, as SECTION.KEY=VALUE"
+        },
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"ConfigInputError\",\"message\":\"refused: --set 'zone=1' needs a section and a key, as SECTION.KEY=VALUE\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"ConfigInputError\",\n  \"message\": \"refused: --set 'zone=1' needs a section and a key, as SECTION.KEY=VALUE\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: --set 'zone=1' needs a section and a key, as SECTION.KEY=VALUE\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "layers: a --set with an empty segment",
+      "input": {
+        "op": "layers",
+        "sets": [
+          "zone..bind_ip=1"
+        ]
+      },
+      "expect": {
+        "raises": {
+          "type": "ConfigInputError",
+          "message": "refused: --set 'zone..bind_ip=1' needs a section and a key, as SECTION.KEY=VALUE"
+        },
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"ConfigInputError\",\"message\":\"refused: --set 'zone..bind_ip=1' needs a section and a key, as SECTION.KEY=VALUE\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"ConfigInputError\",\n  \"message\": \"refused: --set 'zone..bind_ip=1' needs a section and a key, as SECTION.KEY=VALUE\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: --set 'zone..bind_ip=1' needs a section and a key, as SECTION.KEY=VALUE\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "layers: a --set tunnelling through a value",
+      "input": {
+        "op": "layers",
+        "sets": [
+          "zone.bind_ip=1",
+          "zone.bind_ip.x=2"
+        ]
+      },
+      "expect": {
+        "raises": {
+          "type": "ConfigInputError",
+          "message": "refused: --set cannot put a key under 'bind_ip', which was already given a value"
+        },
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"ConfigInputError\",\"message\":\"refused: --set cannot put a key under 'bind_ip', which was already given a value\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"ConfigInputError\",\n  \"message\": \"refused: --set cannot put a key under 'bind_ip', which was already given a value\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: --set cannot put a key under 'bind_ip', which was already given a value\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "layers: a --set with an empty value",
+      "input": {
+        "op": "layers",
+        "sets": [
+          "zone.bind_ip="
+        ]
+      },
+      "expect": {
+        "configured": {
+          "bind_ip": "",
+          "registry_url": "http://127.0.0.1:8000",
+          "registry_poll_s": 30.0,
+          "consoles_allowed": [],
+          "unreachable_timeout_s": 900.0,
+          "dial_window_s": 0.8,
+          "hold_threshold_s": 1.0,
+          "switch_poll_s": 1.0,
+          "channel_policy": {
+            "port": 8080,
+            "backoff_s": [
+              1.0,
+              2.0,
+              5.0,
+              10.0
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [],
+        "overridden": [
+          "zone.bind_ip"
+        ],
+        "parse": {
+          "raises": {
+            "type": "OptionsError",
+            "message": "refused: no value anywhere for channel_file, state_file, switch_file. Give it on the command line (--channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__CHANNEL_FILE.",
+            "exit_code": 2,
+            "cause": "ValidationError"
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "layers: a --set with a JSON string value",
+      "input": {
+        "op": "layers",
+        "sets": [
+          "zone.bind_ip=\"10.0.0.9\""
+        ]
+      },
+      "expect": {
+        "configured": {
+          "bind_ip": "10.0.0.9",
+          "registry_url": "http://127.0.0.1:8000",
+          "registry_poll_s": 30.0,
+          "consoles_allowed": [],
+          "unreachable_timeout_s": 900.0,
+          "dial_window_s": 0.8,
+          "hold_threshold_s": 1.0,
+          "switch_poll_s": 1.0,
+          "channel_policy": {
+            "port": 8080,
+            "backoff_s": [
+              1.0,
+              2.0,
+              5.0,
+              10.0
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [],
+        "overridden": [
+          "zone.bind_ip"
+        ],
+        "parse": {
+          "raises": {
+            "type": "OptionsError",
+            "message": "refused: no value anywhere for channel_file, state_file, switch_file. Give it on the command line (--channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__CHANNEL_FILE.",
+            "exit_code": 2,
+            "cause": "ValidationError"
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+    },
+    {
+      "name": "layers: a user file that will not parse",
+      "input": {
+        "op": "layers",
+        "user_toml": "[service]\nbind_ip = \n"
+      },
+      "expect": {
+        "raises": {
+          "type": "ConfigInputError",
+          "message": "refused: Invalid TOML in <WORK>/options/layers/xdg/soundtouch-zonemaster/config.toml: expected a value, found a newline at line 2 column 11",
+          "cause": "LayerLoadError"
+        },
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"ConfigInputError\",\"message\":\"refused: Invalid TOML in <WORK>/options/layers/xdg/soundtouch-zonemaster/config.toml: expected a value, found a newline at line 2 column 11\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"ConfigInputError\",\n  \"message\": \"refused: Invalid TOML in <WORK>/options/layers/xdg/soundtouch-zonemaster/config.toml: expected a value, found a newline at line 2 column 11\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: Invalid TOML in <WORK>/options/layers/xdg/soundtouch-zonemaster/config.toml: expected a value, found a newline at line 2 column 11\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "layers: a profile name that is a path",
+      "input": {
+        "op": "layers",
+        "profile": "../elsewhere"
+      },
+      "expect": {
+        "raises": {
+          "type": "ConfigInputError",
+          "message": "refused: profile contains invalid characters: ../elsewhere",
+          "cause": "ValidationError"
+        },
+        "envelopes": {
+          "json_bare": {
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"ConfigInputError\",\"message\":\"refused: profile contains invalid characters: ../elsewhere\"}\n",
+            "stderr": ""
+          },
+          "json": {
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"ConfigInputError\",\n  \"message\": \"refused: profile contains invalid characters: ../elsewhere\"\n}\n",
+            "stderr": ""
+          },
+          "human": {
+            "stdout": "",
+            "stderr": "refused: profile contains invalid characters: ../elsewhere\n"
+          }
+        }
+      }
+    },
+    {
+      "name": "layers: a section written as a value",
+      "input": {
+        "op": "layers",
+        "user_toml": "dialling = 5\n"
+      },
+      "expect": {
+        "configured": {
+          "registry_url": "http://127.0.0.1:8000",
+          "registry_poll_s": 30.0,
+          "consoles_allowed": [],
+          "unreachable_timeout_s": 900.0,
+          "switch_poll_s": 1.0,
+          "channel_policy": {
+            "port": 8080,
+            "backoff_s": [
+              1.0,
+              2.0,
+              5.0,
+              10.0
+            ]
+          },
+          "mpd_host": "127.0.0.1",
+          "mpd_port": 6600,
+          "mpd_rewind_s": 20.0
+        },
+        "unknown": [],
+        "overridden": [],
+        "parse": {
+          "raises": {
+            "type": "OptionsError",
+            "message": "refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.",
+            "exit_code": 2,
+            "cause": "ValidationError"
+          },
+          "logs": []
+        }
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse."
+    }
+  ]
+}

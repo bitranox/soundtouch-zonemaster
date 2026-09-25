@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package Spotify;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum TokenType {
+  PresetString = 1;
+}
+
+message SpotifyLocation {
+  optional string user = 1;
+  optional string token = 2;
+  optional .Spotify.TokenType type = 3;
+}

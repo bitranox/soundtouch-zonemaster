@@ -1,0 +1,859 @@
+{
+ "frames": [
+  {
+   "received_at": 1789963631.6026196,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"0\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Radio One</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963631.6541436,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963631.758437,
+   "speaker": "192.168.0.31",
+   "frame": "<errorUpdate deviceID=\"AABBCC0000A1\"><error value=\"4501\" name=\"BMX_HTTP_ERROR\" severity=\"Unknown\">Unknown HTTP status(0)</error></errorUpdate>"
+  },
+  {
+   "received_at": 1789963631.8236687,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC0000A1\" source=\"INVALID_SOURCE\"><ContentItem source=\"INVALID_SOURCE\" isPresetable=\"true\" /></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963631.9644606,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963636.3576965,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963636.5724545,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963636.5930285,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963636.613008,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963639.120067,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC0000A1\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem><track>Superfly FM</track><artist></artist><album></album><stationName>Superfly FM</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963642.169906,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>0</targetvolume><actualvolume>0</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963642.186892,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963642.3495939,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><zoneUpdated><zone master=\"AABBCC000001\" senderIPAddress=\"192.168.0.190\" senderIsMaster=\"true\"><member ipaddress=\"192.168.0.31\">AABBCC0000A1</member></zone></zoneUpdated></updates>"
+  },
+  {
+   "received_at": 1789963642.4538848,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Radio One</itemName></ContentItem><track>Radio One</track><artist /><album /><stationName>Radio One</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963643.8795657,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963643.989291,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>5</targetvolume><actualvolume>5</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963644.073009,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963644.2387831,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>9</targetvolume><actualvolume>9</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963644.308331,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>14</targetvolume><actualvolume>14</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963644.3293102,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963644.4825113,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963644.5597098,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>18</targetvolume><actualvolume>18</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963644.6844618,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>23</targetvolume><actualvolume>23</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963644.6953287,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963644.8825119,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963644.948057,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963645.0161085,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>28</targetvolume><actualvolume>28</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963645.1084318,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName></ContentItem><track>Superfly FM</track><artist /><album /><stationName>Superfly FM</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963645.1462016,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963645.3436806,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>32</targetvolume><actualvolume>32</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963645.3863888,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963645.5911849,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>37</targetvolume><actualvolume>37</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789963651.8416793,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963652.1430063,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963652.171868,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963652.2097392,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963652.4921207,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963652.5192232,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963652.5638275,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963652.8100224,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963652.8354244,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963652.8820696,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963653.173933,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963653.2096758,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963664.945411,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"0\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Three- Book Three</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963665.026504,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Three- Book Three</itemName></ContentItem><track>Author Three- Book Three</track><artist /><album /><stationName>Author Three- Book Three</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963673.3737102,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963673.6682742,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963673.6984272,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963673.729156,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963673.8973815,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963673.9194586,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963673.9675562,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963674.166955,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963674.1965773,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963674.30035,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963674.590395,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963674.621165,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963684.186644,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963684.634592,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963684.6606057,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963685.0904644,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963685.6170883,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963685.6496887,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963686.065208,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963686.508579,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963686.539643,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963687.2126038,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963687.8973408,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963687.9268584,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963689.8349044,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963689.952531,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem><track>OE3 direct</track><artist /><album /><stationName>OE3 direct</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963695.5345597,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963695.8293276,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963695.8713033,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963696.1722791,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963696.537314,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963696.5730894,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963696.8132472,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963697.106158,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963697.1446033,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963697.4245086,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963697.8045921,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963697.8400462,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963705.745316,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963706.035775,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963706.0716853,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963706.4185357,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963706.7736957,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963706.814727,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963707.1220803,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963707.4941905,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963707.5364425,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963707.677697,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963708.050736,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963708.0814016,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963709.5541263,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"0\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Three- Book Three</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963709.6318843,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Three- Book Three</itemName></ContentItem><track>Author Three- Book Three</track><artist /><album /><stationName>Author Three- Book Three</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963719.7935216,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"0\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Two - Book Two</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963719.8798711,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Two - Book Two</itemName></ContentItem><track>Author Two - Book Two</track><artist /><album /><stationName>Author Two - Book Two</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963721.3131697,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963721.6736145,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963721.706165,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963721.9114213,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963722.2781608,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963722.3080697,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963722.4793262,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963722.7834666,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963722.8075833,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963722.8695998,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963723.1554677,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963723.184614,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963734.8685734,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"0\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Radio One</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963734.9440806,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Radio One</itemName></ContentItem><track>Radio One</track><artist /><album /><stationName>Radio One</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789963739.302818,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963739.5865831,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963739.617359,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963739.7354825,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963740.031319,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963740.0563543,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963740.2309308,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963740.4488618,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963740.4803102,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789963740.5212994,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963740.707339,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789963740.729663,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964223.3805585,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964223.6754756,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964223.6980104,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964223.7253625,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964223.9156454,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964223.9340992,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964223.990823,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964224.2851994,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964224.3018198,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964224.3627188,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964224.6576807,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964224.67718,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964235.3870382,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"0\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Four - Book Four</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964235.4591978,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8100/\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Author Four - Book Four</itemName></ContentItem><track>Author Four - Book Four</track><artist /><album /><stationName>Author Four - Book Four</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789964249.2479358,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964249.532567,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964249.5575602,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964249.5840812,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964249.7737827,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964249.792365,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964249.8535795,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964250.142113,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964250.1644168,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"1\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly93ZWIuc3RyZWFtLnN1cGVyZmx5LmZtL3N1cGVyZmx5LWxpdmU=?name=Superfly%20FM\" sourceAccount=\"\" isPresetable=\"true\"><itemName>Superfly FM</itemName><containerArt></containerArt></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964250.1873455,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964250.457215,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964250.471796,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"2\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity\" sourceAccount=\"\" isPresetable=\"true\"><itemName>TechnikumCity</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964258.9393308,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964259.2242093,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964259.2514718,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964260.2921813,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  },
+  {
+   "received_at": 1789964260.362546,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowPlayingUpdated><nowPlaying deviceID=\"AABBCC000001\" source=\"LOCAL_INTERNET_RADIO\" sourceAccount=\"\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem><track>OE3 direct</track><artist /><album /><stationName>OE3 direct</stationName><art artImageStatus=\"SHOW_DEFAULT_IMAGE\" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>"
+  },
+  {
+   "received_at": 1789964268.212786,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964268.236647,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>38</targetvolume><actualvolume>38</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789964268.5206487,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>40</targetvolume><actualvolume>40</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789964268.821772,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>43</targetvolume><actualvolume>43</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789964269.0429397,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964269.3143861,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964269.641455,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>39</targetvolume><actualvolume>39</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789964269.9355044,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>35</targetvolume><actualvolume>35</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789964270.2419076,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>31</targetvolume><actualvolume>31</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789964270.3854053,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964270.485004,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><volumeUpdated><volume><targetvolume>30</targetvolume><actualvolume>30</actualvolume><muteenabled>false</muteenabled></volume></volumeUpdated></updates>"
+  },
+  {
+   "received_at": 1789964273.148444,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964273.4438531,
+   "speaker": "192.168.0.31",
+   "frame": "<userActivityUpdate deviceID=\"AABBCC0000A1\" />"
+  },
+  {
+   "received_at": 1789964273.467764,
+   "speaker": "192.168.0.31",
+   "frame": "<updates deviceID=\"AABBCC0000A1\"><nowSelectionUpdated><preset id=\"3\"><ContentItem source=\"LOCAL_INTERNET_RADIO\" type=\"stationurl\" location=\"http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9vcmYtbGl2ZS5vcnMtc2hvdXRjYXN0LmF0L29lMy1xMWE=?name=OE3%20direct\" sourceAccount=\"\" isPresetable=\"true\"><itemName>OE3 direct</itemName></ContentItem></preset></nowSelectionUpdated></updates>"
+  }
+ ]
+}

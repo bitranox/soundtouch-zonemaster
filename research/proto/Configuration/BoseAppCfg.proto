@@ -1,0 +1,80 @@
+syntax = "proto2";
+
+package BoseAppCfg;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message Configuration {
+  message LowPowStandByTimeout {
+    optional uint32 text = 1 [default = 7200];
+  }
+  message NetworkStandByTimeout {
+    optional uint32 text = 1 [default = 1080];
+  }
+  message OnBatteryTimeout {
+    optional uint32 text = 1 [default = 1200];
+  }
+  message Volume {
+    optional uint32 thresholdLow = 1 [default = 30];
+    optional uint32 thresholdHigh = 2 [default = 70];
+    optional uint32 defaultValue = 3 [default = 30];
+  }
+  message SpeakerType {
+    optional uint32 text = 1 [default = 16];
+  }
+  message AblDeviceType {
+    optional uint32 text = 1 [default = 255];
+  }
+  message ModuleType {
+    optional string text = 1 [default = "unknown"];
+  }
+  message VariantName {
+    optional string text = 1 [default = "development-system"];
+  }
+  message AirplayOffset {
+    optional string text = 1 [default = "-165"];
+  }
+  message AirplayMetadataValue {
+    optional string text = 1 [default = "0"];
+  }
+  optional .Common.Bool hasAbl = 1;
+  optional .Common.Bool hasBcoProcessor = 2;
+  optional .Common.Bool hasDisplay = 3;
+  optional .Common.Bool hasStatusLed = 4;
+  optional .Common.Bool hasWifiLed = 5;
+  optional .Common.Bool isOutOfBoxEnabled = 6;
+  optional .Common.Bool hasKeys = 7;
+  optional .Common.Bool useBoseDeviceTypeForSsdp = 10;
+  optional .Common.Bool isClockDisplayed = 11;
+  optional .BoseAppCfg.Configuration.LowPowStandByTimeout lowPowStandByTimeout = 12;
+  optional .BoseAppCfg.Configuration.NetworkStandByTimeout networkStandByTimeout = 13;
+  optional .Common.Bool hasBattery = 14;
+  optional .Common.Bool hasSingleButton = 15;
+  optional .BoseAppCfg.Configuration.Volume volume = 16;
+  optional .Common.String swUpdateUrl = 17;
+  optional .Common.StringUnknownSCMDevice productName = 19;
+  optional .BoseAppCfg.Configuration.SpeakerType speakerType = 20;
+  optional .BoseAppCfg.Configuration.AblDeviceType ablDeviceType = 21;
+  optional .Common.StringEmpty swUpdateXmlFilePath = 22;
+  optional .Common.StringEmpty swUpdateDeviceId = 23;
+  optional .Common.StringUnknownSCMDevice defaultSetupSsid = 24;
+  optional .BoseAppCfg.Configuration.ModuleType moduleType = 25;
+  optional .BoseAppCfg.Configuration.VariantName variantName = 26;
+  optional .Common.Bool isLightswitchSupported = 27;
+  optional .Common.Bool isBluetoothAudioSourceSupported = 28;
+  optional .Common.Bool isAvahiRequired = 29;
+  optional .BoseAppCfg.Configuration.OnBatteryTimeout onBatteryTimeout = 30;
+  optional .Common.Bool hasAdaptiq = 31;
+  optional .Common.Bool isOutOfBoxAPSetupSupported = 32;
+  optional .Common.Bool hasHardwarePHReset = 33;
+  optional .BoseAppCfg.Configuration.AirplayOffset airplayOffset = 35;
+  optional .BoseAppCfg.Configuration.AirplayMetadataValue airplayMetadataValue = 36;
+  optional .Common.BoolTrue isExternalUsbPortEnabled = 37;
+  optional .Common.StringEmpty webExtensionsFile = 38;
+  optional .Common.Bool isAudioNotificationSupported = 39;
+  optional .Common.Bool isLRStereoEnabled = 40;
+  optional .Common.Bool isLegacy = 41;
+  optional .Common.BoolTrue hasDemo = 42;
+  optional .Common.Bool disablePowerSaving = 43;
+}

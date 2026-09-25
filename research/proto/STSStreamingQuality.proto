@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package STS;
+
+message StreamingQuality {
+  required uint32 text = 1;
+}
+
+message StreamingQualityRequest {
+  required string type = 1;
+}
+
+message StreamingQualityResponse {
+  required .STS.StreamingQuality streamingQuality = 1;
+}

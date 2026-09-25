@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/STSSettings.proto";
+
+message status {
+  optional uint32 statusval = 1;
+  optional string statustext = 2;
+  optional .SoundTouchInterface.RequestStatus stsRequestStatus = 3;
+}

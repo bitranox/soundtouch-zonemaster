@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+enum TimeFormatType {
+  TIME_FORMAT_12HOUR_ID = 12;
+  TIME_FORMAT_24HOUR_ID = 24;
+}
+
+message clockConfiguration {
+  optional string timezoneInfo = 1 [default = ""];
+  optional bool userEnable = 2 [default = true];
+  optional .TimeFormatType timeFormat = 3 [default = TIME_FORMAT_12HOUR_ID];
+  optional int32 userOffsetMinute = 4 [default = 0];
+  optional uint32 brightnessLevel = 5 [default = 70];
+  optional uint64 userUtcTime = 6 [default = 0];
+}

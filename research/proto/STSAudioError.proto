@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package STS.AudioError;
+
+enum Enum {
+  NONE = 0;
+  UNKNOWN = 1;
+  BAD_URL = 2;
+  DECODER = 3;
+  TIMEOUT = 4;
+  BAD_MEDIA_PLAYLIST = 5;
+}

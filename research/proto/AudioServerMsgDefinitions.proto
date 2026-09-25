@@ -1,0 +1,292 @@
+syntax = "proto2";
+
+import "SoundTouchInterface/Zone.proto";
+
+message AudioServerMsgRegisterAudioSlave {
+  optional bool connect = 1 [default = true];
+  optional bool result = 2 [default = false];
+}
+
+message AudioServerMsgRegisterSourceApp {
+  optional bool connect = 1 [default = true];
+  optional bool result = 2 [default = false];
+  optional uint32 passthrough = 3 [default = 0];
+  optional bool turn_on_cpu = 4 [default = false];
+}
+
+message AudioServerMsgAbsoluteTimeValue {
+  required uint32 seconds = 1;
+  required uint32 microseconds = 2;
+}
+
+message AudioServerMsgSetURL {
+  enum ProtocolHint {
+    PROTOCOL_HINT_NONE = 0;
+    PROTOCOL_HINT_MMS = 1;
+    PROTOCOL_HINT_MMSH = 2;
+    PROTOCOL_HINT_RTSP = 3;
+    PROTOCOL_HINT_HTTP = 4;
+    PROTOCOL_HINT_RTSPU = 5;
+    PROTOCOL_HINT_RTSPT = 6;
+  }
+  enum PlaybackStreamType {
+    Wifi = 0;
+    AirPlay = 1;
+    Aux = 2;
+  }
+  optional string url = 1;
+  optional bool result = 2 [default = false];
+  optional uint32 passthrough = 3 [default = 0];
+  optional uint32 url_id = 4 [default = 0];
+  optional bool url_is_realtime = 7 [default = false];
+  optional .AudioServerMsgSetURL.ProtocolHint protocol_hint = 8 [default = PROTOCOL_HINT_NONE];
+  optional int32 connection_timeout_in_ms = 9 [default = 20000];
+  optional int32 buffering_timeout_in_ms = 10 [default = 60000];
+  optional int32 source_dryup_timeout_ms = 13 [default = 30000];
+  optional int32 source_retry_delay_ms = 14 [default = 5000];
+  optional int32 source_retry_count = 15 [default = 5];
+  optional string trackData = 16;
+  optional bool resume_stream = 17 [default = false];
+  optional bool auto_select_protocol = 18 [default = false];
+  optional bool parse_document = 19 [default = false];
+  optional bool low_latency = 20 [default = false];
+  optional .AudioServerMsgAbsoluteTimeValue start_time = 23;
+  optional uint64 seek_time_in_ms = 24;
+  optional uint32 start_offset_ms = 25 [default = 0];
+  optional .AudioServerMsgSetURL.PlaybackStreamType playbackstreamtype = 26;
+  optional bool playlist_start_at_livepoint = 27 [default = true];
+  optional bool disableVaribleLatency = 28 [default = false];
+}
+
+message AudioServerMsgPlayChime {
+  optional string path = 1;
+}
+
+message AudioServerMsgAmpControl {
+  enum AmpState {
+    AMP_STANDBY = 0;
+    AMP_READY = 1;
+  }
+  required .AudioServerMsgAmpControl.AmpState amp_state = 1;
+}
+
+message AudioServerMsgTransportControl {
+  enum Control {
+    STOP = 0;
+    PLAY = 1;
+    PAUSE = 2;
+  }
+  optional .AudioServerMsgTransportControl.Control control = 1 [default = STOP];
+  optional bool result = 2 [default = false];
+  optional uint64 at_microseconds = 4;
+  optional uint64 playtime_us = 6;
+  optional uint32 url_id = 7;
+}
+
+message AudioServerMsgAudioControl {
+  optional int32 volume = 1 [default = -1];
+  optional bool mute = 2 [default = false];
+  optional bool result = 3 [default = false];
+  optional uint32 passthrough = 4 [default = 0];
+}
+
+message AudioServerMsgVolumeControl {
+  optional int32 volume = 1 [default = -1];
+  optional bool result = 2 [default = false];
+  optional uint32 passthrough = 3 [default = 0];
+}
+
+message AudioServerMsgMuteControl {
+  optional bool mute = 1 [default = false];
+  optional bool result = 2 [default = false];
+  optional uint32 passthrough = 3 [default = 0];
+}
+
+message AudioServerMsgBassControl {
+  optional int32 bass = 1 [default = 0];
+  optional bool result = 2 [default = false];
+  optional uint32 passthrough = 3 [default = 0];
+}
+
+message AudioServerMsgServerError {
+  enum Error {
+    NONE = 0;
+    UNKNOWN = 1;
+    BAD_URL = 2;
+    DECODER = 3;
+    TIMEOUT = 4;
+    BAD_MEDIA_PLAYLIST = 5;
+    SLAVE_PLAYBACK_FAILURE = 6;
+  }
+  optional .AudioServerMsgServerError.Error error = 1 [default = UNKNOWN];
+  optional uint32 protocol_error = 3 [default = 0];
+}
+
+message AudioServerMsgServerState {
+  enum State {
+    UNKNOWN = 0;
+    WAITING = 1;
+    STOPPED = 2;
+    BUFFERING = 3;
+    PLAYING = 4;
+    PAUSED = 5;
+    CONNECTING = 6;
+  }
+  enum Reason {
+    NOTAPPLICABLE = 0;
+    INTERRUPTED = 1;
+    ENDOFTRACK = 2;
+  }
+  optional .AudioServerMsgServerState.State state = 1 [default = UNKNOWN];
+  optional uint32 url_id = 2 [default = 0];
+  optional .AudioServerMsgServerState.Reason reason = 3 [default = NOTAPPLICABLE];
+  optional uint64 milliseconds = 4 [default = 0];
+  optional uint32 byte_offset = 5;
+  optional uint32 total_length = 6 [default = 0];
+  optional .AudioServerMsgServerError terminalError = 11;
+  optional string trackData = 12;
+  optional .AudioServerMsgAbsoluteTimeValue absolute_play_point = 13;
+}
+
+message AudioServerMsgZoneState {
+  required bool is_slave = 1 [default = false];
+}
+
+message AudioServerMsgStreamState {
+  optional bool is_silent = 1 [default = false];
+}
+
+message AudioServerMsgSuspendState {
+  optional bool is_suspended = 1;
+}
+
+message AudioServerMsgSetMaster {
+  optional string ipaddress = 1 [default = ""];
+  optional .SoundTouchInterface.zone zoneList = 2;
+  optional int32 connection_timeout_in_ms = 4;
+  optional int32 buffering_timeout_in_ms = 5;
+}
+
+message AudioServerMsgVolumeState {
+  optional int32 volume = 1;
+}
+
+message AudioServerMsgMuteState {
+  optional bool mute = 1;
+}
+
+message AudioServerMsgBassState {
+  optional int32 bass = 1;
+}
+
+message AudioServerMsgCapabilities {
+  message AudioParameter {
+    optional int32 minimum_value = 2;
+    optional int32 maximum_value = 3;
+    optional int32 default_value = 4;
+  }
+  optional .AudioServerMsgCapabilities.AudioParameter bass_capability = 1;
+  repeated string AuxInputURLs = 2;
+  optional string NormalStereoImage = 3;
+  optional bool MonoStereoAvailable = 4;
+  optional string MonoImage = 5;
+  optional bool StereoPairAvailable = 6;
+  optional string LeftImage = 7;
+  optional string RightImage = 8;
+  optional .AudioServerMsgCapabilities.AudioParameter balance_capability = 9;
+  optional bool productOwnsInitialVolume = 10;
+}
+
+message AudioServerMsgMonoControl {
+  optional bool mono = 1 [default = false];
+}
+
+message AudioServerMsgMonoState {
+  optional bool mono = 1;
+}
+
+message AudioServerMsgOutputLatency {
+  optional int32 output_latency = 1 [default = 0];
+}
+
+message AudioServerMsgReconfigure {
+  optional string config = 1;
+}
+
+message AudioServerMsgTrackData {
+  optional uint64 frame_offset = 1;
+  optional uint64 byte_offset = 2;
+  optional uint64 time_offset = 3;
+  optional uint32 latency_microsecs = 4;
+}
+
+message AudioServerMsgToSlaveMsg {
+  required string msg = 1;
+}
+
+message AudioServerMsgToMasterMsg {
+  required string msg = 1;
+}
+
+message AudioServerMsgFromMasterMsg {
+  required string msg = 1;
+}
+
+message AudioServerMsgFromSlaveMsg {
+  required string msg = 1;
+}
+
+message AudioServerMsgSlaveStateMsg {
+  optional string disconnected_slave = 1;
+  optional string connected_slave = 2;
+  repeated string current_slaves = 3;
+}
+
+message AudioServerMsgSlavePingMsg {
+}
+
+message AudioServerMsgSlavePingResponseMsg {
+}
+
+message AudioServerMsgGroupMember {
+  enum Role {
+    NORMAL = 1;
+    LEFT = 2;
+    RIGHT = 3;
+  }
+  required string deviceId = 1;
+  optional .AudioServerMsgGroupMember.Role role = 2 [default = NORMAL];
+  optional string ipAddress = 3;
+}
+
+message AudioServerMsgSetGroupMsg {
+  optional .AudioServerMsgGroupMember master = 1;
+  repeated .AudioServerMsgGroupMember members = 2;
+  optional string deviceId = 3;
+}
+
+message AudioServerMsgGroupMasterStateMsg {
+  optional .AudioServerMsgGroupMember disconnected_slave = 1;
+  optional .AudioServerMsgGroupMember connected_slave = 2;
+  repeated .AudioServerMsgGroupMember current_slaves = 3;
+}
+
+message AudioServerMsgGroupSlaveStateMsg {
+  optional .AudioServerMsgGroupMember master = 1;
+  optional bool connected = 2;
+}
+
+message AudioServerMsgSetClockMasterMsg {
+  optional string clockMasterIp = 1;
+  optional uint32 clockMasterPort = 2 [default = 40003];
+  optional bool ignoreMaster = 3 [default = false];
+}
+
+message AudioServerMsgSetBalance {
+  optional int32 balance = 1 [default = 0];
+  optional bool result = 2;
+}
+
+message AudioServerMsgBalanceState {
+  optional int32 balance = 1 [default = 0];
+}

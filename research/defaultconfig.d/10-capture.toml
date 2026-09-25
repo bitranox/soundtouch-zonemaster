@@ -1,0 +1,10 @@
+# capture_zone.py drives two real speakers for about three minutes and is audible.
+
+[capture]
+# Speaker addresses a run refuses to drive, as master or as slave. A box belongs here when an API
+# POWER disturbs it beyond this experiment, for example a console whose input flips on POWER.
+# Empty in the tracked file: which box that is depends on the house.
+never_touch = []
+
+# The account tcpdump and netstat run as on a speaker, over ssh. SoundTouch firmware has root.
+ssh_user = "root"

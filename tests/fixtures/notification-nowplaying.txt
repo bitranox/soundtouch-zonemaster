@@ -1,0 +1,5 @@
+# Two nowPlayingUpdated frames exactly as they arrived on 2026-09-06, lifted from
+# research/captures/2026-09-06-key-family/observe.jsonl rather than retyped. One per line:
+# the first is a box in standby, the second the same box playing the master's stream.
+<updates deviceID="AABBCC0000A3"><nowPlayingUpdated><nowPlaying deviceID="AABBCC0000A3" source="STANDBY"><ContentItem source="STANDBY" isPresetable="false" /></nowPlaying></nowPlayingUpdated></updates>
+<updates deviceID="AABBCC0000A3"><nowPlayingUpdated><nowPlaying deviceID="AABBCC000001" source="LOCAL_INTERNET_RADIO" sourceAccount=""><ContentItem source="LOCAL_INTERNET_RADIO" type="stationurl" location="http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity" sourceAccount="" isPresetable="true"><itemName>TechnikumCity</itemName><containerArt /></ContentItem><track>TechnikumCity</track><artist /><album /><stationName>TechnikumCity</stationName><art artImageStatus="SHOW_DEFAULT_IMAGE" /><playStatus>PLAY_STATE</playStatus><streamType>RADIO_STREAMING</streamType></nowPlaying></nowPlayingUpdated></updates>

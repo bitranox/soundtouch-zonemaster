@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "DeezerError.proto";
+
+message UserInfo {
+  optional int64 id = 1;
+  optional int64 status = 13;
+  optional string access_token = 14;
+  optional .Deezer.error error = 16;
+}

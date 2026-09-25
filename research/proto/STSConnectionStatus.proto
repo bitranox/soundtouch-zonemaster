@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package STS;
+
+enum ConnectionStatus {
+  UNDEFINED = 0;
+  CONNECTED = 1;
+  CONNECTING = 2;
+  DISCONNECTED = 3;
+  DISCOVERABLE = 4;
+}
+
+message ConnectionStatusInfo {
+  optional .STS.ConnectionStatus status = 1;
+  optional string deviceName = 2;
+}

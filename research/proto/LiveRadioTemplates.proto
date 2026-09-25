@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message LiveRadioTemplates {
+  message Station {
+    optional int32 contentId = 1;
+    optional string label = 2;
+    optional string subLabel = 3;
+    optional string imagePath = 4;
+  }
+  enum BasedOnType {
+    MARKET = 1;
+  }
+  repeated .IHeart.LiveRadioTemplates.Station values = 3;
+  repeated .IHeart.Error errors = 4;
+  optional .IHeart.Error firstError = 5;
+  optional .IHeart.Error error = 6;
+}

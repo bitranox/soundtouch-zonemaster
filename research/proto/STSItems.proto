@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSItemType.proto";
+import "STSContentItem.proto";
+import "STSAvailability.proto";
+
+message Item {
+  optional string name = 1;
+  optional .STS.ItemType.Enum type = 2;
+  optional string url = 3;
+  optional string backupurl = 4;
+  optional string format = 5;
+  optional string description = 6;
+  optional string location = 7;
+  optional string mime = 8;
+  optional string bitrate = 9;
+  optional string logo = 10;
+  optional string reliability = 11;
+  optional string token = 12;
+  optional .STS.ContentItem contentItem = 14;
+  optional uint64 utcTime = 15;
+  optional string proto = 16;
+  optional .STS.ItemType.Enum containerType = 17;
+  optional string containerToken = 18;
+  optional string containerName = 19;
+  optional string artistName = 20;
+  optional string albumName = 21;
+  optional .STS.Availability.Enum availability = 22;
+}
+
+message Items {
+  optional .STS.ItemType.Enum type = 1;
+  repeated .STS.Item item = 2;
+}

@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message DiscoveredDeviceInfo {
+  optional string macaddress = 1;
+  optional string ipaddress = 2;
+  optional string id = 3;
+}

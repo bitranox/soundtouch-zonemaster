@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package STS;
+
+message RecreateAccountRequest {
+  optional string user = 1;
+  optional string secret = 2;
+  optional string secrettype = 3;
+  optional uint32 port = 4;
+  optional string displayname = 5;
+}
+
+message RecreateAccountResponse {
+  optional string user = 1;
+  optional string secret = 2;
+}

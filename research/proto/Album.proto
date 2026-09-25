@@ -1,0 +1,44 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Track.proto";
+import "Station.proto";
+import "TrackBundle.proto";
+import "Artist.proto";
+import "IHeartError.proto";
+
+message Album {
+  message BestMatch {
+    optional double confidenceVal = 1;
+    optional int32 id = 2;
+    optional string objType = 3;
+  }
+  message SpellingSuggestion {
+    repeated .IHeart.Error errors = 2;
+    optional .IHeart.Error firstError = 3;
+    optional string suggestion = 4;
+    optional bool updated = 5;
+  }
+  repeated .IHeart.Artist artists = 1;
+  optional .IHeart.Album.BestMatch bestMatch = 2;
+  repeated .IHeart.Error errors = 5;
+  repeated .IHeart.FeaturedStation featuredStations = 6;
+  optional .IHeart.Error firstError = 7;
+  repeated .IHeart.Station stations = 11;
+  optional int32 totalArtists = 14;
+  optional int32 totalBundles = 15;
+  optional int32 totalFeaturedStations = 16;
+  optional int32 totalStations = 19;
+  optional int32 totalTracks = 22;
+  repeated .IHeart.TrackBundle trackBundles = 23;
+  repeated .IHeart.Track tracks = 24;
+  optional .IHeart.Error error = 25;
+}
+
+message AlbumsByArtist {
+  optional .IHeart.Error firstError = 2;
+  repeated .IHeart.Error errors = 3;
+  optional .IHeart.Artist artist = 4;
+}

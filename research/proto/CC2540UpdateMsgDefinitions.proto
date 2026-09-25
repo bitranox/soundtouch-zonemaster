@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+message CC2540UpdateMsgDisconnect {
+}
+
+message CC2540UpdateMsgReconnect {
+}
+
+message CC2540UpdateMsgGetBTleVersion {
+  optional string version = 1 [default = ""];
+}

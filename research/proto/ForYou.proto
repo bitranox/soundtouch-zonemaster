@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message ForYou {
+  message Content {
+    optional string link = 1;
+  }
+  message Entry {
+    optional int32 contentId = 1;
+    optional string label = 2;
+    optional string sublabel = 3;
+    optional string imagePath = 4;
+    optional .IHeart.ForYou.EntryType type = 5;
+    optional string subType = 6;
+    optional .IHeart.ForYou.Content content = 7;
+  }
+  enum EntryType {
+    LRRM = 1;
+    DL = 2;
+    CR = 3;
+  }
+  enum SubType {
+    ARTIST = 1;
+    LIVE = 2;
+    LINK = 3;
+    P4 = 4;
+  }
+  repeated .IHeart.Error errors = 1;
+  optional .IHeart.Error firstError = 2;
+  repeated .IHeart.ForYou.Entry values = 5;
+  optional .IHeart.Error error = 6;
+}

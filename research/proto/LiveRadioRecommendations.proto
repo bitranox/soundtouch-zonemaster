@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message LiveRadioRecommendations {
+  message Recommendation {
+    repeated int32 liveRadioStationRecs = 1;
+    optional int32 liveRadioStationId = 2;
+  }
+  optional .IHeart.LiveRadioRecommendations.Recommendation recs = 1;
+  repeated .IHeart.Error errors = 3;
+  optional .IHeart.Error firstError = 4;
+  optional .IHeart.Error error = 5;
+}

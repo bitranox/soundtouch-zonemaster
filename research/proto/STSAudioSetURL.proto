@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+package STS;
+
+message AudioSetURL {
+  enum StreamType {
+    WIFI = 0;
+    AIRPLAY = 1;
+    AUX = 2;
+  }
+  optional string url = 1;
+  optional string trackOffset = 2;
+  required uint32 urlId = 3;
+  optional bool resumeStream = 4 [default = false];
+  optional bool realTime = 5 [default = false];
+  optional bool autoSelectProtocol = 6 [default = false];
+  optional bool parseDocument = 7 [default = false];
+  optional uint32 seconds = 8;
+  optional uint32 microseconds = 9;
+  optional uint64 seekTimeMs = 10;
+  optional uint32 startOffsetMs = 11;
+  optional uint32 connectionTimeout = 12 [default = 20000];
+  optional uint32 bufferingTimeout = 13 [default = 60000];
+  optional .STS.AudioSetURL.StreamType streamType = 14;
+  optional bool startAtLivePoint = 15 [default = true];
+  optional bool disableVaribleLatency = 16 [default = false];
+}

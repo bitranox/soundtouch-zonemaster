@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message MarconiUI {
+  required string source = 1;
+  optional string opaqueData = 2;
+}

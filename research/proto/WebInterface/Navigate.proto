@@ -1,0 +1,79 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "WebInterface/Item.proto";
+import "Common.proto";
+
+enum MenuType {
+  locales = 1;
+  recents = 2;
+  favAlbums = 3;
+  favArtists = 4;
+  favPlaylists = 5;
+  favTracks = 6;
+  charts = 7;
+  recommendations = 8;
+  favoriteStations = 9;
+  customStations = 10;
+  recentStations = 11;
+  international = 12;
+  states = 13;
+  cities = 14;
+  local = 15;
+  newsTalk = 16;
+  publicRadio = 17;
+  sportsRadio = 18;
+  mixVariety = 19;
+  genres = 20;
+  liveStations = 21;
+  talk = 22;
+  createStation = 23;
+  radioStations = 24;
+  userRadio = 25;
+  forYou = 26;
+  perfectFor = 27;
+}
+
+enum SortOrder {
+  stationName = 0;
+  dateCreated = 1;
+}
+
+message navigate {
+  message NumItems {
+    required uint32 text = 1 [default = 100000];
+  }
+  optional string source = 1;
+  optional .WebInterface.MenuType menu = 2;
+  optional string sourceAccount = 3;
+  optional .Common.UInt32One startItem = 4;
+  optional .WebInterface.navigate.NumItems numItems = 5;
+  optional .WebInterface.Item item = 6;
+  optional .WebInterface.SortOrder sort = 7 [default = dateCreated];
+  optional string lang = 8;
+  optional string description = 9;
+  optional string localTime = 10;
+}
+
+message navigateResponse {
+  message Items {
+    optional .WebInterface.ItemType type = 1;
+    repeated .WebInterface.Item item = 2;
+  }
+  message Section {
+    optional .Common.String title = 1;
+    optional .WebInterface.ItemType type = 2;
+    optional .WebInterface.navigateResponse.Items items = 3;
+  }
+  message Sections {
+    repeated .WebInterface.navigateResponse.Section section = 1;
+  }
+  optional string source = 1;
+  optional .WebInterface.MenuType menu = 2;
+  optional string sourceAccount = 3;
+  required .Common.Int32 totalItems = 4;
+  optional .Common.UInt64 utcTime = 5;
+  optional .WebInterface.navigateResponse.Items items = 6;
+  optional .WebInterface.navigateResponse.Sections sections = 7;
+}

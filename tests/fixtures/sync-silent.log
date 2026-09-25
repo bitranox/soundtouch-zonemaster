@@ -1,0 +1,14 @@
+# Excerpt of run-run1.log, the run that produced NO sync line at all. It is the control the
+# refusal exists for: the old scripts printed nothing here and exited 0.
+01:14:44.176 master       listening on 192.168.0.190: udp/40005 tcp/40002 tcp/40003 tcp/8090 as AABBCC000001
+01:14:44.334 master       station: TechnikumCity <- http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity
+01:14:44.353 source       playback descriptor -> https://stream.radiotechnikum.at/CITYJAZZ
+01:14:44.692 source       url_id=1 200 audio/mpeg from https://stream.radiotechnikum.at/CITYJAZZ
+01:14:44.693 source       url_id=1 first bytes; t0_us=76323646428 (+3000 ms)
+01:14:44.937 master       setZone -> 192.168.0.31: l version="1.0" encoding="UTF-8" ?><status>/setZone</status>
+01:14:45.238 transport    192.168.0.31: connected
+01:14:45.238 transport    192.168.0.31: joined to url_id=1 t0_us=76323646428
+01:14:45.256 slave-msg    192.168.0.31: AudioServerMsgCapabilities bass_capability {   minimum_value: -9   maximum_value: 0   default_value: 0 } AuxInputURLs: "aux://" NormalStereoImage: "mojo_sm2_normal.cfg" MonoStereoAvailable: false MonoImage: "" StereoPairAvailab
+01:14:45.256 slave-msg    192.168.0.31: AudioServerMsgSuspendState is_suspended: false 
+01:14:45.256 slave-state  192.168.0.31: STOPPED url_id=0 ms=0 byte=0
+01:14:45.256 slave-msg    192.168.0.31: AudioServerMsgZoneState is_slave: true 

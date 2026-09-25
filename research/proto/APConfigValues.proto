@@ -1,0 +1,142 @@
+syntax = "proto2";
+
+enum APConfigValueAudioDeviceType {
+  AUDIO_DEVICE_TYPE_ALSA = 0;
+  AUDIO_DEVICE_TYPE_SHELBY_NONE = 1;
+  AUDIO_DEVICE_TYPE_SHELBY_DIRECT = 2;
+  AUDIO_DEVICE_TYPE_SHELBY_STM32 = 3;
+  AUDIO_DEVICE_TYPE_SIM = 4;
+}
+
+enum APConfigValueDspImageType {
+  DSP_IMAGE_MONO = 0;
+  DSP_IMAGE_STEREO = 1;
+  DSP_IMAGE_LEFT = 2;
+  DSP_IMAGE_RIGHT = 3;
+}
+
+message APConfigValueAsrcConstants {
+  required double invFsamp = 1;
+  required double invki = 2;
+  required double ki = 3;
+}
+
+message APConfigValuePrimaryParameters {
+  required int32 delayCompensation = 3 [default = 0];
+  required bool hasAudioInputMux = 5 [default = true];
+  required bool hasAIC = 7 [default = true];
+  required bool putDSPinSuspend = 8 [default = true];
+  required bool useArmVolumeControl = 9;
+  required bool productOwnsInitialVolume = 10;
+  optional uint32 chimeVolume = 11;
+  required bool hasABL = 12;
+  optional bool hasBattery = 13;
+  optional uint32 rebroadcastLatency = 14 [default = 120];
+}
+
+message APConfigValueBassParameters {
+  required bool hasControlCapabilities = 1 [default = false];
+  required int32 minimum = 2 [default = 0];
+  required int32 maximum = 3 [default = 0];
+  required int32 defaultValue = 4 [default = 0];
+}
+
+message APConfigValueMonoCapability {
+  required bool isMonoCapable = 1 [default = false];
+  required string monoDspImage = 2 [default = ""];
+}
+
+message APConfigValueStereoPairingCapability {
+  required bool isStereoPairingCapable = 1 [default = false];
+  required string leftDspImage = 2 [default = ""];
+  required string rightDspImage = 3 [default = ""];
+}
+
+message APConfigDspImages {
+  required string stereoDspImage = 1 [default = ""];
+  required .APConfigValueMonoCapability monoCapability = 2;
+  required .APConfigValueStereoPairingCapability stereoPairingCapability = 3;
+}
+
+message APConfigValueGenericParams {
+  required string gpioDesc = 1 [default = ""];
+  required int32 delayEnable = 2 [default = 0];
+  required int32 delayDisable = 3 [default = 0];
+  required bool polarity = 4 [default = false];
+}
+
+message APConfigValueAmpStatusParams {
+  required string gpioDesc = 1 [default = ""];
+  required string ampAccessor = 2 [default = ""];
+  required int32 pollInterval = 3 [default = 0];
+  required bool polarity = 4 [default = false];
+}
+
+message APConfigValueDelayABLParams {
+  required int32 delayEnable = 1 [default = 0];
+  required int32 delayDisable = 2 [default = 0];
+}
+
+message APProductParams {
+}
+
+message APConfigValueDeviceParams {
+  required string objName = 1 [default = ""];
+  optional .APConfigValueGenericParams gp = 2;
+  optional .APConfigValueAmpStatusParams asp = 3;
+  optional .APConfigValueDelayABLParams dap = 4;
+  optional .APProductParams app = 5;
+}
+
+message APConfigValueVolumeParams {
+  enum VolumeControl {
+    VOLUME_FORWARD_ABL = 0;
+    VOLUME_FORWARD_APPRODUCT = 1;
+    VOLUME_FORWARD_NONE = 3;
+  }
+  required .APConfigValueVolumeParams.VolumeControl volcontrolType = 1;
+}
+
+message APConfigValueOutputDeviceParameters {
+  optional .APConfigValueDeviceParams audioParams = 1;
+  optional .APConfigValueDeviceParams muteParams = 2;
+  optional .APConfigValueVolumeParams volumeParams = 3;
+}
+
+message APConfigValueBoseAudioDriverModeParameters {
+  enum DriverControlMode {
+    ANALOG = 0;
+    SPDIF = 1;
+  }
+  required .APConfigValueBoseAudioDriverModeParameters.DriverControlMode outputDriverControlMode = 1;
+  required string outputDriverControlModePath = 2;
+}
+
+message APConfigValueOutputDriverParameters {
+  required string outputDriverName = 1;
+  required string outputDriverPath = 2;
+  required .APConfigValueAudioDeviceType outputDriverType = 3;
+  optional int32 inputSampleRate = 13;
+  required int32 outputSampleRate = 4;
+  required float wifiAttenuation = 5;
+  required float auxAttenuation = 6;
+  required int32 wifiBufferTarget = 7;
+  required int32 auxBufferTarget = 8;
+  required .APConfigValueAsrcConstants asrcConstants = 9;
+  required bool useDither = 10;
+  required int32 audioLatency = 11 [default = 0];
+  optional .APConfigValueBoseAudioDriverModeParameters controlModeParams = 12;
+}
+
+message APConfigValueOutputDriverParameterSet {
+  required uint32 defaultOutputDriverIndex = 1;
+  repeated .APConfigValueOutputDriverParameters outputDriverParameters = 2;
+}
+
+message AudioPathParameters {
+  required .APConfigValuePrimaryParameters primaryParameters = 2;
+  required .APConfigValueBassParameters bassParameters = 3;
+  required .APConfigDspImages dspImages = 4;
+  optional .APConfigValueOutputDeviceParameters outputDeviceParameters = 5;
+  required .APConfigValueOutputDriverParameterSet outputDriverParameterSet = 7;
+}

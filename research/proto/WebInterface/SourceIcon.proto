@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message SourceIcon {
+  required string source = 1;
+  required string iconurl = 2;
+}

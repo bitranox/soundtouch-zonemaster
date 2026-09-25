@@ -1,0 +1,17 @@
+from google.protobuf import descriptor_pb2 as _descriptor_pb2
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+IGNORE_UNEXPECTED_MARKUP_FIELD_NUMBER: _ClassVar[int]
+ignore_unexpected_markup: _descriptor.FieldDescriptor
+ENUM_BY_NUMBER_FIELD_NUMBER: _ClassVar[int]
+enum_by_number: _descriptor.FieldDescriptor
+DISPLAY_WHEN_EMPTY_FIELD_NUMBER: _ClassVar[int]
+display_when_empty: _descriptor.FieldDescriptor
+EMBEDDED_DOCUMENT_FIELD_NUMBER: _ClassVar[int]
+embedded_document: _descriptor.FieldDescriptor
+REPEATED_FIELD_ACCEPT_SINGLE_VALUE_FIELD_NUMBER: _ClassVar[int]
+repeated_field_accept_single_value: _descriptor.FieldDescriptor
+VALUE_ONLY_FIELD_NUMBER: _ClassVar[int]
+value_only: _descriptor.FieldDescriptor

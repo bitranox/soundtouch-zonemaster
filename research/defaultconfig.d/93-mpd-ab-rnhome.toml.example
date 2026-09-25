@@ -1,0 +1,5 @@
+# Copy to 93-mpd-ab-rnhome.toml (gitignored) when this house's MPD keeps its files elsewhere.
+
+[mpd_ab]
+live_conf = "/etc/mpd.conf"
+live_db = "/var/lib/mpd/tag_cache"

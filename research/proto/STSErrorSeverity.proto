@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package STS.ErrorSeverity;
+
+enum Enum {
+  Unknown = 100;
+  Recoverable = 200;
+  Unrecoverable = 201;
+}

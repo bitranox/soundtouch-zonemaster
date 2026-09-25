@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+message WebServerCfg {
+  message Operation {
+    optional string name = 1;
+    optional string handler = 2;
+  }
+  repeated .WebServerCfg.Operation operation = 1;
+}

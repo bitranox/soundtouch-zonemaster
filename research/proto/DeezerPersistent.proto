@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+import "Common.proto";
+
+message DeezerPersistent {
+  optional bool firstLogin = 1 [default = true];
+  optional .Common.String account = 2;
+  optional int64 userId = 4 [default = 0];
+}

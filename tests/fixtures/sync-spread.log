@@ -1,0 +1,12 @@
+# Excerpt of run-run3.log, the ECHO run of REPORT.md S7, in the OLDER line shape (a slave
+# against the other slave, no counter column). It is here for its SPREAD: the sign-off run
+# reads zero on every sample, so a fixture made only of that cannot tell a median from a
+# mean or a minimum from a maximum. Lines copied byte for byte.
+01:39:00.057 sync         192.168.0.34 renders +98 ms vs 192.168.0.31
+01:39:01.029 sync         192.168.0.34 renders +75 ms vs 192.168.0.31
+01:39:02.031 sync         192.168.0.34 renders +71 ms vs 192.168.0.31
+01:39:03.029 sync         192.168.0.34 renders +101 ms vs 192.168.0.31
+01:39:04.031 sync         192.168.0.34 renders +98 ms vs 192.168.0.31
+01:39:01.000 sync         192.168.0.31 renders -90 ms vs 192.168.0.34
+01:39:01.998 sync         192.168.0.31 renders -91 ms vs 192.168.0.34
+01:39:02.999 sync         192.168.0.31 renders -93 ms vs 192.168.0.34

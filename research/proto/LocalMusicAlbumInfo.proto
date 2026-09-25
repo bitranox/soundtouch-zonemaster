@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package LocalMusic;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "LocalMusicError.proto";
+
+message AlbumInfo {
+  optional int64 id = 1;
+  optional string name = 2;
+  optional int64 duration = 3;
+  optional int64 trackCount = 4;
+  optional string genre = 5;
+  optional .LocalMusic.error error = 6;
+  optional string releaseDate = 7;
+  optional bool compilation = 8;
+  optional string imageURL = 9;
+}

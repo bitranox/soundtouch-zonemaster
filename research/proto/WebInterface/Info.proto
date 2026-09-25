@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "WebInterface/VersionInfo.proto";
+import "Common.proto";
+
+message info {
+  message NetworkInfo {
+    required .WebInterface.info.NetworkInfoType type = 1;
+    required .Common.String macAddress = 2;
+    required .Common.String ipAddress = 3;
+  }
+  enum NetworkInfoType {
+    SCM = 0;
+    SMSC = 1;
+  }
+  required string deviceID = 1;
+  required .Common.String name = 2;
+  required .Common.String type = 3;
+  required .Common.String margeAccountUUID = 4;
+  required .WebInterface.VersionedComponents components = 5;
+  required .Common.String margeURL = 6;
+  repeated .WebInterface.info.NetworkInfo networkInfo = 7;
+  optional .Common.String moduleType = 8;
+  optional .Common.String variant = 9;
+  optional .Common.String variantMode = 10;
+  optional .Common.String countryCode = 11;
+  optional .Common.String regionCode = 12;
+}

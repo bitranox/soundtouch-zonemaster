@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+package STS;
+
+message TxtRecord {
+  optional string name = 1;
+  optional string value = 2;
+}

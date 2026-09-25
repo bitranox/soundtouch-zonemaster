@@ -1,0 +1,76 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message historicalMetadataResponse {
+  message Messages {
+    optional uint32 code = 1;
+    optional string message = 2;
+  }
+  message Metadata {
+    message History {
+      message Show {
+        message Channel {
+          optional string contentId = 1;
+          optional string title = 2;
+        }
+        message Series {
+          message Episode {
+            message DmcaInfo {
+              optional uint32 backSkipDur = 1;
+              optional uint32 fwdSkipDur = 2;
+              optional string irNavClass = 3;
+              optional uint32 maxBackSkips = 4;
+              optional uint32 maxFwdSkips = 5;
+            }
+            message Scheduling {
+              optional uint32 duration = 1;
+              optional string startTime = 2;
+            }
+            message Segment {
+              message Cut {
+                message CreativeArt {
+                  optional string size = 1;
+                  optional string url = 2;
+                }
+                message Album {
+                  repeated .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode.Segment.Cut.CreativeArt creativeArt = 1;
+                  optional string title = 2;
+                }
+                message Artist {
+                  optional string title = 1;
+                }
+                optional .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode.Segment.Cut.Album album = 1;
+                optional .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode.Segment.Cut.Artist artist = 2;
+                optional string id = 3;
+                optional .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode.Scheduling scheduling = 4;
+                optional string siriusXMId = 5;
+                optional string title = 6;
+              }
+              repeated .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode.Segment.Cut cut = 1;
+              optional string id = 2;
+            }
+            optional .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode.DmcaInfo dmcaInfo = 1;
+            optional string longDescription = 2;
+            optional string longTitle = 3;
+            repeated .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode.Segment segment = 15;
+          }
+          optional .Sxm.historicalMetadataResponse.Metadata.History.Show.Series.Episode episode = 1;
+        }
+        optional .Sxm.historicalMetadataResponse.Metadata.History.Show.Channel channel = 1;
+        optional string longDescription = 2;
+        optional string longTitle = 3;
+        optional .Sxm.historicalMetadataResponse.Metadata.History.Show.Series series = 4;
+      }
+      repeated .Sxm.historicalMetadataResponse.Metadata.History.Show show = 1;
+    }
+    optional string contentId = 1;
+    optional .Sxm.historicalMetadataResponse.Metadata.History history = 2;
+    optional string title = 3;
+  }
+  repeated .Sxm.historicalMetadataResponse.Messages messages = 1;
+  optional uint32 status = 2;
+  optional .Sxm.historicalMetadataResponse.Metadata metaData = 3;
+}

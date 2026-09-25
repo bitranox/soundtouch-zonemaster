@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSShuffleMode.proto";
+import "STSRepeatMode.proto";
+
+message PlayQueueItem {
+  optional string name = 1;
+  optional bool current = 2;
+}
+
+message PlayQueueItems {
+  repeated .STS.PlayQueueItem playQueueItem = 1;
+}
+
+message PlayQueueIntrospect {
+  optional .STS.ShuffleMode.Enum shuffleMode = 1;
+  optional .STS.RepeatMode.Enum repeatMode = 2;
+  optional int32 count = 3;
+  optional .STS.PlayQueueItems playQueueItems = 4;
+}

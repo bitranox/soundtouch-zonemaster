@@ -1,0 +1,38 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+import "IHeartContentType.proto";
+
+message Favorites {
+  message Favorite {
+    optional string stationType = 1;
+    optional uint64 lastModifiedDate = 4;
+    optional bool favorite = 6;
+    optional int32 seedTheme = 12;
+    optional int32 seedShow = 13;
+    optional uint64 lastPlayedDate = 16;
+    optional .IHeart.ContentType type = 25;
+    optional string name = 28;
+    optional string id = 29;
+  }
+  repeated .IHeart.Error errors = 1;
+  optional .IHeart.Error firstError = 2;
+  repeated .IHeart.Favorites.Favorite values = 5;
+  optional .IHeart.Error error = 6;
+}
+
+message FavoritesAddResponse {
+  optional .IHeart.Error error = 1;
+  optional .IHeart.Error firstError = 5;
+}
+
+message FavoritesDeleteResponse {
+  optional .IHeart.Error error = 1;
+  optional int32 duration = 2;
+  optional int32 profileId = 3;
+  optional int32 favoriteCount = 4;
+  optional .IHeart.Error firstError = 5;
+}

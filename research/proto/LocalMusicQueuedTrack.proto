@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package LocalMusic;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message QueuedTrack {
+  required string trackid = 1;
+  required string name = 2;
+  required bool isPodcast = 3 [default = false];
+}

@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package STS.RepeatMode;
+
+enum Enum {
+  OFF = 0;
+  ONE = 1;
+  ALL = 2;
+}

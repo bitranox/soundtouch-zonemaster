@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AuthServerInfo {
+  optional string url = 1;
+  optional string token = 2;
+}
+
+message AuthServerInfoResponse {
+  required .MargePB.AuthServerInfo authServerInfo = 1;
+}

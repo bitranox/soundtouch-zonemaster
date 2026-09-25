@@ -1,0 +1,56 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum RequestStatus {
+  SUCCESS = 0;
+  NOT_FOUND = 1;
+  SERVER_NOT_AVAILABLE = 2;
+}
+
+message RequestContext {
+  optional int32 seq = 1;
+}
+
+message SourceAccountSetting {
+  required string name = 1;
+  optional string value = 2;
+}
+
+message SourceAccountSettings {
+  repeated .SoundTouchInterface.SourceAccountSetting sourceAccountSetting = 1;
+}
+
+message SourceAccountSettingRequest {
+  optional .SoundTouchInterface.RequestContext requestContext = 1;
+  optional .SoundTouchInterface.SourceAccountSetting sourceAccountSetting = 2;
+}
+
+message SourceAccountSettingResponse {
+  optional .SoundTouchInterface.RequestContext requestContext = 1;
+  optional .SoundTouchInterface.RequestStatus status = 2;
+  optional .SoundTouchInterface.SourceAccountSettings sourceAccountSettings = 3;
+}
+
+message ServiceSetting {
+  required string name = 1;
+  optional string value = 2;
+}
+
+message ServiceSettingRequest {
+  required string sourceType = 1;
+  optional .SoundTouchInterface.RequestContext requestContext = 2;
+  optional .SoundTouchInterface.ServiceSetting serviceSetting = 3;
+}
+
+message ServiceSettingResponse {
+  message ServiceSettings {
+    repeated .SoundTouchInterface.ServiceSetting serviceSetting = 1;
+  }
+  required string sourceType = 1;
+  optional .SoundTouchInterface.RequestContext requestContext = 2;
+  optional .SoundTouchInterface.RequestStatus status = 3;
+  optional .SoundTouchInterface.ServiceSettingResponse.ServiceSettings serviceSettings = 4;
+}

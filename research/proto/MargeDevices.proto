@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "ProviderSettings.proto";
+import "MargeDevice.proto";
+
+message devices {
+  repeated .MargePB.device device = 1;
+  optional .MargePB.providerSettings providerSettings = 2;
+}

@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message SoundTouchSdkPrivateCfg {
+  message MargeServerUrl {
+    optional string text = 1 [default = "https://bose-test.apigee.net/margeproxy"];
+  }
+  message StatsServerUrl {
+    optional string text = 1 [default = "https://eventsdev.bosecm.com"];
+  }
+  message SwUpdateUrl {
+    optional string text = 1 [default = "https://worldwide.bose.com/updates/soundtouch-int"];
+  }
+  optional .SoundTouchSdkPrivateCfg.MargeServerUrl margeServerUrl = 1;
+  optional .SoundTouchSdkPrivateCfg.StatsServerUrl statsServerUrl = 2;
+  optional .SoundTouchSdkPrivateCfg.SwUpdateUrl swUpdateUrl = 3;
+  optional .Common.Bool isZeroconfEnabled = 4;
+  optional .Common.BoolTrue usePandoraProductionServer = 5;
+  optional .Common.Bool saveMargeCustomerReport = 6;
+  optional .Common.String bmxRegistryUrl = 7;
+}

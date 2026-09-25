@@ -1,0 +1,42 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Status.proto";
+
+message swUpdateStart {
+  optional string indexUrl = 1;
+  optional bool force = 2;
+}
+
+message SoftwareUpdateFailure {
+  enum FailureCondition {
+    bad_url = 1;
+    phase_timeout = 2;
+    authentication_error = 3;
+    nand_error = 4;
+    general = 5;
+    network_connect_timeout = 6;
+    low_memory = 7;
+    module_failure = 8;
+    software_failure = 9;
+  }
+  optional .SoundTouchInterface.SoftwareUpdateFailure.FailureCondition failure = 1 [default = bad_url];
+  optional uint32 failureId = 2 [default = 0];
+}
+
+message SoftwareUpdateStatus {
+  enum State {
+    idle = 1;
+    downloading = 2;
+    authenticating = 3;
+    installing = 4;
+    completed = 5;
+  }
+  optional .SoundTouchInterface.SoftwareUpdateStatus.State state = 1;
+  optional uint32 progress = 2;
+  optional bool abort_available = 3 [default = true];
+  optional .SoundTouchInterface.SoftwareUpdateFailure failure = 4;
+  optional uint32 seconds_until_update_completion = 5;
+}

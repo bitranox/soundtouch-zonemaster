@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package Spotify;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Preset {
+  optional int32 id = 1;
+  optional bytes token = 2;
+  optional string uri = 3;
+}

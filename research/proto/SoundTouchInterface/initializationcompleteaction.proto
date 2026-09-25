@@ -1,0 +1,21 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum sourceAction {
+  LAST_SOURCE = 0;
+  INIT_STANDBY = 1;
+  UPDATE = 2;
+  LAST_SOUNDTOUCH_SOURCE = 3;
+  BLUETOOTH = 4;
+  LOCAL = 5;
+  PRESET_1 = 6;
+  PRESET_2 = 7;
+  PRESET_3 = 8;
+  PRESET_4 = 9;
+  PRESET_5 = 10;
+  PRESET_6 = 11;
+  CONTENT_ITEM = 12;
+}

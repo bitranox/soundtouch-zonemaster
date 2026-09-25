@@ -1,0 +1,35 @@
+# Who is allowed into the zone, and when a box stops counting as being in it.
+#
+# Membership is decided from what the speakers said and nothing else. These two settings are the
+# only house policy laid over that.
+
+[membership]
+
+# Device ids of Lifestyle consoles that may be taken into the zone anyway.
+#
+# Default: [] - no console is ever joined. Effect: a console is otherwise left out and not even
+# watched, because an API POWER flips its INPUT rather than waking it, so a service that reached
+# one would change what somebody is doing in that room, audibly, and undoing it needs a person at
+# the console.
+# When to set: only when somebody who uses that room has agreed to it, naming that console's
+# twelve hex digits.
+# Consequence: the console joins and leaves like any other box, including being sent the zone
+# document. There is no way to make that quieter, which is why it is off by default and per-device
+# rather than a boolean.
+#   env: SOUNDTOUCH_ZONEMASTER___MEMBERSHIP__CONSOLES_ALLOWED (as JSON, e.g. '["AABBCC001122"]')
+consoles_allowed = []
+
+# How long a speaker may say nothing before it stops counting as a member, in seconds.
+#
+# Default: 900.0, fifteen minutes. Effect: a box that has gone quiet for longer is dropped from
+# the zone WITHOUT being sent anything, because the document that takes a box out of a zone is
+# the one that puts it into standby.
+# When to lower it: a house where boxes are unplugged rather than switched off, and a stale member
+# in the list is confusing. Do not go below a few minutes.
+# Consequence of lowering it too far: an idle box says nothing for a long time quite legitimately,
+# so a short timeout takes a working room out of the group for no reason and it only comes back
+# when somebody touches it.
+# Consequence of raising it: a box that is genuinely gone stays listed for longer. That costs
+# nothing audible, which is why the default errs high.
+#   env: SOUNDTOUCH_ZONEMASTER___MEMBERSHIP__UNREACHABLE_TIMEOUT_S
+unreachable_timeout_s = 900.0

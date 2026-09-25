@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package WebInterface;
+
+enum SysCtlrPowerStateType {
+  ON = 1;
+  OFF = 2;
+}
+
+message PowerState {
+  optional .WebInterface.SysCtlrPowerStateType text = 1;
+}
+
+message power {
+  required .WebInterface.PowerState sysState = 1;
+  optional .WebInterface.PowerState ampState = 2;
+  optional int32 ampTimeout = 3;
+}

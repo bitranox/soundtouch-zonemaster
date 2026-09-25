@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message introspect {
+  enum ServiceType {
+    UNDEFINED = 0;
+    MARGE = 1;
+    DISCOVERY = 2;
+  }
+  optional string source = 1;
+  optional string sourceAccount = 2;
+}

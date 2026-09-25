@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "Common.proto";
+
+message PairDeviceWithAccount {
+  optional bool efeSwitch = 1 [default = false];
+  required .Common.String accountId = 2;
+  required .Common.String userAuthToken = 3;
+  optional .Common.String boseServer = 4;
+  optional .Common.String updateServer = 5;
+  optional .Common.String accountEmail = 6;
+}
+
+message UnPairDeviceWithAccount {
+}

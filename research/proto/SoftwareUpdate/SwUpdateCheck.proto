@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package SoftwareUpdate;
+
+message swUpdateCheck {
+  optional string indexUrl = 1;
+}

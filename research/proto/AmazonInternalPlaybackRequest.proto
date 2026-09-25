@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package Amazon;
+
+import "STSPlaybackRequest.proto";
+
+message InternalPlaybackRequest {
+  optional .STS.PlaybackRequest STSPlaybackRequest = 1;
+  optional string trackLocation = 2;
+  optional string trackOffset = 3;
+}

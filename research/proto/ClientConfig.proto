@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message ClientConfig {
+  message ClientConfigData {
+    required string key = 1;
+    required string value = 2;
+  }
+  repeated .IHeart.Error errors = 1;
+  repeated .IHeart.ClientConfig.ClientConfigData clientConfigData = 3;
+  optional .IHeart.Error firsterror = 4;
+}

@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package AVS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message EmptyPayload {
+}
+
+message Header {
+  optional string namespace = 1;
+  optional string name = 2;
+  optional string messageId = 3;
+  optional string dialogRequestId = 4;
+}

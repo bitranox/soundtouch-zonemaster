@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message software_update {
+  optional .Common.String softwareUpdateLocation = 1;
+}

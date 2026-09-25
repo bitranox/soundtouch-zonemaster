@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package STS;
+
+message MuteControl {
+  optional bool muteEnabled = 1;
+}
+
+message MuteStatus {
+  optional bool muteEnabled = 1;
+}

@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum ContentType {
+  UNKNOWN = 1;
+  LR = 2;
+  CR = 3;
+  CT = 4;
+  LN = 5;
+}

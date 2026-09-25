@@ -1,0 +1,64 @@
+syntax = "proto2";
+
+message APMsgVolumeEvent {
+  optional uint32 volume = 1 [default = 0];
+}
+
+message APConfigMsgEvent {
+  optional string apconfigxml = 1 [default = ""];
+}
+
+message APControlMsgMuteEvent {
+  optional bool usermute = 1;
+  optional bool internalmute = 2;
+}
+
+message APControlMsgSelectSTAudio {
+  optional uint32 session_id = 1 [default = 0];
+}
+
+message APControlMsgDeselectSTAudio {
+  optional uint32 session_id = 1 [default = 0];
+}
+
+message APControlMsgAudioStatusUpdate {
+  enum STSelectionStatus {
+    DESELECTED = 0;
+    SELECTED = 1;
+  }
+  optional .APControlMsgAudioStatusUpdate.STSelectionStatus status = 1 [default = DESELECTED];
+  optional uint32 session_id = 2 [default = 0];
+}
+
+message APControlMsgModeSelection {
+  optional bool render = 1 [default = true];
+  optional uint32 latency_microseconds = 2 [default = 0];
+}
+
+message APControlMsgSTLatencyUpdate {
+  optional uint32 latency = 1 [default = 0];
+}
+
+message APControlMsgLatencyRequest {
+  optional uint32 latency = 1 [default = 0];
+}
+
+message APControlMsgOutputDriverSelect {
+  optional uint32 driver_index = 1 [default = 0];
+}
+
+message APControlMsgOutputLatencyEvent {
+  optional int32 latency = 1 [default = 0];
+}
+
+message APControlMsgRebroadcastLatencyMode {
+  enum APRebroadcastLatencyMode {
+    SYNC_TO_ROOM = 0;
+    SYNC_TO_ZONE = 1;
+  }
+  optional .APControlMsgRebroadcastLatencyMode.APRebroadcastLatencyMode mode = 1 [default = SYNC_TO_ROOM];
+}
+
+message APRebroadCastLatencyEvent {
+  optional uint32 latency = 1 [default = 0];
+}

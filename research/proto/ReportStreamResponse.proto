@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message ReportStreamResponse {
+  optional bool success = 1;
+  repeated .IHeart.Error errors = 3;
+  optional .IHeart.Error firstError = 4;
+  optional int32 hourSkipsRemaining = 6;
+  optional int32 daySkipsRemaining = 7;
+  optional .IHeart.Error error = 8;
+}

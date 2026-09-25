@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package UpnpIntrospect;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message UpnpIntrospectResponse {
+  optional .Common.Accounts accounts = 3;
+}
+
+message UpnpAccountIntrospectResponse {
+  optional string state = 1;
+  optional string user = 2;
+}

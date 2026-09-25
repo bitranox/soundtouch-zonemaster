@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package LocalMusic;
+
+import "STSPlaybackRequest.proto";
+
+message InternalPlaybackRequest {
+  optional .STS.PlaybackRequest STSPlaybackRequest = 1;
+  optional string trackOffset = 2;
+}

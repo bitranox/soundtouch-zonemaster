@@ -1,0 +1,7 @@
+# Copy to 92-golden-rnhome.toml (gitignored) and name this house's recorded capture.
+
+[golden]
+capture = "captures/2026-09-05-room3-room1"
+pcap = "192.0.2.33.pcap"
+master = "192.0.2.33"
+slave = "192.0.2.31"

@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/ContentItem.proto";
+
+message preset {
+  optional .SoundTouchInterface.PresetID id = 1;
+  optional .SoundTouchInterface.ContentItem ContentItem = 2;
+  optional uint64 createdOn = 3;
+  optional uint64 updatedOn = 4;
+}
+
+message presets {
+  repeated .SoundTouchInterface.preset preset = 1;
+}

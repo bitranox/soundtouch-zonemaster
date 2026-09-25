@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message bass {
+  optional string deviceID = 1;
+  optional .Common.Int32 targetbass = 2;
+  optional .Common.Int32 actualbass = 3;
+}

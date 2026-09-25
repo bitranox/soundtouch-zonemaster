@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package MargePB_UpdateGroup;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message group {
+  optional .Common.String masterDeviceId = 1;
+  optional .Common.String name = 2;
+}

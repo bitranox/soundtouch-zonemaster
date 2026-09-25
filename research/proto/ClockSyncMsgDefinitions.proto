@@ -1,0 +1,58 @@
+syntax = "proto2";
+
+message ClockSyncMsgRegisterClockSync {
+}
+
+message NTPSetServerMsg {
+  message Addr {
+    required string host = 1;
+    required uint32 port = 2;
+  }
+  repeated .NTPSetServerMsg.Addr addrs = 1;
+  optional uint32 syncInterval_ms = 2;
+}
+
+message ClockSyncMsgSyncMasterRequest {
+  enum Accuracy {
+    LOW = 0;
+    HIGH = 1;
+  }
+  required string masterIP = 1;
+  required uint32 masterPort = 2;
+  optional .ClockSyncMsgSyncMasterRequest.Accuracy accuracy = 3 [default = LOW];
+}
+
+message ClockSyncMsgCancelSyncRequest {
+}
+
+message ClockSyncMsgSyncResponse {
+  enum Response {
+    SYNC_PERFORMED = 0;
+    SYNC_CANCELED = 1;
+  }
+  optional .ClockSyncMsgSyncResponse.Response response = 1;
+}
+
+message ClockSyncMsgClockSyncUpdate {
+  enum State {
+    CHECKING_SYNC = 0;
+    SYNC_REQUIRED = 1;
+    SYNC_OK = 2;
+    COMM_FAILURE = 3;
+  }
+  optional .ClockSyncMsgClockSyncUpdate.State state = 1 [default = CHECKING_SYNC];
+}
+
+message ClockSyncMsgNTPUpdate {
+  enum State {
+    NO_SYNC = 0;
+    NTP_SYNC = 1;
+  }
+  optional .ClockSyncMsgNTPUpdate.State state = 1 [default = NO_SYNC];
+}
+
+message ClockSyncMsgTimexAdjustment {
+  required int64 offset = 1;
+  required int32 rate = 2;
+  optional string ip_str = 3;
+}

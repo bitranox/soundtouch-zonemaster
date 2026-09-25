@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package LocalMusic;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message error {
+  required int64 code = 1;
+  optional string message = 2;
+  optional string description = 3;
+}

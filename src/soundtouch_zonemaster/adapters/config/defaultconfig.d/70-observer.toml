@@ -1,0 +1,34 @@
+# Each speaker's notification channel.
+#
+# The master holds one WebSocket per speaker. It is how a preset NUMBER is learned at all: the
+# press a slave forwards to us carries the ContentItem and no key number, and the number appears
+# only on that box's own channel about 52 ms later.
+#
+# Nothing in this house sets either of these. They exist so that a test can bind an ephemeral port
+# and not wait out a real retry, and they are documented here because a setting that only a test
+# uses is still a setting somebody will find and wonder about.
+
+[observer]
+
+# The TCP port a speaker's notification channel listens on.
+#
+# Default: 8080, which is where real SoundTouch firmware answers.
+# When to change it: only against something that is not a real speaker.
+# Consequence of changing it in a real house: no box answers, so no preset number is ever learned
+# and the channel keys stop working, while everything else about the zone keeps running - which
+# is a confusing half-failure rather than an obvious one.
+#   env: SOUNDTOUCH_ZONEMASTER___OBSERVER__PORT
+port = 8080
+
+# How long to wait before trying a lost channel again, in seconds, by attempt.
+#
+# Default: [1.0, 2.0, 5.0, 10.0]. Effect: the list is walked per attempt and HOLDS at the last
+# value, so a box that stays away is retried every 10 s for ever rather than being given up on.
+# When to change it: a test that must not wait, or a network where a box takes much longer to come
+# back than this climbs.
+# Consequence of making it uniformly short: a speaker being away for minutes is normal - somebody
+# switched it off - so a fast retry hammers a box that is not there, for no gain.
+# Consequence of making it long at the front: a momentary drop costs a real gap before the box is
+# watched again, and during that gap its presses are not seen.
+#   env: SOUNDTOUCH_ZONEMASTER___OBSERVER__BACKOFF_S (as JSON, e.g. '[1.0,2.0]')
+backoff_s = [1.0, 2.0, 5.0, 10.0]

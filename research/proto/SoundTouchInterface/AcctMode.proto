@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/AcctModeType.proto";
+
+message acctMode {
+  optional .SoundTouchInterface.AcctModeType mode = 1;
+  optional string deviceID = 2;
+}

@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message error {
+  required string type = 1;
+  optional string message = 2;
+  optional int64 code = 3;
+}

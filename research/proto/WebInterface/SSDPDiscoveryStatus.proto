@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message SSDPDiscoveryStatusRequest {
+  optional string source = 1;
+  optional string sourceAccount = 2;
+}
+
+message SSDPDiscoveryStatusResponse {
+  optional string uuid = 1 [default = ""];
+  optional string ipAddr = 2 [default = ""];
+  optional string port = 3 [default = ""];
+}

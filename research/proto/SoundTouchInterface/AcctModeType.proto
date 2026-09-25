@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum AcctModeType {
+  local = 1;
+  global = 2;
+}

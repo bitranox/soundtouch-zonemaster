@@ -1,0 +1,42 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+enum PresetID {
+  UNDEFINED_PRESET = 0;
+  P1 = 1;
+  P2 = 2;
+  P3 = 3;
+  P4 = 4;
+  P5 = 5;
+  P6 = 6;
+}
+
+message ContentItem {
+  message Preset {
+    required .SoundTouchInterface.PresetID id = 1;
+  }
+  message ItemName {
+    optional string text = 1;
+  }
+  message ContainerArt {
+    optional string text = 1;
+  }
+  optional uint32 unusedField = 1;
+  optional string source = 2 [default = "INVALID_SOURCE"];
+  optional string type = 3;
+  optional string location = 4;
+  optional string sourceAccount = 5;
+  optional .SoundTouchInterface.ContentItem.Preset preset = 6;
+  optional .SoundTouchInterface.ContentItem.ItemName itemName = 7;
+  optional uint32 offset = 8;
+  optional bool isNavigate = 9;
+  optional bool isPresetable = 10 [default = true];
+  optional .SoundTouchInterface.ContentItem.ContainerArt containerArt = 11;
+}
+
+message ContentItems {
+  repeated .SoundTouchInterface.ContentItem ContentItem = 1;
+}

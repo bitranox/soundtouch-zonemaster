@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+package Persistence;
+
+message SourceKey {
+  required string type = 1;
+  optional string account = 2;
+}
+
+message sources {
+  message Source {
+    required .Persistence.SourceKey sourceKey = 1;
+    optional bool toBeRemoved = 2;
+    optional string displayName = 3;
+    optional string secret = 4;
+    optional string secretType = 5;
+  }
+  repeated .Persistence.sources.Source source = 1;
+}
+
+message current {
+  optional .Persistence.SourceKey source = 1;
+}

@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "MargeSourceSettings.proto";
+import "Common.proto";
+
+message MargeSource {
+  message source {
+    message Credential {
+      optional string type = 1;
+      optional string text = 2;
+    }
+    optional string id = 1;
+    optional string type = 2;
+    required .MargePB.MargeSource.source.Credential credential = 3;
+    optional .Common.String name = 4;
+    optional .Common.String username = 5;
+    required .Common.String sourceproviderid = 6;
+    optional .Common.String sourcename = 7;
+    optional .MargePB.sourceSettings sourceSettings = 8;
+  }
+}

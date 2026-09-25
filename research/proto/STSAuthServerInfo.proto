@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package STS;
+
+message AuthServerInfo {
+  optional string url = 1;
+  optional string token = 2;
+}
+
+message AuthServerInfoResponse {
+  required .STS.AuthServerInfo authServerInfo = 1;
+}

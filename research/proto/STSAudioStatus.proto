@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSAudioError.proto";
+import "STSAudioState.proto";
+import "STSAudioReason.proto";
+
+message AudioStatus {
+  optional uint32 urlid = 1;
+  optional .STS.AudioError.Enum error = 2;
+  optional .STS.AudioState.Enum state = 3;
+  optional .STS.AudioReason.Enum reason = 4;
+  optional bool isEndOfTrack = 5;
+  optional uint32 timeIntoTrack = 6;
+  optional uint32 bytesIntoTrack = 7;
+  optional uint32 protocolError = 8;
+  optional bool isAPServerDisconnected = 9;
+  optional string trackOffset = 10;
+  optional uint32 absolutePlayPointSeconds = 11;
+  optional uint32 absolutePlayPointMicroseconds = 12;
+}

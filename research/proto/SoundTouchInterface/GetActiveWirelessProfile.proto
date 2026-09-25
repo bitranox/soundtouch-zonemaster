@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message GetActiveWirelessProfileResponse {
+  message ssidElt {
+    optional string text = 1;
+  }
+  optional .SoundTouchInterface.GetActiveWirelessProfileResponse.ssidElt ssid = 1;
+}

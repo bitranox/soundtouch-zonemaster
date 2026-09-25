@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+package WebInterface;
+
+message bearertoken {
+  optional string value = 1 [default = ""];
+}

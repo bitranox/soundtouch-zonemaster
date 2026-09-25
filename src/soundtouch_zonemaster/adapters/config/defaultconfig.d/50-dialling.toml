@@ -1,0 +1,47 @@
+# How a channel number is typed on a speaker's preset keys.
+#
+# A speaker has six preset keys and the house may have more than six channels, so a number is
+# DIALLED: the keys are the digits, and pressing 1 then 2 inside one window selects channel 12.
+#
+# THESE ARE THE TWO SETTINGS A CONFIG FILE DOES NOT ALWAYS DECIDE. Both are CALIBRATED by one
+# gesture at a speaker, measured on the same presses, and a calibrated value is written to the state
+# file and re-read at every start (service.py, _restore). It overrides this file, the environment AND
+# the command line, so on a house that has ever been calibrated the values below are not what the
+# service is using. Read the real ones from the state file, or from the service's own "the dialling
+# window is N s" and "a key is held after N s" lines at startup. To go back to a value here, remove
+# dial_window_s or hold_threshold_s from the state file while the service is stopped.
+
+[dialling]
+
+# How long digits are collected into one number before it is read, in seconds.
+#
+# Default: 0.8. Effect: the window starts when a key is released, and every further digit starts
+# it again from that digit's release. When it closes, the digits are read as one number; a number
+# no channel has does NOTHING.
+# This is ONE setting for the whole house, not one per speaker - the design considered per-speaker
+# and declined it.
+# Bounds: refused outside 0.5 to 2.0 s, and both ends are measured rather than chosen. They are
+# exact rather than approximate: a value outside them is refused by name with exit 1.
+# When to lower it: a house that only ever uses channels 1 to 6, where every press is a whole
+# number and waiting for a possible second digit is dead time before the music changes.
+# When to raise it: a slower hand. Somebody who takes a beat between the two digits of "12" gets
+# channel 1 and then channel 2 instead, which is audible and reads as the system ignoring them.
+# Consequence below the floor: two-digit numbers start splitting into two single-digit selections.
+# Consequence above the ceiling: the wait stops reading as a wait and starts reading as a fault.
+#   env: SOUNDTOUCH_ZONEMASTER___DIALLING__WINDOW_S
+window_s = 0.8
+
+# How long a key must stay down to be HELD rather than tapped, in seconds.
+#
+# Default: 1.0. Effect: a key still down when this passes is a hold and acts at that moment - a held
+# thumb switches that box into or out of multiroom, a held next or previous steps. A key released
+# before it is a tap.
+# It is its own number rather than the window above: the window is the pause BETWEEN two keys, this
+# is how long ONE key is down, and an ordinary slow tap can be longer than the window.
+# Bounds: refused outside 1.0 to 2.0 s, by name with exit 1.
+# When to raise it: taps that are read as holds - a thumb that switches a box out of multiroom when
+# it was meant to move the channel rotation.
+# Consequence below the floor: slow taps turn into holds.
+# Consequence above the ceiling: a held key acts so late that the person has let go and pressed again.
+#   env: SOUNDTOUCH_ZONEMASTER___DIALLING__HOLD_THRESHOLD_S
+hold_threshold_s = 1.0

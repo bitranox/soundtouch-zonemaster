@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package MargePBAdd;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message device {
+  optional string deviceid = 1;
+  optional .Common.String name = 2;
+  optional .Common.String macaddress = 3;
+}

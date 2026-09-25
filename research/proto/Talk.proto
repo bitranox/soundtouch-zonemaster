@@ -1,0 +1,60 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message TalkEpisode {
+  optional int32 duration = 2;
+  optional int32 episodeId = 4;
+  optional string hosts = 7;
+  optional string image = 8;
+  optional string showName = 12;
+  optional string title = 16;
+}
+
+message ShowRestValue {
+  optional int32 id = 1;
+  repeated .IHeart.TalkEpisode allepisodes = 2;
+  optional string slug = 3;
+}
+
+message TalkShow {
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  optional .IHeart.ShowRestValue showRestValue = 4;
+  optional .IHeart.Error error = 5;
+}
+
+message TalkTheme {
+  optional int32 id = 5;
+  optional string imagePath = 6;
+  optional string name = 7;
+  optional .IHeart.Error error = 11;
+}
+
+message TalkThemes {
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  repeated .IHeart.TalkTheme themes = 4;
+  optional .IHeart.Error error = 5;
+}
+
+message TalkStations {
+  message Show {
+    optional int32 count = 1;
+    optional int32 showId = 2;
+  }
+  message TalkStation {
+    repeated .IHeart.TalkEpisode episodes = 4;
+    optional string name = 7;
+    optional int32 seedShow = 13;
+    optional int32 seedTheme = 14;
+    optional string talkStationId = 15;
+  }
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  repeated .IHeart.TalkStations.TalkStation talkStations = 5;
+  optional .IHeart.Error error = 6;
+}

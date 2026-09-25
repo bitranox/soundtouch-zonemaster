@@ -1,0 +1,17 @@
+syntax = "proto2";
+
+package STS.FilterType;
+
+enum Enum {
+  unknown = 0;
+  all = 1;
+  station = 2;
+  location = 3;
+  genre = 4;
+  language = 5;
+  artist = 6;
+  autocomplete = 7;
+  album = 8;
+  track = 9;
+  library = 10;
+}

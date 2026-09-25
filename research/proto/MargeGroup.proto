@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Group.proto";
+import "Common.proto";
+
+message groupRole {
+  optional .Common.String deviceId = 1;
+  optional .SoundTouchInterface.group.RoleTypes role = 2;
+}
+
+message Roles {
+  repeated .MargePB.groupRole groupRole = 1;
+}
+
+message group {
+  optional string id = 1;
+  optional .Common.String masterDeviceId = 2;
+  optional .Common.String name = 3;
+  optional .MargePB.Roles roles = 4;
+}

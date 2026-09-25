@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "STSItemType.proto";
+
+message DeezerLocation {
+  optional .STS.ItemType.Enum type = 1;
+  optional string token = 2;
+}

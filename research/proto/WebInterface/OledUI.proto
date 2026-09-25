@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "WebInterface/SourceIcon.proto";
+
+message OledUI {
+  optional .WebInterface.SourceIcon oledIconUrl = 1;
+  optional .WebInterface.SourceIcon likeUrl = 2;
+  optional .WebInterface.SourceIcon dislikeUrl = 3;
+  optional .WebInterface.SourceIcon favoriteUrl = 4;
+}

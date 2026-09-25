@@ -1,0 +1,25 @@
+# Excerpt of a real run log (research/captures/2026-09-06-late-join-hearing/run-abn1.log,
+# the MP3 sign-off run of REPORT.md S7). Lines are copied byte for byte, including the
+# column padding, because that padding is what the parser has to survive; retyping them is
+# how a parser passes its test and fails on the thing it was written for. The 192.168.0.x
+# addresses are RFC 1918 and deliberately not redacted (tools/public_redactions.txt).
+02:32:35.886 master       listening on 192.168.0.190: udp/40005 tcp/40002 tcp/40003 tcp/8090 as AABBCC000001
+02:32:36.100 master       station: TechnikumCity <- http://192.168.0.190:8000/custom/v1/playback/aHR0cHM6Ly9zdHJlYW0ucmFkaW90ZWNobmlrdW0uYXQvQ0lUWUpBWlo=?name=TechnikumCity
+02:32:36.118 source       playback descriptor -> https://stream.radiotechnikum.at/CITYJAZZ
+02:32:36.234 source       url_id=1 200 audio/mpeg from https://stream.radiotechnikum.at/CITYJAZZ
+02:32:41.089 sync         192.168.0.31 renders +0 ms vs zone (frames; counter says -4 ms)
+02:32:42.003 sync         192.168.0.31 renders +0 ms vs zone (frames; counter says -8 ms)
+02:32:43.018 sync         192.168.0.31 renders +0 ms vs zone (frames; counter says -9 ms)
+02:32:44.000 sync         192.168.0.31 renders +0 ms vs zone (frames; counter says +5 ms)
+02:32:45.007 sync         192.168.0.31 renders +0 ms vs zone (frames; counter says -7 ms)
+02:32:45.999 sync         192.168.0.31 renders +0 ms vs zone (frames; counter says -9 ms)
+02:32:36.235 source       url_id=1 first bytes; t0_us=80995188531 (+3000 ms); byte 0 is a frame start
+02:32:36.492 master       setZone -> 192.168.0.31: l version="1.0" encoding="UTF-8" ?><status>/setZone</status>
+02:32:36.768 transport    192.168.0.31: connected
+02:32:36.768 transport    192.168.0.31: joined to url_id=1 t0_us=80995188531
+02:33:11.229 sync         192.168.0.34 renders +0 ms vs zone (frames; counter says +20 ms)
+02:33:12.034 sync         192.168.0.34 renders +0 ms vs zone (frames; counter says +32 ms)
+02:33:13.032 sync         192.168.0.34 renders +0 ms vs zone (frames; counter says +19 ms)
+02:33:14.036 sync         192.168.0.34 renders +0 ms vs zone (frames; counter says +33 ms)
+02:33:15.032 sync         192.168.0.34 renders +0 ms vs zone (frames; counter says +32 ms)
+02:33:16.032 sync         192.168.0.34 renders +0 ms vs zone (frames; counter says +20 ms)

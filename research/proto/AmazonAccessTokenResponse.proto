@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package Amazon;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AmazonAccessTokenError {
+  optional string error = 1;
+}

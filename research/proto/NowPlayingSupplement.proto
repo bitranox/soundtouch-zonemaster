@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "StreamUrl.proto";
+import "IHeartContentType.proto";
+
+message NowPlayingSupplement {
+  repeated .IHeart.StreamUrl.Ad ads = 1;
+  optional .IHeart.ContentType contentType = 2;
+  optional string playerKey = 3;
+  optional string stationId = 4;
+  optional string trackId = 5;
+  optional uint32 featuredStationId = 6;
+  optional string artistSeed = 7;
+  optional uint32 trackSeed = 8;
+  optional string audioUrl = 9;
+  optional uint32 nextAdIndex = 10;
+  optional int32 episodeIndex = 11;
+  optional string slug = 12;
+}

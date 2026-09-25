@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "UserSubscription.proto";
+import "IHeartError.proto";
+
+message StreamUrl {
+  message Ad {
+    optional string url = 6;
+  }
+  enum AdType {
+    AD = 1;
+  }
+  optional string url = 1;
+  optional string playerKey = 2;
+  optional .IHeart.UserSubscription userSubscription = 3;
+  repeated .IHeart.Error errors = 5;
+  optional .IHeart.Error firstError = 6;
+  optional int32 hourSkipsRemaining = 8;
+  optional int32 daySkipsRemaining = 9;
+  optional .IHeart.Error error = 10;
+}

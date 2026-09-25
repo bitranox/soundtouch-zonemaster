@@ -1,0 +1,31 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartContentType.proto";
+import "STSRating.proto";
+import "StationType.proto";
+import "IHeartCILocation.proto";
+
+message QueuedTrack {
+  optional string artistName = 1;
+  optional string albumName = 2;
+  optional string stationId = 3;
+  optional string stationName = 4;
+  optional string trackId = 5;
+  optional string trackName = 6;
+  optional .IHeart.ContentType contentType = 7;
+  optional uint32 duration = 8;
+  optional string artUrl = 9;
+  optional string audioUrl = 10;
+  optional uint32 themeSeed = 11;
+  optional .IHeart.StationType.Value stationType = 13;
+  optional .STS.Rating.Enum rating = 15 [default = NONE];
+  optional string description = 16;
+  optional uint32 artistSeed = 17;
+  optional uint32 trackSeed = 18;
+  optional uint32 featuredStationId = 19;
+  optional .IHeart.LocationType.Value locationType = 20;
+  optional string customId = 21;
+}

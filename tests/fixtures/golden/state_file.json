@@ -1,0 +1,936 @@
+{
+  "meta": {
+    "corpus": "state_file",
+    "note": "ZoneState through save_state/load_state: bytes written, and every way a load starts empty or raises.",
+    "source": "soundtouch-zonemaster before the template rebuild",
+    "source_head": "887934c7c05d80ea48180c72986584271873cf4c",
+    "python": "3.14.5",
+    "versions": {
+      "pydantic": "2.13.5",
+      "pydantic_core": "2.46.5",
+      "httpx": "0.28.1",
+      "lib_layered_config": "5.6.2",
+      "lib_cli_exit_tools": "2.3.4",
+      "rich-click": "1.9.9",
+      "protobuf": "7.36.1",
+      "websockets": "17.1"
+    },
+    "placeholders": {
+      "<WORK>": "a scratch directory that exists; substitute your own",
+      "<PACKAGE>": "the installed package directory",
+      "<ARCHIVE>": "the pre-template checkout",
+      "<HOST_MAC>": "default_device_id() on the generating host",
+      "<PORT>": "the loopback port the registry double bound",
+      "<INPUT_FRAME>": "the frame field equals the input frame",
+      "<ARRIVAL_TIME>": "time.time() at arrival"
+    }
+  },
+  "cases": [
+    {
+      "name": "save: an empty state",
+      "input": {
+        "op": "save",
+        "state": {
+          "channel": null,
+          "members": [],
+          "muted": {},
+          "out_of_multiroom": [],
+          "dial_window_s": null
+        }
+      },
+      "expect": {
+        "text": "{\n  \"channel\": null,\n  \"members\": [],\n  \"muted\": {},\n  \"out_of_multiroom\": [],\n  \"positions\": {},\n  \"dial_window_s\": null,\n  \"hold_threshold_s\": null,\n  \"owed_volume\": {}\n}\n",
+        "files_after": [
+          "state.json"
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "save: a channel only",
+      "input": {
+        "op": "save",
+        "state": {
+          "channel": "3",
+          "members": [],
+          "muted": {},
+          "out_of_multiroom": [],
+          "dial_window_s": null
+        }
+      },
+      "expect": {
+        "text": "{\n  \"channel\": \"3\",\n  \"members\": [],\n  \"muted\": {},\n  \"out_of_multiroom\": [],\n  \"positions\": {},\n  \"dial_window_s\": null,\n  \"hold_threshold_s\": null,\n  \"owed_volume\": {}\n}\n",
+        "files_after": [
+          "state.json"
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "save: every field, mutes in the order they were taken",
+      "input": {
+        "op": "save",
+        "state": {
+          "channel": "12",
+          "members": [
+            "AABBCC000010",
+            "AABBCC000011"
+          ],
+          "muted": {
+            "AABBCC000011": 17,
+            "AABBCC000010": 0
+          },
+          "out_of_multiroom": [
+            "AABBCC000012"
+          ],
+          "dial_window_s": 0.6
+        }
+      },
+      "expect": {
+        "text": "{\n  \"channel\": \"12\",\n  \"members\": [\n    \"AABBCC000010\",\n    \"AABBCC000011\"\n  ],\n  \"muted\": {\n    \"AABBCC000011\": 17,\n    \"AABBCC000010\": 0\n  },\n  \"out_of_multiroom\": [\n    \"AABBCC000012\"\n  ],\n  \"positions\": {},\n  \"dial_window_s\": 0.6,\n  \"hold_threshold_s\": null,\n  \"owed_volume\": {}\n}\n",
+        "files_after": [
+          "state.json"
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "save: a whole-number window",
+      "input": {
+        "op": "save",
+        "state": {
+          "channel": null,
+          "members": [],
+          "muted": {},
+          "out_of_multiroom": [],
+          "dial_window_s": 1.0
+        }
+      },
+      "expect": {
+        "text": "{\n  \"channel\": null,\n  \"members\": [],\n  \"muted\": {},\n  \"out_of_multiroom\": [],\n  \"positions\": {},\n  \"dial_window_s\": 1.0,\n  \"hold_threshold_s\": null,\n  \"owed_volume\": {}\n}\n",
+        "files_after": [
+          "state.json"
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "save: a window that is no short decimal",
+      "input": {
+        "op": "save",
+        "state": {
+          "channel": null,
+          "members": [],
+          "muted": {},
+          "out_of_multiroom": [],
+          "dial_window_s": 0.30000000000000004
+        }
+      },
+      "expect": {
+        "text": "{\n  \"channel\": null,\n  \"members\": [],\n  \"muted\": {},\n  \"out_of_multiroom\": [],\n  \"positions\": {},\n  \"dial_window_s\": 0.30000000000000004,\n  \"hold_threshold_s\": null,\n  \"owed_volume\": {}\n}\n",
+        "files_after": [
+          "state.json"
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "save: a key that is not ASCII",
+      "input": {
+        "op": "save",
+        "state": {
+          "channel": null,
+          "members": [
+            "Büro"
+          ],
+          "muted": {
+            "Büro": 5
+          },
+          "out_of_multiroom": [],
+          "dial_window_s": null
+        }
+      },
+      "expect": {
+        "text": "{\n  \"channel\": null,\n  \"members\": [\n    \"Büro\"\n  ],\n  \"muted\": {\n    \"Büro\": 5\n  },\n  \"out_of_multiroom\": [],\n  \"positions\": {},\n  \"dial_window_s\": null,\n  \"hold_threshold_s\": null,\n  \"owed_volume\": {}\n}\n",
+        "files_after": [
+          "state.json"
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a missing file",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "missing"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a directory where the file should be",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "directory"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: could not be read (IsADirectoryError); starting empty"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: an empty file",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": ""
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: half a document, as a power cut leaves it",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": \"3\", \"mem"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: the wrong shape",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": 3, \"members\": \"not a list\"}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (2 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: every field",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": \"12\", \"members\": [\"AABBCC000010\"], \"muted\": {\"AABBCC000010\": 17}, \"out_of_multiroom\": [\"AABBCC000012\"], \"dial_window_s\": 0.6}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": "12",
+            "members": [
+              "AABBCC000010"
+            ],
+            "muted": {
+              "AABBCC000010": 17
+            },
+            "out_of_multiroom": [
+              "AABBCC000012"
+            ],
+            "positions": {},
+            "dial_window_s": 0.6,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a key this version does not know",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": \"1\", \"future_key\": true}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": "1",
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: an explicit null channel",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": null}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a member that is a number",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"members\": [\"AABBCC000010\", 5]}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: members as one string",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"members\": \"AABBCC000010\"}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a channel as a list",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": [\"1\"]}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a muted volume as a numeric string",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"muted\": {\"AABBCC000010\": \"17\"}}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {
+              "AABBCC000010": 17
+            },
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a muted volume as a whole float",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"muted\": {\"AABBCC000010\": 17.0}}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {
+              "AABBCC000010": 17
+            },
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a muted volume as a fractional float",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"muted\": {\"AABBCC000010\": 17.5}}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a window as a numeric string",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"dial_window_s\": \"0.6\"}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": 0.6,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: an explicit null window",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"dial_window_s\": null}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a window as a boolean",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"dial_window_s\": true}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": 1.0,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a member repeated",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"members\": [\"AABBCC000010\", \"AABBCC000010\"]}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [
+              "AABBCC000010",
+              "AABBCC000010"
+            ],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a list at the top",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "[]"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: JSON null",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "null"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a document followed by junk",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": \"1\"} x"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: every field wrong at once",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channel\": 1, \"members\": 2, \"muted\": 3, \"out_of_multiroom\": 4, \"dial_window_s\": \"x\"}"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (5 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: a UTF-8 byte order mark",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "bytes",
+          "base64": "77u/eyJjaGFubmVsIjogIjEifQ=="
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": null,
+            "members": [],
+            "muted": {},
+            "out_of_multiroom": [],
+            "positions": {},
+            "dial_window_s": null,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": [
+          [
+            "state",
+            "<WORK>/state/state.json: unusable, starting empty (1 problem(s))"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    },
+    {
+      "name": "load: bytes that are not UTF-8",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "bytes",
+          "base64": "eyJjaGFubmVsIjogIv8ifQ=="
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "UnicodeDecodeError",
+          "message": "'utf-8' codec can't decode byte 0xff in position 13: invalid start byte"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: what save wrote for every field",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\n  \"channel\": \"12\",\n  \"members\": [\n    \"AABBCC000010\",\n    \"AABBCC000011\"\n  ],\n  \"muted\": {\n    \"AABBCC000011\": 17,\n    \"AABBCC000010\": 0\n  },\n  \"out_of_multiroom\": [\n    \"AABBCC000012\"\n  ],\n  \"dial_window_s\": 0.6\n}\n"
+        },
+        "path": "<WORK>/state/state.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ZoneState",
+          "fields": {
+            "channel": "12",
+            "members": [
+              "AABBCC000010",
+              "AABBCC000011"
+            ],
+            "muted": {
+              "AABBCC000011": 17,
+              "AABBCC000010": 0
+            },
+            "out_of_multiroom": [
+              "AABBCC000012"
+            ],
+            "positions": {},
+            "dial_window_s": 0.6,
+            "hold_threshold_s": null,
+            "owed_volume": {}
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 5 added ZoneState.positions, seconds into an MPD channel by channel number, because MPD keeps no position per stored playlist and an audiobook nobody writes down starts again from the beginning after every restart. The field has a default, so the INPUT of this case is untouched - a state file written before this version still loads, and loads with no positions, which is what the load cases here now prove. What moved is the shape of what a load produces and the bytes a save writes. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 191, house volume): owed_volume, the house-volume steps a box missed while it was off, taken when it next joins. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed last, after hold_threshold_s."
+    }
+  ]
+}

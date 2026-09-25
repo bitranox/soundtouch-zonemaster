@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Albums.proto";
+import "Artists.proto";
+import "Tracks.proto";
+import "DeezerError.proto";
+
+message Charts {
+  optional .Deezer.Tracks tracks = 1;
+  optional .Deezer.Albums albums = 2;
+  optional .Deezer.Artists artists = 3;
+  optional .Deezer.error error = 4;
+}

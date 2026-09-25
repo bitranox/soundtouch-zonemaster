@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package Deezer;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "ArtistInfo.proto";
+import "DeezerError.proto";
+
+message Artists {
+  repeated .Deezer.ArtistInfo data = 1;
+  optional int64 total = 3;
+  optional .Deezer.error error = 6;
+}

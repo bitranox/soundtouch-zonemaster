@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package STS;
+
+message CreateAccountProxyRequest {
+  optional string user = 1;
+  optional bool canPersistAsCurrentSource = 2;
+}
+
+message CreateAccountProxyResponse {
+  optional uint32 port = 1;
+  optional string user = 2;
+}

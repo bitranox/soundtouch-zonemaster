@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "SoundTouchInterface/ContentItem.proto";
+
+message playbackRequest {
+  optional string source = 1;
+  optional string sourceAccount = 2;
+  optional string streamType = 3;
+  optional .SoundTouchInterface.ContentItem container = 4;
+  optional .SoundTouchInterface.ContentItem track = 5;
+}
+
+message playbackResponse {
+  optional string source = 1;
+  optional string sourceAccount = 2;
+}

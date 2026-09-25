@@ -1,0 +1,30 @@
+syntax = "proto2";
+
+message CLIServerMsgRegisterCommand {
+  optional string command = 2;
+  optional string summary = 3;
+  optional string usage = 4;
+  optional int32 timeout = 5 [default = 2000];
+  optional int32 evt_id = 6;
+}
+
+message CLIServerMsgSendCommand {
+  optional string command = 2;
+  optional int32 transact_id = 3;
+  optional uint32 evt_id = 4;
+  repeated string args = 5;
+}
+
+message CLIServerMsgResponse {
+  optional int32 transact_id = 2;
+  optional string response = 3;
+}
+
+message CLIServerMsgResponseComplete {
+  optional int32 transact_id = 2;
+  optional bool result = 3 [default = true];
+}
+
+message CLIServerMsgRespondAsync {
+  optional string response = 2;
+}

@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package Persistence;
+
+message ipc {
+  message Service {
+    required string name = 1;
+    repeated string addresses = 2;
+  }
+  repeated .Persistence.ipc.Service services = 1;
+}

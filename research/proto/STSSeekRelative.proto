@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package STS;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message SeekRelative {
+  enum Direction {
+    SEEK_FORWARD = 1;
+    SEEK_BACKWARD = 2;
+  }
+  required .STS.SeekRelative.Direction direction = 1;
+  optional uint32 offset = 2;
+}

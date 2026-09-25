@@ -1,0 +1,19 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message LoginResponse {
+  message OAuth {
+    optional string oauthUuid = 1;
+    optional string type = 2;
+  }
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  optional string sessionId = 4;
+  optional int32 profileId = 5;
+  optional bool success = 7;
+  repeated .IHeart.LoginResponse.OAuth oauths = 9;
+}

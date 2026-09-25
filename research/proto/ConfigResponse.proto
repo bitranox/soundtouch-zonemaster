@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+package Sxm;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message Config {
+  optional string name = 1;
+  optional string value = 2;
+}
+
+message ConfigCategory {
+  optional string type = 1;
+  repeated .Sxm.Config config = 2;
+}
+
+message configResponse {
+  message Messages {
+    optional .Common.UInt32 code = 1;
+    optional .Common.String message = 2;
+  }
+  repeated .Sxm.configResponse.Messages messages = 1;
+  optional .Common.UInt32 status = 2;
+  optional .Sxm.ConfigCategory consumerConfig = 3;
+  optional .Sxm.ConfigCategory globalConfig = 4;
+}

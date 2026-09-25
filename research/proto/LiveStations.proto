@@ -1,0 +1,28 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Streams.proto";
+import "IHeartError.proto";
+import "Market.proto";
+
+message LiveStations {
+  message LiveStation {
+    optional int32 id = 1;
+    optional string name = 3;
+    optional string description = 5;
+    optional string band = 6;
+    optional string logo = 8;
+    optional int32 cume = 10;
+    optional .IHeart.Streams streams = 12;
+    optional bool isActive = 13;
+    repeated .IHeart.Market markets = 15;
+    optional string provider = 20;
+  }
+  optional int32 total = 2;
+  repeated .IHeart.LiveStations.LiveStation hits = 3;
+  repeated .IHeart.Error errors = 4;
+  optional .IHeart.Error firstError = 5;
+  optional .IHeart.Error error = 6;
+}

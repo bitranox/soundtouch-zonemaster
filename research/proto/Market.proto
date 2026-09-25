@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Market {
+  optional string name = 1;
+  optional string marketId = 2;
+  optional string city = 4;
+  optional string stateAbbreviation = 6;
+  optional string country = 8;
+}

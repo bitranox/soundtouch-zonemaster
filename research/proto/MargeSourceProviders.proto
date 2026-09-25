@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message sourceProviders {
+  message SourceProvider {
+    optional string id = 1;
+    optional .Common.String name = 2;
+  }
+  repeated .MargePB.sourceProviders.SourceProvider sourceprovider = 1;
+}

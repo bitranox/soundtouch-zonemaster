@@ -1,0 +1,34 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "WebInterface/WirelessProfile.proto";
+
+message PerformWirelessSiteSurvey {
+  optional float timeout = 1 [default = 60];
+  optional string ssid = 2;
+}
+
+message PerformWirelessSiteSurveyResponse {
+  message SecurityTypes {
+    message Type {
+      required .WebInterface.SecurityType text = 1;
+    }
+    repeated .WebInterface.PerformWirelessSiteSurveyResponse.SecurityTypes.Type type = 1;
+  }
+  message SurveyResultItem {
+    required string ssid = 1;
+    required int32 signalStrength = 2;
+    required bool secure = 3;
+    optional .WebInterface.PerformWirelessSiteSurveyResponse.SecurityTypes securityTypes = 4;
+  }
+  message Items {
+    repeated .WebInterface.PerformWirelessSiteSurveyResponse.SurveyResultItem item = 1;
+  }
+  enum ErrorType {
+    none = 0;
+    ethernetConnected = 1;
+  }
+  optional .WebInterface.PerformWirelessSiteSurveyResponse.Items items = 1;
+  optional .WebInterface.PerformWirelessSiteSurveyResponse.ErrorType error = 2;
+}

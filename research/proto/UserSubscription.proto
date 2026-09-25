@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message UserSubscription {
+  enum AccountType {
+    Unknown = 1;
+    Trial = 2;
+  }
+  repeated .IHeart.Error errors = 1;
+  optional .IHeart.Error firstError = 16;
+}

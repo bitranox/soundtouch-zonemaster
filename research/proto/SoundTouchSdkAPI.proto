@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package SoundTouchSdkAPI;
+
+enum Scope {
+  PUBLIC = 1;
+  PRIVATE = 2;
+}
+
+enum MessageType {
+  REQUEST = 1;
+  EVENT = 2;
+}
+
+message Operation {
+  required string name = 1;
+  required .SoundTouchSdkAPI.Scope scope = 2;
+  required string handler = 3;
+  required .SoundTouchSdkAPI.MessageType messagetype = 4;
+}
+
+message Operations {
+  repeated .SoundTouchSdkAPI.Operation operation = 1;
+}

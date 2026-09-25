@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "SoundTouchInterface/ContentItem.proto";
+import "WebInterface/KeyData.proto";
+
+message slaveMessage {
+  required string action = 1;
+  optional .SoundTouchInterface.ContentItem content = 2;
+  optional .WebInterface.KeyData.key keyData = 3;
+}

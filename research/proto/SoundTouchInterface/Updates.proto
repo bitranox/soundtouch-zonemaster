@@ -1,0 +1,126 @@
+syntax = "proto2";
+
+package SoundTouchInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/Status.proto";
+import "SoundTouchInterface/ContentItemList.proto";
+import "SoundTouchInterface/Recents.proto";
+import "SoundTouchInterface/Presets.proto";
+import "SoundTouchInterface/AcctMode.proto";
+import "SoundTouchInterface/PlayerService.proto";
+import "SoundTouchInterface/ServiceSettings.proto";
+import "SoundTouchInterface/STSSettings.proto";
+import "SoundTouchInterface/AudioService.proto";
+import "SoundTouchInterface/Group.proto";
+import "SoundTouchInterface/NetworkService.proto";
+import "SoundTouchInterface/Zone.proto";
+import "SoundTouchInterface/SSDPDiscoveryUpdate.proto";
+import "SoundTouchInterface/SystemService.proto";
+
+message updates {
+  message BrowseUpdate {
+    required string source = 1;
+    required string sourceAccount = 2;
+    optional .SoundTouchInterface.ContentItemList contentItemList = 3;
+  }
+  message RecentsUpdate {
+    optional .SoundTouchInterface.recents recents = 1;
+  }
+  message PresetsUpdate {
+    optional .SoundTouchInterface.presets presets = 1;
+  }
+  message AcctModeUpdate {
+    optional .SoundTouchInterface.acctMode acctMode = 1;
+  }
+  message NowPlayingUpdate {
+    optional string masterIP = 1;
+    optional .SoundTouchInterface.nowPlaying nowPlaying = 2;
+  }
+  message ServiceSettingsUpdate {
+    message ServiceSettings {
+      message StreamingQuality {
+        optional uint32 text = 1;
+      }
+      required string source = 1;
+      repeated .SoundTouchInterface.ServiceSetting serviceSetting = 2;
+      optional .SoundTouchInterface.updates.ServiceSettingsUpdate.ServiceSettings.StreamingQuality streamingQuality = 3;
+    }
+    optional .SoundTouchInterface.updates.ServiceSettingsUpdate.ServiceSettings serviceSettings = 1;
+  }
+  message SourceAccountSettingsUpdate {
+    required string source = 1;
+    required string sourceAccount = 2;
+    optional .SoundTouchInterface.SourceAccountSettings sourceAccountSettings = 3;
+  }
+  message NowSelectionUpdate {
+    optional .SoundTouchInterface.preset preset = 1;
+  }
+  message VolumeUpdate {
+    optional .SoundTouchInterface.volume volume = 1;
+  }
+  message GroupUpdate {
+    optional .SoundTouchInterface.group group = 1;
+  }
+  message SetupAPUpdate {
+    required bool text = 1;
+  }
+  message SourcesUpdate {
+  }
+  message SwUpdateStatusUpdate {
+  }
+  message ConnectionStateUpdate {
+    optional .SoundTouchInterface.NetworkState state = 1;
+    optional bool up = 2;
+    optional .SoundTouchInterface.Signal signal = 3;
+  }
+  message ServicesUpdate {
+  }
+  message InfoUpdate {
+  }
+  message InactivityUpdate {
+  }
+  message ZoneUpdate {
+    optional .SoundTouchInterface.zone zone = 1;
+  }
+  message SiteSurveyResultsUpdate {
+  }
+  message LocalMusicDiscoveryUpdate {
+    optional .SoundTouchInterface.ssdpDiscoveryUpdate ssdpDiscoveryUpdate = 1;
+  }
+  message LanguageUpdate {
+    optional .SoundTouchInterface.sysLanguage sysLanguage = 1;
+  }
+  message NameUpdate {
+    optional string text = 1;
+  }
+  message SoundTouchConfigurationUpdate {
+    optional .SoundTouchInterface.SoundTouchConfigurationStatus soundTouchConfigurationStatus = 1;
+  }
+  required string deviceID = 1;
+  optional .SoundTouchInterface.Error err = 2;
+  optional .SoundTouchInterface.updates.RecentsUpdate recentsUpdated = 3;
+  optional .SoundTouchInterface.updates.PresetsUpdate presetsUpdated = 4;
+  optional .SoundTouchInterface.updates.AcctModeUpdate acctModeUpdated = 5;
+  optional .SoundTouchInterface.updates.BrowseUpdate browseUpdated = 6;
+  optional .SoundTouchInterface.updates.NowPlayingUpdate nowPlayingUpdated = 7;
+  optional .SoundTouchInterface.updates.GroupUpdate groupUpdated = 8;
+  optional .SoundTouchInterface.updates.ServiceSettingsUpdate serviceSettingsUpdated = 9;
+  optional bool propagate = 10;
+  optional .SoundTouchInterface.updates.SourceAccountSettingsUpdate sourceAccountSettingsUpdated = 11;
+  optional .SoundTouchInterface.updates.NowSelectionUpdate nowSelectionUpdated = 12;
+  optional .SoundTouchInterface.updates.VolumeUpdate volumeUpdated = 13;
+  optional .SoundTouchInterface.updates.SourcesUpdate sourcesUpdated = 14;
+  optional .SoundTouchInterface.updates.SwUpdateStatusUpdate swUpdateStatusUpdated = 15;
+  optional .SoundTouchInterface.updates.ConnectionStateUpdate connectionStateUpdated = 16;
+  optional .SoundTouchInterface.updates.ServicesUpdate servicesUpdated = 17;
+  optional .SoundTouchInterface.updates.InfoUpdate infoUpdated = 18;
+  optional .SoundTouchInterface.updates.InactivityUpdate inactivityUpdated = 19;
+  optional .SoundTouchInterface.updates.ZoneUpdate zoneUpdated = 20;
+  optional .SoundTouchInterface.updates.SiteSurveyResultsUpdate siteSurveyResultsUpdated = 21;
+  optional .SoundTouchInterface.updates.LanguageUpdate languageUpdated = 22;
+  optional .SoundTouchInterface.updates.LocalMusicDiscoveryUpdate localMusicDiscoveryUpdated = 23;
+  optional .SoundTouchInterface.updates.NameUpdate nameUpdated = 24;
+  optional .SoundTouchInterface.updates.SetupAPUpdate setupAPUpdated = 25;
+  optional .SoundTouchInterface.updates.SoundTouchConfigurationUpdate soundTouchConfigurationUpdated = 26;
+}

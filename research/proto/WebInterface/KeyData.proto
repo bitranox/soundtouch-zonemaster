@@ -1,0 +1,60 @@
+syntax = "proto2";
+
+package WebInterface.KeyData;
+
+enum KeyValue {
+  PLAY = 0;
+  PAUSE = 1;
+  STOP = 2;
+  PREV_TRACK = 3;
+  NEXT_TRACK = 4;
+  THUMBS_UP = 5;
+  THUMBS_DOWN = 6;
+  BOOKMARK = 7;
+  POWER = 8;
+  MUTE = 9;
+  VOLUME_UP = 10;
+  VOLUME_DOWN = 11;
+  PRESET_1 = 12;
+  PRESET_2 = 13;
+  PRESET_3 = 14;
+  PRESET_4 = 15;
+  PRESET_5 = 16;
+  PRESET_6 = 17;
+  AUX_INPUT = 18;
+  SHUFFLE_OFF = 19;
+  SHUFFLE_ON = 20;
+  REPEAT_OFF = 21;
+  REPEAT_ONE = 22;
+  REPEAT_ALL = 23;
+  PLAY_PAUSE = 24;
+  ADD_FAVORITE = 25;
+  REMOVE_FAVORITE = 26;
+  INVALID_KEY = 27;
+}
+
+enum KeyState {
+  press = 0;
+  release = 1;
+  repeat = 2;
+  pnh = 3;
+  xpnh = 4;
+  timeout = 5;
+  invalid = 6;
+}
+
+enum KeySender {
+  Gabbo = 0;
+  Console = 1;
+  IrRemote = 2;
+  LightswitchRemote = 3;
+  Etap = 4;
+  BoselinkRemote = 5;
+  Invalid = 6;
+}
+
+message key {
+  required .WebInterface.KeyData.KeyState state = 1;
+  required .WebInterface.KeyData.KeySender sender = 2;
+  required .WebInterface.KeyData.KeyValue text = 3;
+}

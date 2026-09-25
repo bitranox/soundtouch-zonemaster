@@ -1,0 +1,26 @@
+syntax = "proto2";
+
+package AVS;
+
+import "AVSHeader.proto";
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message ContextElement {
+  message AllPosibleAttributePayload {
+    message Alert {
+      optional string token = 1;
+      optional string type = 2;
+      optional string scheduledTime = 3;
+    }
+    optional string token = 1;
+    optional uint64 offsetInMilliseconds = 2;
+    optional string playerActivity = 3;
+    optional string wakeword = 4;
+    optional bool isEnabled = 5;
+    optional bool isVisualIndicatorPersisted = 6;
+    optional uint64 volume = 7;
+    optional bool muted = 8;
+  }
+  optional .AVS.Header header = 1;
+  optional .AVS.ContextElement.AllPosibleAttributePayload payload = 2;
+}

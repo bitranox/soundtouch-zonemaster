@@ -1,0 +1,43 @@
+syntax = "proto2";
+
+package SpotifyIntrospect;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "STSContentItemHistory.proto";
+import "STSNowPlaying.proto";
+import "STSPlaybackRequest.proto";
+import "STSShuffleMode.proto";
+import "Common.proto";
+import "STSContentItem.proto";
+
+message Accounts {
+  repeated .Common.String account = 1;
+}
+
+message spotifyIntrospectResponse {
+  optional .SpotifyIntrospect.Accounts accounts = 3;
+  optional .Common.UInt32 streamingQuality = 4;
+  optional .Common.String sourceInfoServer = 5;
+  optional .Common.String selectedAccountId = 6;
+  optional .Common.String selectedAccount = 7;
+  optional bool loggedIn = 8;
+  optional .Common.String loggedInUser = 9;
+}
+
+message spotifyAccountIntrospectResponse {
+  optional string state = 1;
+  optional string user = 2;
+  optional bool isPlaying = 3;
+  optional int32 trackBoundaryTimestamp = 4;
+  optional uint32 currentAudioPathTimestamp = 5;
+  optional .STS.PlaybackRequest cachedPlaybackRequest = 6;
+  optional .STS.NowPlaying nowPlaying = 7;
+  optional .STS.ContentItemHistory contentItemHistory = 8;
+  optional uint32 tokenLastChangedTimeSeconds = 9;
+  optional uint32 tokenLastChangedTimeMicroseconds = 10;
+  optional .STS.ShuffleMode.Enum shuffleMode = 11;
+  optional uint32 playStatusState = 12;
+  optional string currentUri = 13;
+  optional bool receivedPlaybackRequest = 14;
+  optional string subscriptionType = 15;
+}

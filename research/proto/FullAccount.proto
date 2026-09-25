@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/AcctModeType.proto";
+import "MargeSources.proto";
+import "MargeDevices.proto";
+import "EnvSwitch.proto";
+import "ProviderSettings.proto";
+
+message account {
+  message AcctMode {
+    optional .SoundTouchInterface.AcctModeType text = 1;
+  }
+  optional .MargePB.account.AcctMode mode = 1;
+  optional .MargePB.devices devices = 2;
+  optional .MargePB.sources sources = 3;
+  optional .MargePB.account_profile account_profile = 4;
+  optional .MargePB.providerSettings providerSettings = 5;
+  optional uint32 HttpStatusCode = 6;
+}

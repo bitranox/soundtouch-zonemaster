@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package STS.Rating;
+
+enum Enum {
+  NONE = 0;
+  DOWN = 1;
+  UP = 2;
+}

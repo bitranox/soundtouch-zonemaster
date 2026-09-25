@@ -1,0 +1,193 @@
+syntax = "proto2";
+
+package NetManager.Protobuf;
+
+enum MessageIDs {
+  EVT_NETMANAGER_STATUS = 1;
+  EVT_NETMANAGER_SET_OPERATION_MODE = 2;
+  EVT_NETMANAGER_REQUEST_SITE_SURVEY = 3;
+  EVT_NETMANAGER_REQUEST_SITE_SURVEY_RESPONSE = 4;
+  EVT_NETMANAGER_ACCESS_POINT_MODE = 5;
+  EVT_NETMANAGER_ACCESS_POINT_STATUS = 6;
+  EVT_NETMANAGER_ADD_WIRELESS_PROFILE = 7;
+  EVT_NETMANAGER_WIRELESS_PROFILE_STATUS = 8;
+  EVT_NETMANAGER_GET_WIRELESS_PROFILES = 9;
+  EVT_NETMANAGER_PERFORM_FACTORY_DEFAULT = 10;
+  EVT_WIFIMANAGER_WIFI_STATUS = 101;
+  EVT_WIFIMANAGER_WIFI_SCAN_RESULTS = 102;
+  EVT_WIFIMANAGER_AUTO_CHANNEL_RESULTS = 103;
+}
+
+enum WiFiStationState {
+  WIFI_STATION_DISCONNECTED = 1;
+  WIFI_STATION_CONNECTING = 2;
+  WIFI_STATION_CONNECTED = 3;
+  WIFI_STATION_FAILED_WRONG_PASSWORD = 4;
+  WIFI_STATION_FAILED_TIMEOUT = 5;
+  WIFI_STATION_FAILED_REJECTED = 6;
+}
+
+enum WiFiRadioBand {
+  WIFI_RADIO_BAND_NONE = 0;
+  WIFI_RADIO_BAND_2_4GHZ = 1;
+  WIFI_RADIO_BAND_5GHZ = 2;
+}
+
+enum WiFiProfileOperation {
+  WIFI_ADD_SUCCEEDED = 1;
+  WIFI_ADD_FAILED = 2;
+  WIFI_GET_PROFILES = 3;
+  WIFI_FACTORY_DEFAULT = 4;
+}
+
+enum OperationalMode {
+  statusOnly = 1;
+  autoSwitching = 2;
+  wifiSetup = 3;
+  wifiOff = 4;
+}
+
+message SiteScanResult {
+  repeated .NetManager.Protobuf.WiFiScanResult WiFiScanResult = 1;
+}
+
+message WiFiScanParameters {
+  optional int32 maxResults = 1;
+}
+
+message WiFiAccessPointParameters {
+  optional string SSID = 1;
+  optional .NetManager.Protobuf.WiFiRadioBand radioBand = 2;
+  optional int32 frequencyKHZ = 3;
+}
+
+message WiFiAccessPointStatus {
+  optional int32 channel = 1;
+  optional int32 frequencykHz = 2;
+}
+
+message WiFiStatus {
+  optional string SSID = 1;
+  optional .NetManager.Protobuf.WiFiStationState state = 2;
+  optional int32 frequencyKHZ = 3;
+  optional int32 signalDBM = 4;
+}
+
+message WiFiProfile {
+  optional string SSID = 1;
+  optional int32 priority = 2;
+  optional string security = 3;
+  optional string passphrase = 4;
+  optional string wepKey = 5;
+  optional bool encrypted = 6;
+  optional int32 lastConnected = 7;
+}
+
+message AddWiFiProfile {
+  optional int32 timeout = 1;
+  optional .NetManager.Protobuf.WiFiProfile profile = 2;
+}
+
+message WiFiProfiles {
+  repeated .NetManager.Protobuf.WiFiProfile profile = 1;
+}
+
+message WiFiScanResult {
+  optional string SSID = 1;
+  optional int32 frequencyKHZ = 2;
+  optional int32 signalDBM = 3;
+  repeated string security = 4;
+}
+
+message WiFiProfileStatus {
+  optional .NetManager.Protobuf.WiFiProfileOperation operation = 1;
+  optional string status = 2;
+  optional .NetManager.Protobuf.WiFiProfiles profiles = 3;
+  optional .NetManager.Protobuf.StationStats stationStats = 4;
+}
+
+message IPInfo {
+  optional string IPAddress = 1;
+  optional string BroadcastAddress = 2;
+  optional string SubnetMask = 3;
+  optional string Gateway = 4;
+  optional string PrimaryDNS = 5;
+  optional string SecondaryDNS = 6;
+}
+
+message InterfaceInfo {
+  enum State {
+    down = 1;
+    up = 2;
+  }
+  enum Type {
+    local = 1;
+    wired = 2;
+    wireless = 3;
+  }
+  required string name = 1;
+  required .NetManager.Protobuf.InterfaceInfo.Type type = 2;
+  required .NetManager.Protobuf.InterfaceInfo.State state = 3;
+  required string macAddress = 4;
+  optional .NetManager.Protobuf.IPInfo ipInfo = 5;
+}
+
+message StationStats {
+  required int32 rssi_dBm = 1;
+  required int32 linkSpeed_Mbps = 2;
+  required int32 noise_dBm = 3;
+  required int32 frequency_kHz = 4;
+  required int32 width_kHz = 5;
+  required int32 averageRssi_dBm = 6;
+  required int32 txGood_packets = 7;
+  required int32 txBad_packets = 8;
+  required int32 rxGood_packets = 9;
+  required int32 tryAuthenticate = 10;
+  required int32 tryAssociate = 11;
+  required int32 connected = 12;
+  required int32 disconnected = 13;
+  required int32 handshakeFailed = 14;
+  required int32 ssidTempDisabled = 15;
+  required string bssid = 16;
+}
+
+message Status {
+  optional bool primaryIsUp = 1;
+  optional string primaryIPAddress = 2;
+  optional bool primaryIsWired = 3;
+  optional bool accessPointIsUp = 4;
+  optional .NetManager.Protobuf.OperationalMode mode = 5;
+  repeated .NetManager.Protobuf.InterfaceInfo interfaceInfo = 6;
+  optional .NetManager.Protobuf.StationStats stationStats = 7;
+  optional uint64 elapsedMs = 8;
+}
+
+message OperationControl {
+  optional .NetManager.Protobuf.OperationalMode mode = 1;
+}
+
+message AccessPointModeControl {
+}
+
+message EmptyMessage {
+}
+
+message AutoChannelResults {
+  optional int32 channel = 1;
+  optional int32 ccaBusy1 = 2;
+  optional int32 ccaBusy6 = 3;
+  optional int32 ccaBusy11 = 4;
+  repeated int32 numBssids = 5;
+}
+
+message DataCollection {
+  optional bool wireless = 1;
+  optional string subnet = 2;
+  optional int32 leaseSeconds = 3;
+  optional .NetManager.Protobuf.WiFiProfiles profiles = 4;
+  optional .NetManager.Protobuf.AutoChannelResults autoChannelResults = 5;
+  optional bytes scan = 6;
+  optional .NetManager.Protobuf.StationStats stationStats = 7;
+  optional uint64 connectElapsedMs = 8;
+  optional bytes wlanStats = 9;
+}

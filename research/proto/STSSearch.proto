@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package STS;
+
+import "STSFilterType.proto";
+import "STSItems.proto";
+import "STSSections.proto";
+import "STSSortOrder.proto";
+
+message SearchRequest {
+  optional uint32 startItem = 1;
+  optional uint32 numItems = 2;
+  optional string searchTerm = 3;
+  optional .STS.FilterType.Enum filterType = 4;
+  optional .STS.SortOrder.Enum sortOrder = 5;
+}
+
+message SearchResponse {
+  optional uint32 totalItems = 1;
+  optional .STS.Items items = 2;
+  optional .STS.FilterType.Enum filterType = 3;
+  optional .STS.Sections sections = 4;
+  optional .STS.SortOrder.Enum sortOrder = 5;
+}

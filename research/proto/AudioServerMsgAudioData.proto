@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+message AudioServerMsgAcceptAudioDataRequest {
+  optional int32 byte_count = 1;
+  optional uint32 byte_offset = 3;
+  optional uint64 byte_offset_64 = 4;
+  optional int32 min_byte_count = 5;
+  optional uint32 stream_id = 6;
+}
+
+message AudioServerMsgAcceptAudioData {
+  enum EncryptionType {
+    UNKNOWN = 0;
+    NONE = 1;
+    OBFUSCATED = 2;
+    AES = 3;
+  }
+  optional bytes data = 5;
+  optional bool endofstream = 6;
+  optional uint32 byte_offset = 8;
+  optional bool slave_underflow = 9 [default = false];
+  optional .AudioServerMsgAcceptAudioData.EncryptionType encryption_type = 11 [default = NONE];
+  optional uint64 byte_offset_64 = 12;
+  optional uint32 stream_id = 13;
+}

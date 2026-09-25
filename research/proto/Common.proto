@@ -1,0 +1,68 @@
+syntax = "proto2";
+
+package Common;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Void {
+}
+
+message Account {
+  optional string user = 1;
+}
+
+message Accounts {
+  repeated .Common.Account account = 1;
+}
+
+message Link {
+  optional string href = 1;
+}
+
+message String {
+  optional string text = 1;
+}
+
+message StringEmpty {
+  optional string text = 1 [default = ""];
+}
+
+message StringUnknownSCMDevice {
+  optional string text = 1 [default = "Unknown SCM Device"];
+}
+
+message Bool {
+  optional bool text = 1 [default = false];
+}
+
+message BoolTrue {
+  optional bool text = 1 [default = true];
+}
+
+message Int32 {
+  optional int32 text = 1;
+}
+
+message Int32Zero {
+  optional int32 text = 1 [default = 0];
+}
+
+message Int32One {
+  optional int32 text = 1 [default = 1];
+}
+
+message UInt32 {
+  optional uint32 text = 1;
+}
+
+message UInt32Zero {
+  optional uint32 text = 1 [default = 0];
+}
+
+message UInt32One {
+  optional uint32 text = 1 [default = 1];
+}
+
+message UInt64 {
+  optional uint32 text = 1;
+}

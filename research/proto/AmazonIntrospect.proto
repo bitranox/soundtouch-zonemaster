@@ -1,0 +1,61 @@
+syntax = "proto2";
+
+package Amazon;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "AmazonTracks.proto";
+import "STSContentItemHistory.proto";
+import "Common.proto";
+
+message AmazonIntrospectResponse {
+  optional string stsServerIP = 1;
+  optional .Common.Accounts accounts = 2;
+}
+
+message AmazonAccountIntrospectResponse {
+  optional string state = 1;
+  optional .Common.String repeatMode = 2;
+  optional .Common.String shuffleMode = 3;
+  optional .Amazon.AmazonChunkManagerIntrospectResponse chunkManagerInfo = 4;
+  optional .Amazon.AmazonRoyaltyReportingIntrospectResponse reportingInfo = 5;
+  optional .STS.ContentItemHistory contentItemHistory = 6;
+}
+
+message AmazonChunkManagerIntrospectResponse {
+  optional .Common.String currentTrackIndex = 1;
+  optional .Common.String shufflable = 2;
+  optional .Common.String repeatable = 3;
+  optional .Common.String repeatMode = 4;
+  optional .Amazon.AmazonChunkInfo chunkInfo = 5;
+}
+
+message AmazonTrackInfo {
+  optional .Common.String title = 1;
+  optional .Common.String artistName = 2;
+  optional bool hasAudio = 3;
+  optional bool autoSkipOnError = 4;
+  optional .Amazon.AmazonTrackPointer shuffleToggledTrackPointer = 5;
+  optional .Amazon.AmazonGeneralError generalError = 6;
+  optional .Common.String expireDate = 7;
+  optional .Amazon.AmazonTrackRating rating = 8;
+  optional bool isValidTrack = 9;
+}
+
+message AmazonTracksInfo {
+  repeated .Amazon.AmazonTrackInfo track = 1;
+}
+
+message AmazonChunkInfo {
+  optional .Amazon.AmazonTrackPointer firstTrackPointer = 1;
+  optional .Amazon.AmazonTrackPointer lastTrackPointer = 2;
+  optional .Amazon.AmazonTrackPointer nextTrackPointer = 3;
+  optional .Amazon.AmazonTrackPointer previousTrackPointer = 4;
+  optional .Common.String chunkUri = 5;
+  optional .Common.String chunkId = 6;
+  optional bool permitsTrackRatings = 7;
+  optional .Amazon.AmazonTracksInfo tracks = 8;
+}
+
+message AmazonRoyaltyReportingIntrospectResponse {
+  optional uint32 queueDepth = 1;
+}

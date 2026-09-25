@@ -1,0 +1,110 @@
+syntax = "proto2";
+
+enum ExtSourceMsgId {
+  EXT_SOURCE_MSG_ID_GabboFormatRequest = 1;
+  EXT_SOURCE_MSG_ID_KeyData = 2;
+  EXT_SOURCE_MSG_ID_ActivateExternalSource = 3;
+  EXT_SOURCE_MSG_ID_NotifyNowPlayingChange = 4;
+  EXT_SOURCE_MSG_ID_DeactivateExternalSource = 5;
+  EXT_SOURCE_MSG_ID_AddAccount = 6;
+  EXT_SOURCE_MSG_ID_NowPlayingRequest = 7;
+  EXT_SOURCE_MSG_ID_Navigate = 8;
+  EXT_SOURCE_MSG_ID_ContentItem = 9;
+  EXT_SOURCE_MSG_ID_Errors = 10;
+  EXT_SOURCE_MSG_ID_SelectExternalSource_ExtRequest = 11;
+  EXT_SOURCE_MSG_ID_DeselectExternalSource_ExtRequest = 12;
+  EXT_SOURCE_MSG_ID_Persist = 13;
+  EXT_SOURCE_MSG_ID_ServerAvailable = 14;
+  EXT_SOURCE_MSG_ID_ServerUnAvailable = 15;
+  UPnP_SOURCE_MSG_ID_MediaRendererInitDevice = 16;
+  UPnP_SOURCE_MSG_ID_MediaRendererInitDeviceRetry = 17;
+  UPnP_SOURCE_MSG_ID_ListMediaServers = 18;
+  EXT_SOURCE_MSG_ID_Search = 19;
+  EXT_SOURCE_MSG_ID_Initialize = 20;
+  MSG_ID_MEDIA_SERVER_DEVICE_STATUS = 21;
+  EXT_SOURCE_MSG_ID_AudioStatus = 22;
+  EXT_SOURCE_MSG_ID_PREV_TRACK_FORCE = 23;
+}
+
+enum DeviceState {
+  ONLINE = 1;
+  OFFLINE = 2;
+}
+
+message InitMediaRendererDevice {
+  required bool useBoseDevTypeForSsdp = 1;
+  required .MediaDeviceInfo device = 2;
+}
+
+message GabboFormatRequest {
+  required string hostRelativeURL = 1;
+  required string body = 2;
+  required string responseContext = 3;
+}
+
+message GabboFormatResponse {
+  required string body = 1;
+  required int32 httpStatus = 2;
+  required string responseContext = 3;
+}
+
+message ActivateExternalSource {
+}
+
+message DeactivateExternalSource {
+}
+
+message SelectExternalSource {
+}
+
+message DeselectExternalSource {
+}
+
+message NowPlayingRequest {
+}
+
+message SkipPreviousForceRequest {
+}
+
+message AddAccount {
+  required string user = 1;
+  required string persist_addr = 2;
+}
+
+message AddAccountResponse {
+  required string display_name = 1;
+}
+
+message ServerStatus {
+  required .MediaDeviceInfo mediaserver_info = 1;
+  required .DeviceState state = 2;
+}
+
+message ListMediaServersRequest {
+  required int32 force_refresh = 1;
+}
+
+message MediaDeviceInfo {
+  required string id = 1;
+  optional string mac = 2;
+  optional string ip = 3;
+  optional string manufacturer = 4;
+  optional string model_name = 5;
+  required string friendly_name = 6;
+  optional string model_description = 7;
+  optional string location = 8;
+  optional string manufacturer_url = 9;
+  optional string model_number = 10;
+  optional string model_url = 11;
+  optional string upc = 12;
+  optional string presentation_url = 13;
+}
+
+message ListMediaServersResponse {
+  repeated .MediaDeviceInfo media_server = 1;
+}
+
+message Initialize {
+  optional string sourceType = 1;
+  optional uint32 sourceId = 2;
+}

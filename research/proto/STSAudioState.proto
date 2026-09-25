@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package STS.AudioState;
+
+enum Enum {
+  UNKNOWN = 0;
+  WAITING = 1;
+  STOPPED = 2;
+  BUFFERING = 3;
+  PLAYING = 4;
+  PAUSED = 5;
+  CONNECTING = 6;
+}

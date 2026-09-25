@@ -1,0 +1,63 @@
+syntax = "proto2";
+
+package StreamSources;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "SoundTouchInterface/PlayerService.proto";
+import "Common.proto";
+
+enum PlayingStatus {
+  PREVIOUSLY_PLAYED = 0;
+  CURRENTLY_PLAYING = 1;
+  NOT_YET_PLAYED = 2;
+}
+
+message StationTracks {
+  message CurrentTrack {
+    message CurrentTrackOffsetInfo {
+      optional .Common.UInt32Zero trackOffsetBytesBase = 1;
+      optional .Common.UInt32Zero trackOffsetTimeBase = 2;
+      optional .Common.UInt32Zero trackOffsetBytes = 3;
+      optional .Common.UInt32Zero trackOffsetTime = 4;
+    }
+    optional .StreamSources.StationTracks.CurrentTrack.CurrentTrackOffsetInfo currentTrackOffsetInfo = 1;
+  }
+  message TrackList {
+    message TrackDetails {
+      message PlayingStatusTag {
+        optional .StreamSources.PlayingStatus text = 1;
+      }
+      message Rating {
+        optional .SoundTouchInterface.RatingValue text = 1 [default = NONE];
+      }
+      message Explanations {
+        repeated .Common.String explanation = 1;
+      }
+      optional .StreamSources.StationTracks.TrackList.TrackDetails.PlayingStatusTag playingStatus = 1;
+      optional .Common.String name = 2;
+      optional .Common.String adToken = 3;
+      optional .Common.String token = 4;
+      optional .Common.String audioUrl = 5;
+      optional .Common.String length = 6;
+      optional .Common.String songDefaultUrl = 7;
+      optional .Common.String artist = 8;
+      optional .Common.String album = 9;
+      optional .Common.String stationId = 10;
+      optional .StreamSources.StationTracks.TrackList.TrackDetails.Rating rating = 11;
+      optional .Common.String trackGain = 12;
+      optional .Common.Bool allowFeedback = 13;
+      optional .Common.String albumArtUrl = 14;
+      optional .Common.String artistDetailUrl = 15;
+      optional .Common.String albumDetailUrl = 16;
+      optional .Common.String itunesSongUrl = 17;
+      optional .Common.String amazonAlbumAsin = 18;
+      optional .Common.String amazonAlbumDigitalAsin = 19;
+      optional .Common.String amazonAlbumUrl = 20;
+      optional .Common.String amazonSongDigitalAsin = 21;
+      optional .StreamSources.StationTracks.TrackList.TrackDetails.Explanations explanations = 22;
+    }
+    repeated .StreamSources.StationTracks.TrackList.TrackDetails trackDetails = 1;
+  }
+  optional .StreamSources.StationTracks.CurrentTrack currentTrack = 1;
+  optional .StreamSources.StationTracks.TrackList trackList = 2;
+}

@@ -1,0 +1,2920 @@
+{
+  "meta": {
+    "corpus": "channel_file",
+    "note": "Channel invariants, the ladder, list edits and queries, and load_channels/save_channels.",
+    "source": "soundtouch-zonemaster before the template rebuild",
+    "source_head": "887934c7c05d80ea48180c72986584271873cf4c",
+    "python": "3.14.5",
+    "versions": {
+      "pydantic": "2.13.5",
+      "pydantic_core": "2.46.5",
+      "httpx": "0.28.1",
+      "lib_layered_config": "5.6.2",
+      "lib_cli_exit_tools": "2.3.4",
+      "rich-click": "1.9.9",
+      "protobuf": "7.36.1",
+      "websockets": "17.1"
+    },
+    "placeholders": {
+      "<WORK>": "a scratch directory that exists; substitute your own",
+      "<PACKAGE>": "the installed package directory",
+      "<ARCHIVE>": "the pre-template checkout",
+      "<HOST_MAC>": "default_device_id() on the generating host",
+      "<PORT>": "the loopback port the registry double bound",
+      "<INPUT_FRAME>": "the frame field equals the input frame",
+      "<ARRIVAL_TIME>": "time.time() at arrival"
+    },
+    "divergences": "10 case(s) carry a 'divergence' key: Channel gained the mpd_entry field on 2026-09-20 with M3a Task 1, so those no longer record the pre-rebuild shape. Every other case in this file still does."
+  },
+  "cases": [
+    {
+      "name": "construct Channel: a valid radio channel",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "1",
+          "name": "Superfly",
+          "kind": "radio",
+          "url": "http://192.0.2.1/1"
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Channel",
+          "fields": {
+            "number": "1",
+            "name": "Superfly",
+            "kind": "radio",
+            "url": "http://192.0.2.1/1",
+            "mpd_entry": "",
+            "mpd_directory": "",
+            "in_rotation": true,
+            "end": "wrap"
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "construct Channel: a channel out of the rotation",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "11",
+          "name": "Technikum",
+          "kind": "radio",
+          "url": "http://192.0.2.1/11",
+          "in_rotation": false
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Channel",
+          "fields": {
+            "number": "11",
+            "name": "Technikum",
+            "kind": "radio",
+            "url": "http://192.0.2.1/11",
+            "mpd_entry": "",
+            "mpd_directory": "",
+            "in_rotation": false,
+            "end": "wrap"
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "construct Channel: a number with a 7",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "7",
+          "name": "x",
+          "kind": "radio",
+          "url": "http://192.0.2.1/7"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nnumber\n  Value error, not a number the keys can press: '7' [type=value_error, input_value='7', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "number"
+              ],
+              "type": "value_error",
+              "msg": "Value error, not a number the keys can press: '7'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "construct Channel: an empty number",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "",
+          "name": "x",
+          "kind": "radio",
+          "url": "http://192.0.2.1/"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nnumber\n  Value error, not a number the keys can press: '' [type=value_error, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "number"
+              ],
+              "type": "value_error",
+              "msg": "Value error, not a number the keys can press: ''"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "construct Channel: a number with a 0",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "10",
+          "name": "x",
+          "kind": "radio",
+          "url": "http://192.0.2.1/10"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nnumber\n  Value error, not a number the keys can press: '10' [type=value_error, input_value='10', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "number"
+              ],
+              "type": "value_error",
+              "msg": "Value error, not a number the keys can press: '10'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "construct Channel: a number with a letter",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "1a",
+          "name": "x",
+          "kind": "radio",
+          "url": "http://192.0.2.1/1a"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nnumber\n  Value error, not a number the keys can press: '1a' [type=value_error, input_value='1a', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "number"
+              ],
+              "type": "value_error",
+              "msg": "Value error, not a number the keys can press: '1a'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "construct Channel: a file URL",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "1",
+          "name": "x",
+          "kind": "radio",
+          "url": "file:///music/a.mp3"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nurl\n  Value error, a channel is fetched over http or https, not 'file:///music/a.mp3' [type=value_error, input_value='file:///music/a.mp3', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "url"
+              ],
+              "type": "value_error",
+              "msg": "Value error, a channel is fetched over http or https, not 'file:///music/a.mp3'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "construct Channel: a bare path",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "1",
+          "name": "x",
+          "kind": "radio",
+          "url": "/music/a.mp3"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nurl\n  Value error, a channel is fetched over http or https, not '/music/a.mp3' [type=value_error, input_value='/music/a.mp3', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "url"
+              ],
+              "type": "value_error",
+              "msg": "Value error, a channel is fetched over http or https, not '/music/a.mp3'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "construct Channel: an uppercase scheme",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "1",
+          "name": "x",
+          "kind": "radio",
+          "url": "HTTP://192.0.2.1/1"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "1 validation error for Channel\nurl\n  Value error, a channel is fetched over http or https, not 'HTTP://192.0.2.1/1' [type=value_error, input_value='HTTP://192.0.2.1/1', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 1,
+          "errors": [
+            {
+              "loc": [
+                "url"
+              ],
+              "type": "value_error",
+              "msg": "Value error, a channel is fetched over http or https, not 'HTTP://192.0.2.1/1'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "construct Channel: an https URL",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "1",
+          "name": "x",
+          "kind": "radio",
+          "url": "https://192.0.2.1/1"
+        }
+      },
+      "expect": {
+        "value": {
+          "type": "Channel",
+          "fields": {
+            "number": "1",
+            "name": "x",
+            "kind": "radio",
+            "url": "https://192.0.2.1/1",
+            "mpd_entry": "",
+            "mpd_directory": "",
+            "in_rotation": true,
+            "end": "wrap"
+          }
+        },
+        "logs": []
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "construct Channel: a bad number and a bad URL at once",
+      "input": {
+        "op": "construct",
+        "fields": {
+          "number": "7",
+          "name": "x",
+          "kind": "radio",
+          "url": "ftp://x"
+        }
+      },
+      "expect": {
+        "raises": {
+          "type": "ValidationError",
+          "message": "2 validation errors for Channel\nnumber\n  Value error, not a number the keys can press: '7' [type=value_error, input_value='7', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error\nurl\n  Value error, a channel is fetched over http or https, not 'ftp://x' [type=value_error, input_value='ftp://x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+          "error_count": 2,
+          "errors": [
+            {
+              "loc": [
+                "number"
+              ],
+              "type": "value_error",
+              "msg": "Value error, not a number the keys can press: '7'"
+            },
+            {
+              "loc": [
+                "url"
+              ],
+              "type": "value_error",
+              "msg": "Value error, a channel is fetched over http or https, not 'ftp://x'"
+            }
+          ]
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "nth_number(0)",
+      "input": {
+        "op": "nth_number",
+        "argument": 0
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelNumberError",
+          "message": "there is no number 0 in the ladder; it counts from 1"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "nth_number(-1)",
+      "input": {
+        "op": "nth_number",
+        "argument": -1
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelNumberError",
+          "message": "there is no number -1 in the ladder; it counts from 1"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "nth_number(1)",
+      "input": {
+        "op": "nth_number",
+        "argument": 1
+      },
+      "expect": {
+        "value": "1",
+        "logs": []
+      }
+    },
+    {
+      "name": "nth_number(6)",
+      "input": {
+        "op": "nth_number",
+        "argument": 6
+      },
+      "expect": {
+        "value": "6",
+        "logs": []
+      }
+    },
+    {
+      "name": "nth_number(7)",
+      "input": {
+        "op": "nth_number",
+        "argument": 7
+      },
+      "expect": {
+        "value": "11",
+        "logs": []
+      }
+    },
+    {
+      "name": "nth_number(42)",
+      "input": {
+        "op": "nth_number",
+        "argument": 42
+      },
+      "expect": {
+        "value": "66",
+        "logs": []
+      }
+    },
+    {
+      "name": "nth_number(43)",
+      "input": {
+        "op": "nth_number",
+        "argument": 43
+      },
+      "expect": {
+        "value": "111",
+        "logs": []
+      }
+    },
+    {
+      "name": "ladder_index('7')",
+      "input": {
+        "op": "ladder_index",
+        "argument": "7"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelNumberError",
+          "message": "not a number the keys can press: '7'"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "ladder_index('')",
+      "input": {
+        "op": "ladder_index",
+        "argument": ""
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelNumberError",
+          "message": "not a number the keys can press: ''"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "ladder_index('66')",
+      "input": {
+        "op": "ladder_index",
+        "argument": "66"
+      },
+      "expect": {
+        "value": 42,
+        "logs": []
+      }
+    },
+    {
+      "name": "ladder_index('111')",
+      "input": {
+        "op": "ladder_index",
+        "argument": "111"
+      },
+      "expect": {
+        "value": 43,
+        "logs": []
+      }
+    },
+    {
+      "name": "dialable('')",
+      "input": {
+        "op": "dialable",
+        "argument": ""
+      },
+      "expect": {
+        "value": false,
+        "logs": []
+      }
+    },
+    {
+      "name": "dialable('0')",
+      "input": {
+        "op": "dialable",
+        "argument": "0"
+      },
+      "expect": {
+        "value": false,
+        "logs": []
+      }
+    },
+    {
+      "name": "dialable('123456')",
+      "input": {
+        "op": "dialable",
+        "argument": "123456"
+      },
+      "expect": {
+        "value": true,
+        "logs": []
+      }
+    },
+    {
+      "name": "save: an empty list",
+      "input": {
+        "op": "save",
+        "channels": []
+      },
+      "expect": {
+        "text": "{\n  \"channels\": []\n}\n",
+        "files_after": [
+          "channels.json"
+        ]
+      }
+    },
+    {
+      "name": "save: three seeded channels",
+      "input": {
+        "op": "save",
+        "channels": [
+          {
+            "number": "1",
+            "name": "Superfly",
+            "kind": "radio",
+            "url": "http://192.0.2.1/1"
+          },
+          {
+            "number": "3",
+            "name": "Technikum",
+            "kind": "radio",
+            "url": "http://192.0.2.1/3"
+          },
+          {
+            "number": "6",
+            "name": "Ö1 Klassik",
+            "kind": "radio",
+            "url": "http://192.0.2.1/6"
+          }
+        ]
+      },
+      "expect": {
+        "text": "{\n  \"channels\": [\n    {\n      \"number\": \"1\",\n      \"name\": \"Superfly\",\n      \"kind\": \"radio\",\n      \"url\": \"http://192.0.2.1/1\",\n      \"mpd_entry\": \"\",\n      \"mpd_directory\": \"\",\n      \"in_rotation\": true,\n      \"end\": \"wrap\"\n    },\n    {\n      \"number\": \"3\",\n      \"name\": \"Technikum\",\n      \"kind\": \"radio\",\n      \"url\": \"http://192.0.2.1/3\",\n      \"mpd_entry\": \"\",\n      \"mpd_directory\": \"\",\n      \"in_rotation\": true,\n      \"end\": \"wrap\"\n    },\n    {\n      \"number\": \"6\",\n      \"name\": \"Ö1 Klassik\",\n      \"kind\": \"radio\",\n      \"url\": \"http://192.0.2.1/6\",\n      \"mpd_entry\": \"\",\n      \"mpd_directory\": \"\",\n      \"in_rotation\": true,\n      \"end\": \"wrap\"\n    }\n  ]\n}\n",
+        "files_after": [
+          "channels.json"
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "edit, query and save a list",
+      "input": {
+        "op": "edit",
+        "base": [
+          {
+            "number": "1",
+            "name": "Superfly",
+            "kind": "radio",
+            "url": "http://192.0.2.1/1"
+          },
+          {
+            "number": "3",
+            "name": "Technikum",
+            "kind": "radio",
+            "url": "http://192.0.2.1/3"
+          },
+          {
+            "number": "6",
+            "name": "Ö1 Klassik",
+            "kind": "radio",
+            "url": "http://192.0.2.1/6"
+          }
+        ],
+        "ops": [
+          [
+            "with_rotation",
+            "3",
+            false
+          ],
+          [
+            "with_rotation",
+            "3",
+            false
+          ],
+          [
+            "with_rotation",
+            "9",
+            true
+          ],
+          [
+            "with_channel",
+            {
+              "number": "11",
+              "name": "Radio Wien",
+              "kind": "radio",
+              "url": "http://192.0.2.1/11"
+            }
+          ],
+          [
+            "with_channel",
+            {
+              "number": "1",
+              "name": "Superfly again",
+              "kind": "radio",
+              "url": "https://192.0.2.1/1b"
+            }
+          ],
+          [
+            "without_number",
+            "6"
+          ],
+          [
+            "without_number",
+            "66"
+          ],
+          [
+            "with_rotation",
+            "3",
+            true
+          ]
+        ]
+      },
+      "expect": {
+        "start": {
+          "list": {
+            "type": "ChannelList",
+            "fields": {
+              "channels": [
+                {
+                  "number": "1",
+                  "name": "Superfly",
+                  "kind": "radio",
+                  "url": "http://192.0.2.1/1",
+                  "mpd_entry": "",
+                  "mpd_directory": "",
+                  "in_rotation": true,
+                  "end": "wrap"
+                },
+                {
+                  "number": "3",
+                  "name": "Technikum",
+                  "kind": "radio",
+                  "url": "http://192.0.2.1/3",
+                  "mpd_entry": "",
+                  "mpd_directory": "",
+                  "in_rotation": true,
+                  "end": "wrap"
+                },
+                {
+                  "number": "6",
+                  "name": "Ö1 Klassik",
+                  "kind": "radio",
+                  "url": "http://192.0.2.1/6",
+                  "mpd_entry": "",
+                  "mpd_directory": "",
+                  "in_rotation": true,
+                  "end": "wrap"
+                }
+              ]
+            }
+          },
+          "numbers_in_order": [
+            "1",
+            "3",
+            "6"
+          ],
+          "rotation_numbers": [
+            "1",
+            "3",
+            "6"
+          ],
+          "lowest_free_number": "2",
+          "steps": [
+            [
+              null,
+              1,
+              "1"
+            ],
+            [
+              null,
+              -1,
+              "6"
+            ],
+            [
+              null,
+              2,
+              "3"
+            ],
+            [
+              null,
+              -3,
+              "1"
+            ],
+            [
+              "1",
+              1,
+              "3"
+            ],
+            [
+              "1",
+              -1,
+              "6"
+            ],
+            [
+              "1",
+              2,
+              "6"
+            ],
+            [
+              "1",
+              -3,
+              "1"
+            ],
+            [
+              "3",
+              1,
+              "6"
+            ],
+            [
+              "3",
+              -1,
+              "1"
+            ],
+            [
+              "3",
+              2,
+              "1"
+            ],
+            [
+              "3",
+              -3,
+              "3"
+            ],
+            [
+              "11",
+              1,
+              "1"
+            ],
+            [
+              "11",
+              -1,
+              "6"
+            ],
+            [
+              "11",
+              2,
+              "3"
+            ],
+            [
+              "11",
+              -3,
+              "1"
+            ],
+            [
+              "66",
+              1,
+              "1"
+            ],
+            [
+              "66",
+              -1,
+              "6"
+            ],
+            [
+              "66",
+              2,
+              "3"
+            ],
+            [
+              "66",
+              -3,
+              "1"
+            ],
+            [
+              "5",
+              1,
+              "1"
+            ],
+            [
+              "5",
+              -1,
+              "6"
+            ],
+            [
+              "5",
+              2,
+              "3"
+            ],
+            [
+              "5",
+              -3,
+              "1"
+            ]
+          ]
+        },
+        "trace": [
+          {
+            "op": [
+              "with_rotation",
+              "3",
+              false
+            ],
+            "unchanged_object": false,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "1",
+                    "name": "Superfly",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/1",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "6",
+                    "name": "Ö1 Klassik",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/6",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": false,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "6"
+            ],
+            "rotation_numbers": [
+              "1",
+              "6"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "6"
+              ],
+              [
+                null,
+                2,
+                "6"
+              ],
+              [
+                null,
+                -3,
+                "6"
+              ],
+              [
+                "1",
+                1,
+                "6"
+              ],
+              [
+                "1",
+                -1,
+                "6"
+              ],
+              [
+                "1",
+                2,
+                "1"
+              ],
+              [
+                "1",
+                -3,
+                "6"
+              ],
+              [
+                "3",
+                1,
+                "6"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "1"
+              ],
+              [
+                "3",
+                -3,
+                "1"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "6"
+              ],
+              [
+                "11",
+                2,
+                "6"
+              ],
+              [
+                "11",
+                -3,
+                "6"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "6"
+              ],
+              [
+                "66",
+                2,
+                "6"
+              ],
+              [
+                "66",
+                -3,
+                "6"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "6"
+              ],
+              [
+                "5",
+                2,
+                "6"
+              ],
+              [
+                "5",
+                -3,
+                "6"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "with_rotation",
+              "3",
+              false
+            ],
+            "unchanged_object": true,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "1",
+                    "name": "Superfly",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/1",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "6",
+                    "name": "Ö1 Klassik",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/6",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": false,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "6"
+            ],
+            "rotation_numbers": [
+              "1",
+              "6"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "6"
+              ],
+              [
+                null,
+                2,
+                "6"
+              ],
+              [
+                null,
+                -3,
+                "6"
+              ],
+              [
+                "1",
+                1,
+                "6"
+              ],
+              [
+                "1",
+                -1,
+                "6"
+              ],
+              [
+                "1",
+                2,
+                "1"
+              ],
+              [
+                "1",
+                -3,
+                "6"
+              ],
+              [
+                "3",
+                1,
+                "6"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "1"
+              ],
+              [
+                "3",
+                -3,
+                "1"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "6"
+              ],
+              [
+                "11",
+                2,
+                "6"
+              ],
+              [
+                "11",
+                -3,
+                "6"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "6"
+              ],
+              [
+                "66",
+                2,
+                "6"
+              ],
+              [
+                "66",
+                -3,
+                "6"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "6"
+              ],
+              [
+                "5",
+                2,
+                "6"
+              ],
+              [
+                "5",
+                -3,
+                "6"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "with_rotation",
+              "9",
+              true
+            ],
+            "unchanged_object": true,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "1",
+                    "name": "Superfly",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/1",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "6",
+                    "name": "Ö1 Klassik",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/6",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": false,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "6"
+            ],
+            "rotation_numbers": [
+              "1",
+              "6"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "6"
+              ],
+              [
+                null,
+                2,
+                "6"
+              ],
+              [
+                null,
+                -3,
+                "6"
+              ],
+              [
+                "1",
+                1,
+                "6"
+              ],
+              [
+                "1",
+                -1,
+                "6"
+              ],
+              [
+                "1",
+                2,
+                "1"
+              ],
+              [
+                "1",
+                -3,
+                "6"
+              ],
+              [
+                "3",
+                1,
+                "6"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "1"
+              ],
+              [
+                "3",
+                -3,
+                "1"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "6"
+              ],
+              [
+                "11",
+                2,
+                "6"
+              ],
+              [
+                "11",
+                -3,
+                "6"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "6"
+              ],
+              [
+                "66",
+                2,
+                "6"
+              ],
+              [
+                "66",
+                -3,
+                "6"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "6"
+              ],
+              [
+                "5",
+                2,
+                "6"
+              ],
+              [
+                "5",
+                -3,
+                "6"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "with_channel",
+              {
+                "number": "11",
+                "name": "Radio Wien",
+                "kind": "radio",
+                "url": "http://192.0.2.1/11"
+              }
+            ],
+            "unchanged_object": false,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "1",
+                    "name": "Superfly",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/1",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "6",
+                    "name": "Ö1 Klassik",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/6",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": false,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "11",
+                    "name": "Radio Wien",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/11",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "6",
+              "11"
+            ],
+            "rotation_numbers": [
+              "1",
+              "6",
+              "11"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "11"
+              ],
+              [
+                null,
+                2,
+                "6"
+              ],
+              [
+                null,
+                -3,
+                "1"
+              ],
+              [
+                "1",
+                1,
+                "6"
+              ],
+              [
+                "1",
+                -1,
+                "11"
+              ],
+              [
+                "1",
+                2,
+                "11"
+              ],
+              [
+                "1",
+                -3,
+                "1"
+              ],
+              [
+                "3",
+                1,
+                "6"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "11"
+              ],
+              [
+                "3",
+                -3,
+                "6"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "6"
+              ],
+              [
+                "11",
+                2,
+                "6"
+              ],
+              [
+                "11",
+                -3,
+                "11"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "11"
+              ],
+              [
+                "66",
+                2,
+                "6"
+              ],
+              [
+                "66",
+                -3,
+                "1"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "11"
+              ],
+              [
+                "5",
+                2,
+                "6"
+              ],
+              [
+                "5",
+                -3,
+                "1"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "with_channel",
+              {
+                "number": "1",
+                "name": "Superfly again",
+                "kind": "radio",
+                "url": "https://192.0.2.1/1b"
+              }
+            ],
+            "unchanged_object": false,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "6",
+                    "name": "Ö1 Klassik",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/6",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": false,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "11",
+                    "name": "Radio Wien",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/11",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "1",
+                    "name": "Superfly again",
+                    "kind": "radio",
+                    "url": "https://192.0.2.1/1b",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "6",
+              "11"
+            ],
+            "rotation_numbers": [
+              "1",
+              "6",
+              "11"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "11"
+              ],
+              [
+                null,
+                2,
+                "6"
+              ],
+              [
+                null,
+                -3,
+                "1"
+              ],
+              [
+                "1",
+                1,
+                "6"
+              ],
+              [
+                "1",
+                -1,
+                "11"
+              ],
+              [
+                "1",
+                2,
+                "11"
+              ],
+              [
+                "1",
+                -3,
+                "1"
+              ],
+              [
+                "3",
+                1,
+                "6"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "11"
+              ],
+              [
+                "3",
+                -3,
+                "6"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "6"
+              ],
+              [
+                "11",
+                2,
+                "6"
+              ],
+              [
+                "11",
+                -3,
+                "11"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "11"
+              ],
+              [
+                "66",
+                2,
+                "6"
+              ],
+              [
+                "66",
+                -3,
+                "1"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "11"
+              ],
+              [
+                "5",
+                2,
+                "6"
+              ],
+              [
+                "5",
+                -3,
+                "1"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "without_number",
+              "6"
+            ],
+            "unchanged_object": false,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": false,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "11",
+                    "name": "Radio Wien",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/11",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "1",
+                    "name": "Superfly again",
+                    "kind": "radio",
+                    "url": "https://192.0.2.1/1b",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "11"
+            ],
+            "rotation_numbers": [
+              "1",
+              "11"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "11"
+              ],
+              [
+                null,
+                2,
+                "11"
+              ],
+              [
+                null,
+                -3,
+                "11"
+              ],
+              [
+                "1",
+                1,
+                "11"
+              ],
+              [
+                "1",
+                -1,
+                "11"
+              ],
+              [
+                "1",
+                2,
+                "1"
+              ],
+              [
+                "1",
+                -3,
+                "11"
+              ],
+              [
+                "3",
+                1,
+                "11"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "1"
+              ],
+              [
+                "3",
+                -3,
+                "1"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "1"
+              ],
+              [
+                "11",
+                2,
+                "11"
+              ],
+              [
+                "11",
+                -3,
+                "1"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "11"
+              ],
+              [
+                "66",
+                2,
+                "11"
+              ],
+              [
+                "66",
+                -3,
+                "11"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "11"
+              ],
+              [
+                "5",
+                2,
+                "11"
+              ],
+              [
+                "5",
+                -3,
+                "11"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "without_number",
+              "66"
+            ],
+            "unchanged_object": false,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": false,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "11",
+                    "name": "Radio Wien",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/11",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "1",
+                    "name": "Superfly again",
+                    "kind": "radio",
+                    "url": "https://192.0.2.1/1b",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "11"
+            ],
+            "rotation_numbers": [
+              "1",
+              "11"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "11"
+              ],
+              [
+                null,
+                2,
+                "11"
+              ],
+              [
+                null,
+                -3,
+                "11"
+              ],
+              [
+                "1",
+                1,
+                "11"
+              ],
+              [
+                "1",
+                -1,
+                "11"
+              ],
+              [
+                "1",
+                2,
+                "1"
+              ],
+              [
+                "1",
+                -3,
+                "11"
+              ],
+              [
+                "3",
+                1,
+                "11"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "1"
+              ],
+              [
+                "3",
+                -3,
+                "1"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "1"
+              ],
+              [
+                "11",
+                2,
+                "11"
+              ],
+              [
+                "11",
+                -3,
+                "1"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "11"
+              ],
+              [
+                "66",
+                2,
+                "11"
+              ],
+              [
+                "66",
+                -3,
+                "11"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "11"
+              ],
+              [
+                "5",
+                2,
+                "11"
+              ],
+              [
+                "5",
+                -3,
+                "11"
+              ]
+            ]
+          },
+          {
+            "op": [
+              "with_rotation",
+              "3",
+              true
+            ],
+            "unchanged_object": false,
+            "list": {
+              "type": "ChannelList",
+              "fields": {
+                "channels": [
+                  {
+                    "number": "11",
+                    "name": "Radio Wien",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/11",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "1",
+                    "name": "Superfly again",
+                    "kind": "radio",
+                    "url": "https://192.0.2.1/1b",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  },
+                  {
+                    "number": "3",
+                    "name": "Technikum",
+                    "kind": "radio",
+                    "url": "http://192.0.2.1/3",
+                    "mpd_entry": "",
+                    "mpd_directory": "",
+                    "in_rotation": true,
+                    "end": "wrap"
+                  }
+                ]
+              }
+            },
+            "numbers_in_order": [
+              "1",
+              "3",
+              "11"
+            ],
+            "rotation_numbers": [
+              "1",
+              "3",
+              "11"
+            ],
+            "lowest_free_number": "2",
+            "steps": [
+              [
+                null,
+                1,
+                "1"
+              ],
+              [
+                null,
+                -1,
+                "11"
+              ],
+              [
+                null,
+                2,
+                "3"
+              ],
+              [
+                null,
+                -3,
+                "1"
+              ],
+              [
+                "1",
+                1,
+                "3"
+              ],
+              [
+                "1",
+                -1,
+                "11"
+              ],
+              [
+                "1",
+                2,
+                "11"
+              ],
+              [
+                "1",
+                -3,
+                "1"
+              ],
+              [
+                "3",
+                1,
+                "11"
+              ],
+              [
+                "3",
+                -1,
+                "1"
+              ],
+              [
+                "3",
+                2,
+                "1"
+              ],
+              [
+                "3",
+                -3,
+                "3"
+              ],
+              [
+                "11",
+                1,
+                "1"
+              ],
+              [
+                "11",
+                -1,
+                "3"
+              ],
+              [
+                "11",
+                2,
+                "3"
+              ],
+              [
+                "11",
+                -3,
+                "11"
+              ],
+              [
+                "66",
+                1,
+                "1"
+              ],
+              [
+                "66",
+                -1,
+                "11"
+              ],
+              [
+                "66",
+                2,
+                "3"
+              ],
+              [
+                "66",
+                -3,
+                "1"
+              ],
+              [
+                "5",
+                1,
+                "1"
+              ],
+              [
+                "5",
+                -1,
+                "11"
+              ],
+              [
+                "5",
+                2,
+                "3"
+              ],
+              [
+                "5",
+                -3,
+                "1"
+              ]
+            ]
+          }
+        ],
+        "text": "{\n  \"channels\": [\n    {\n      \"number\": \"11\",\n      \"name\": \"Radio Wien\",\n      \"kind\": \"radio\",\n      \"url\": \"http://192.0.2.1/11\",\n      \"mpd_entry\": \"\",\n      \"mpd_directory\": \"\",\n      \"in_rotation\": true,\n      \"end\": \"wrap\"\n    },\n    {\n      \"number\": \"1\",\n      \"name\": \"Superfly again\",\n      \"kind\": \"radio\",\n      \"url\": \"https://192.0.2.1/1b\",\n      \"mpd_entry\": \"\",\n      \"mpd_directory\": \"\",\n      \"in_rotation\": true,\n      \"end\": \"wrap\"\n    },\n    {\n      \"number\": \"3\",\n      \"name\": \"Technikum\",\n      \"kind\": \"radio\",\n      \"url\": \"http://192.0.2.1/3\",\n      \"mpd_entry\": \"\",\n      \"mpd_directory\": \"\",\n      \"in_rotation\": true,\n      \"end\": \"wrap\"\n    }\n  ]\n}\n"
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "load: a missing file",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "missing"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": []
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "<WORK>/channels/channels.json: no channel list yet"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "load: a directory where the file should be",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "directory"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: could not be read (IsADirectoryError)",
+          "cause": "IsADirectoryError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: not JSON",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{ this is not json"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: an empty file",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": ""
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: an empty object",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": []
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "<WORK>/channels/channels.json: 0 channel(s)"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "load: channels null",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": null}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: channels as a string",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": \"1\"}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a list at the top",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "[]"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: two valid channels",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"Superfly\", \"kind\": \"radio\", \"url\": \"http://192.0.2.1/1\"}, {\"number\": \"11\", \"name\": \"Technikum\", \"kind\": \"radio\", \"url\": \"https://192.0.2.1/11\", \"in_rotation\": false}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "Superfly",
+                "kind": "radio",
+                "url": "http://192.0.2.1/1",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "11",
+                "name": "Technikum",
+                "kind": "radio",
+                "url": "https://192.0.2.1/11",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": false,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "<WORK>/channels/channels.json: 2 channel(s)"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "load: a 7",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"7\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: an empty number",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a 10",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"10\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a number that is a number",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": 1, \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a number with a space",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \" 1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a file URL",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"file:///a.mp3\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a bare path",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"/a.mp3\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: an uppercase scheme",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"HTTP://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a kind nobody knows",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"podcast\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: an uppercase kind",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"RADIO\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: rotation as the word false",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\", \"in_rotation\": \"false\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "x",
+                "kind": "radio",
+                "url": "http://x/",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": false,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "<WORK>/channels/channels.json: 1 channel(s)"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "load: rotation as the word maybe",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\", \"in_rotation\": \"maybe\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: rotation as zero",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\", \"in_rotation\": 0}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "x",
+                "kind": "radio",
+                "url": "http://x/",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": false,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "<WORK>/channels/channels.json: 1 channel(s)"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "load: a missing name",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"kind\": \"radio\", \"url\": \"http://x/\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a field this version does not know",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"x\", \"kind\": \"radio\", \"url\": \"http://x/\", \"favourite\": true}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "x",
+                "kind": "radio",
+                "url": "http://x/",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "<WORK>/channels/channels.json: 1 channel(s)"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "load: one number twice",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"1\", \"name\": \"a\", \"kind\": \"radio\", \"url\": \"http://x/a\"}, {\"number\": \"1\", \"name\": \"b\", \"kind\": \"radio\", \"url\": \"http://x/b\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "value": {
+          "type": "ChannelList",
+          "fields": {
+            "channels": [
+              {
+                "number": "1",
+                "name": "a",
+                "kind": "radio",
+                "url": "http://x/a",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              },
+              {
+                "number": "1",
+                "name": "b",
+                "kind": "radio",
+                "url": "http://x/b",
+                "mpd_entry": "",
+                "mpd_directory": "",
+                "in_rotation": true,
+                "end": "wrap"
+              }
+            ]
+          }
+        },
+        "logs": [
+          [
+            "channels",
+            "<WORK>/channels/channels.json: 2 channel(s)"
+          ]
+        ]
+      },
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 1 added Channel.mpd_entry, the stored playlist an MPD channel names, paired with kind so that neither half can be set without the other. The record therefore carries one more field than it did at 887934c, and the channel file - which a person opens and edits - writes \"mpd_entry\": \"\" for every channel including the radio ones. Nothing else about this case moved: the expectation below was produced by INSERTING that one field into the recorded value, not by re-running the current code, so any other drift would still fail the replay. OPEN-WORK rank 11 (decided by the user 2026-09-24) added Channel.end, what an MPD channel does at its natural end, 'wrap' when a file says nothing. The record carries one more field and the channel file writes \"end\": \"wrap\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code. OPEN-WORK rank 11 step 3 (decided by the user 2026-09-24) added Channel.mpd_directory, the directory an MPD channel may play instead of a stored playlist, empty for every other channel. The record carries one more field and the channel file writes \"mpd_directory\": \"\" for every channel; the expectation was produced by INSERTING that one field, not by re-running the current code."
+    },
+    {
+      "name": "load: two channels with two problems each",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "text",
+          "text": "{\"channels\": [{\"number\": \"7\", \"name\": \"a\", \"kind\": \"radio\", \"url\": \"ftp://x/a\"}, {\"number\": \"1\", \"name\": 5, \"kind\": \"tv\", \"url\": \"http://x/b\"}]}"
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (4 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: a UTF-8 byte order mark",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "bytes",
+          "base64": "77u/eyJjaGFubmVscyI6IFtdfQ=="
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "ChannelFileError",
+          "message": "<WORK>/channels/channels.json: unusable (1 problem(s))",
+          "cause": "ValidationError"
+        },
+        "logs": []
+      }
+    },
+    {
+      "name": "load: bytes that are not UTF-8",
+      "input": {
+        "op": "load",
+        "file": {
+          "kind": "bytes",
+          "base64": "eyJjaGFubmVscyI6ICL/In0="
+        },
+        "path": "<WORK>/channels/channels.json"
+      },
+      "expect": {
+        "raises": {
+          "type": "UnicodeDecodeError",
+          "message": "'utf-8' codec can't decode byte 0xff in position 14: invalid start byte"
+        },
+        "logs": []
+      }
+    }
+  ]
+}

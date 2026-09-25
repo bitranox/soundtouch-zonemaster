@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "IHeartError.proto";
+
+message LiveRadioRegister {
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error error = 3;
+  optional .IHeart.Error firstError = 4;
+}

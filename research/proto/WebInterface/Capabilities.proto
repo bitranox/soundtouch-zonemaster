@@ -1,0 +1,58 @@
+syntax = "proto2";
+
+package WebInterface;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message capabilities {
+  message NetworkConfig {
+    message HostedWifiConfigWebPage {
+      optional string hostedBy = 1;
+      optional string generation = 2;
+      optional string port = 3;
+      optional string text = 4;
+    }
+    message AllInterfacesSupported {
+      repeated .Common.String entry = 1;
+    }
+    message WLANInterfaces {
+      message WLAN {
+        required string name = 1;
+        optional bool stationMode = 2;
+        optional bool accessPointMode = 3;
+        repeated .Common.String frequency = 4;
+      }
+      repeated .WebInterface.capabilities.NetworkConfig.WLANInterfaces.WLAN wlan = 1;
+    }
+    message Security {
+      repeated .Common.String entry = 1;
+    }
+    optional .WebInterface.capabilities.NetworkConfig.HostedWifiConfigWebPage hostedWifiConfigWebPage = 1;
+    optional .Common.String dualMode = 2;
+    optional .Common.String wsapiproxy = 3;
+    optional .WebInterface.capabilities.NetworkConfig.AllInterfacesSupported allInterfacesSupported = 4;
+    optional .WebInterface.capabilities.NetworkConfig.WLANInterfaces wlanInterfaces = 5;
+    optional .WebInterface.capabilities.NetworkConfig.Security security = 6;
+  }
+  message DSPCapabilities {
+    message DSPMonoStereo {
+      optional string available = 1;
+    }
+    optional .WebInterface.capabilities.DSPCapabilities.DSPMonoStereo dspMonoStereo = 1;
+  }
+  message Capability {
+    optional string name = 1;
+    optional string url = 2;
+    optional string info = 3;
+  }
+  required string deviceID = 1;
+  required .WebInterface.capabilities.NetworkConfig networkConfig = 2;
+  required .WebInterface.capabilities.DSPCapabilities dspCapabilities = 3;
+  optional .Common.String lightswitch = 4;
+  optional .Common.String clockDisplay = 5;
+  repeated .WebInterface.capabilities.Capability capability = 6;
+  optional .Common.String lrStereoCapable = 7;
+  optional .Common.String bcoresetCapable = 8;
+  optional .Common.String disablePowerSaving = 9;
+}

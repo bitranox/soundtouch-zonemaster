@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Artist.proto";
+import "IHeartError.proto";
+
+message ArtistsByCategory {
+  repeated .IHeart.Error errors = 2;
+  optional .IHeart.Error firstError = 3;
+  optional int32 totalArtists = 4;
+  repeated .IHeart.Artist artists = 5;
+  optional .IHeart.Error error = 6;
+}

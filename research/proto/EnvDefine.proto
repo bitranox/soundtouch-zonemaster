@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package MargePB;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "EnvSwitch.proto";
+import "Common.proto";
+
+message environment {
+  optional .Common.String environmentName = 1;
+  optional .Common.String description = 2;
+  optional .Common.String streamingURL = 3;
+  optional .Common.String updateURL = 4;
+  optional .Common.String startOn = 5;
+  optional .Common.String endDate = 6;
+}

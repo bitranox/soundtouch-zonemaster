@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package STS;
+
+enum DeselectErrorType {
+  NONE = 0;
+  MUSIC_SERVICE_NOT_READY = 1;
+}
+
+message SourceDeselect {
+  optional bool error = 1;
+}

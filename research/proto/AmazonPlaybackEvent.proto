@@ -1,0 +1,21 @@
+syntax = "proto2";
+
+package Amazon;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message AmazonPlaybackEventRequest {
+  optional string event = 1;
+  optional string wallClockTime = 2;
+  optional uint64 trackPosition = 3;
+  optional uint32 playbackDelay = 4;
+  optional string reason = 5;
+}
+
+message AmazonReportPlaybackRequest {
+  optional string eventType = 1;
+  optional string reason = 2;
+  optional int64 timeIntoTrack = 3;
+  optional uint32 playbackDelay = 4;
+  optional string timeStamp = 5;
+}

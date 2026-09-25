@@ -1,0 +1,83 @@
+syntax = "proto2";
+
+import "WebInterface/PowerManagementResponse.proto";
+
+enum BatteryManagerMsgId {
+  BATTERY_MONITOR_MSG_GET = 0;
+  BATTERY_MONITOR_MSG_SET = 10;
+  BATTERY_MONITOR_MSG_REPORT = 20;
+  BATTERY_MONITOR_MSG_REGISTER = 30;
+  BATTERY_MONITOR_MSG_UNREGISTER = 40;
+}
+
+enum BatteryParameterType {
+  BAT_PARAM_TYPE_NUMERIC = 1;
+  BAT_PARAM_TYPE_STRING = 2;
+  BAT_PARAM_TYPE_BOOLEAN = 3;
+}
+
+enum ConditionState {
+  Condition_Not_Reported = 0;
+  Condition_Set = 1;
+  Condition_Cleared = 2;
+}
+
+enum BatteryConditionLevel {
+  ConditionLevel_MASK = 4095;
+  Condition_None = 0;
+  Condition_Audio_Disabled = 1;
+  Condition_Temp_Out_Of_Range = 16;
+  Condition_Voltage_Too_High = 32;
+  Condition_SmBus_Comm_Error = 64;
+  Condition_PreCharge = 128;
+  Condition_CriticalError = 256;
+  Condition_UNUSED_1 = 512;
+  Condition_UNUSED_2 = 1024;
+  Condition_UNUSED_3 = 2048;
+}
+
+enum BatteryConditionPermanence {
+  Condition_Permanence_MASK = 61440;
+  Condition_Temporary = 4096;
+  Condition_Permanent = 8192;
+}
+
+message BatteryParameter {
+  optional uint32 param_id = 1;
+  optional int32 int_value = 4;
+  optional string str_value = 5;
+  optional bool bool_value = 6;
+}
+
+message BatteryMonitorMsgGet {
+  optional uint32 param_id = 1;
+  optional bool success = 2 [default = true];
+  optional int32 int_value = 4;
+  optional string str_value = 5;
+  optional bool bool_value = 6;
+  optional .ConditionState state_transition = 9 [default = Condition_Not_Reported];
+  optional .BatteryConditionLevel state_level = 10 [default = Condition_None];
+}
+
+message BatteryMonitorMsgSet {
+  optional uint32 param_id = 1;
+  optional int32 int_value = 3;
+  optional string str_value = 4;
+  optional bool bool_value = 5;
+  optional bool success = 6 [default = true];
+}
+
+message BatteryMonitorMsgReport {
+  optional .BatteryMonitorMsgGet parameter = 1;
+  optional .WebInterface.powerManagementResponse summary = 10;
+}
+
+message BatteryMonitorMsgRegister {
+  optional uint32 param_id = 1;
+  optional bool success = 4 [default = true];
+}
+
+message BatteryMonitorMsgUnregister {
+  optional uint32 param_id = 1;
+  optional bool success = 4 [default = true];
+}

@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package STS;
+
+message ContentItem {
+  optional string type = 1;
+  optional string location = 2;
+  optional string name = 3;
+  optional bool isPresetable = 4 [default = true];
+  optional string containerArt = 5;
+}

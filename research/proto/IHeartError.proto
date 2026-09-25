@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+package IHeart;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+
+message Error {
+  enum ErrorCode {
+    NO_ERROR = 0;
+    SERVICE_UNAVAILABLE = 1;
+    USER_LOGGED_OUT = 2;
+    TOO_MANY_CUSTOM_STATIONS = 4;
+    NOT_FOUND = 5;
+    INVALID_HOST = 6;
+    INVALID_USER_OR_PW = 101;
+    INVALID_PASSWORD = 106;
+    INVALID_DATE = 107;
+    EMPTY_DEVICE_ID_OR_NAME = 115;
+    INVALID_DEVICE = 116;
+    BAD_REQUEST = 123;
+    INVALID_HASH = 124;
+    DEVICE_ALREADY_REGISTERED = 125;
+    NOT_ACTIVE_STREAMER = 203;
+    NOT_VALID_FOR_STREAMING = 207;
+    TRACK_CANNOT_BE_PLAYED = 208;
+    INVALID_USER = 401;
+    CODE_EXPIRED_OR_INVALID = 802;
+    CODE_ALREADY_USED = 804;
+    JSON_PARSE_ERROR = 1000;
+    COULD_NOT_CONNECT = 1001;
+    LOGIN_FAILED = 1002;
+    UNKNOWN_CONTENT_TYPE = 1003;
+  }
+  optional string description = 1;
+  optional int32 code = 2;
+}

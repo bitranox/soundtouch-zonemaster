@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package Persistence;
+
+import "ProtoToMarkup/MarkupOptions.proto";
+import "Common.proto";
+
+message LightswitchDataItems {
+  message LightswitchInfo {
+    optional .Common.String SerialNo = 1;
+    optional .Common.String HardwareVersion = 2;
+    optional .Common.String AtmelSoftwareVersion = 3;
+    optional .Common.String BluetoothSoftwareVersion = 4;
+    optional .Common.String PeerMacAddress = 5;
+  }
+  message LightswitchDataItem {
+    optional uint32 fileID = 1;
+    optional string downloadedByLS1 = 2;
+    optional string downloadedByLS2 = 3;
+    optional string downloadedByLS3 = 4;
+    optional string FileText = 5;
+  }
+  optional .Persistence.LightswitchDataItems.LightswitchInfo lightswitchInfo = 1;
+  repeated .Persistence.LightswitchDataItems.LightswitchDataItem lightswitchDataItem = 2;
+}
