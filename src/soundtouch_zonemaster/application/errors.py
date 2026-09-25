@@ -15,7 +15,15 @@ names the outcome and never the code.
 
 from __future__ import annotations
 
-__all__ = ["MpdError", "MpdRefusalError", "NotInMpdError", "PortsBusyError", "RegistryError"]
+__all__ = [
+    "MpdError",
+    "MpdRefusalError",
+    "NotInMpdError",
+    "PortsBusyError",
+    "RegistryError",
+    "StoreBusyError",
+    "StoreError",
+]
 
 
 class RegistryError(RuntimeError):
@@ -57,4 +65,22 @@ class NotInMpdError(MpdRefusalError):
     mistyped in the channel file, fixed by editing that file, or a file taken away between MPD
     listing a directory and the queue being built from it. Everything else MPD declines is
     about this program, and the two must not be reported the same way.
+    """
+
+
+class StoreError(RuntimeError):
+    """The house database could not be opened, read or written, and the service must not guess.
+
+    One type for every way that goes wrong, named for the outcome, because the service and the
+    CLI react to all of them the same way: say which file, and do not start. The database holds
+    the channel list, the only copy of something a person built, so starting empty over a file
+    that could not be read would let the next save overwrite it with nothing.
+    """
+
+
+class StoreBusyError(StoreError):
+    """Another process holds the house database for writing, which is a running service.
+
+    Its own type because it is the one refusal that is not a fault: stopping the service is the
+    whole fix, and a caller has to be able to say that rather than "could not open".
     """
