@@ -87,16 +87,14 @@ class ServiceOptionsInput(BaseModel):
 
     bind_ip: str
     device_id: str
-    switch_file: Path
-    """Off means we stand down. Missing, empty or unreadable means on (``domain/switch.py``)."""
-    state_file: Path
-    """What a restart starts from: the channel and the membership."""
-    channel_file: Path
-    """The house's channel list, in a file a person can read and repair.
-
-    Missing means "not seeded yet" and is normal on a first start; unusable is REFUSED rather than
-    started empty, because this is the only copy of something a person built (``domain/channellist.py``).
-    """
+    database: Path
+    """The house database: the state, the channel list and the switch (``adapters/files/house_db.py``)."""
+    switch_file: Path | None = None
+    """The switch as a file, from before the database: imported once, then not read."""
+    state_file: Path | None = None
+    """The state as a file, from before the database: imported once, then set aside."""
+    channel_file: Path | None = None
+    """The channel list as a file, from before the database: imported once, then set aside."""
     registry_url: str = DEFAULT_BASE_URL
     consoles_allowed: tuple[str, ...] = ()
     """Device ids of consoles that may be taken into the zone anyway.
@@ -175,23 +173,18 @@ class ServiceOptionsInput(BaseModel):
     def _somewhere_for_every_file_it_names(self) -> ServiceOptionsInput:
         """Refused now rather than hours later, when the first speaker joins and nothing can save.
 
-        All three paths, not just the state file, because each fails LATE and in its own way and
-        none of them fails at startup on its own. A channel file in a directory that is not there
-        reads exactly like a first run - the list is seeded in memory and the house plays - and
-        the crash arrives on the first save. A switch file there cannot be turned off at all: the
-        operator writes "off" into the path they meant while the service keeps reading the path
-        they typed, where a missing file means on.
-
-        The state file is checked first so that an argv with two bad directories refuses with the
-        same message it always did.
+        The database's directory, and the directory of every old file that is still named, because
+        the import renames an old file where it lies. The state file is checked first so that an
+        argv with two bad directories refuses with the same message it always did.
         """
-        for parent, what in (
-            (self.state_file.parent, "write the state file in"),
-            (self.channel_file.parent, "write the channel file in"),
-            (self.switch_file.parent, "read the switch file from"),
+        for path, what in (
+            (self.state_file, "write the state file in"),
+            (self.channel_file, "write the channel file in"),
+            (self.switch_file, "read the switch file from"),
+            (self.database, "keep the house database in"),
         ):
-            if not parent.is_dir():
-                message = f"refused: {parent} is not a directory to {what}"
+            if path is not None and not path.parent.is_dir():
+                message = f"refused: {path.parent} is not a directory to {what}"
                 raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return self
 
@@ -205,6 +198,7 @@ class ServiceOptionsInput(BaseModel):
         return ServiceOptions(
             bind_ip=self.bind_ip,
             device_id=self.device_id,
+            database=self.database,
             switch_file=self.switch_file,
             state_file=self.state_file,
             channel_file=self.channel_file,
@@ -242,6 +236,7 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     channel_file: str | None,
     switch_file: str | None,
     state_file: str | None,
+    database: str | None,
     registry_url: str | None,
     allow_console: Sequence[str],
     unreachable_timeout_s: float | None,
@@ -262,6 +257,7 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
         "channel_file": channel_file,
         "switch_file": switch_file,
         "state_file": state_file,
+        "database": database,
         "consoles_allowed": tuple(allow_console),
         "registry_url": registry_url,
         "unreachable_timeout_s": unreachable_timeout_s,

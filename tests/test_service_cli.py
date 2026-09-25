@@ -36,12 +36,8 @@ def _argv(tmp_path: Path, *extra: str) -> list[str]:
         "soundtouch-zonemaster-service",
         "--bind-ip",
         "192.168.0.190",
-        "--channel-file",
-        str(tmp_path / "channels.json"),
-        "--switch-file",
-        str(tmp_path / "zone.switch"),
-        "--state-file",
-        str(tmp_path / "zone-state.json"),
+        "--database",
+        str(tmp_path / "zonemaster.sqlite"),
         *extra,
     ]
 
@@ -49,6 +45,40 @@ def _argv(tmp_path: Path, *extra: str) -> list[str]:
 async def _refuse_to_run(_options: ServiceOptions) -> int:
     """Stands in for the run, and fails loudly if a refusal let one start."""
     raise AssertionError("the service must not start when the options were refused")
+
+
+def test_no_database_anywhere_is_refused_by_name(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--bind-ip", "192.168.0.190"])
+    rc = main(run_service=_refuse_to_run)
+    assert rc == 2
+    assert "database" in capsys.readouterr().err
+
+
+def test_a_database_in_a_directory_that_does_not_exist_is_refused(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        ["soundtouch-zonemaster-service", "--bind-ip", "192.168.0.190", "--database", str(tmp_path / "nope" / "db")],
+    )
+    rc = main(run_service=_refuse_to_run)
+    assert rc != 0
+    assert "is not a directory to keep the house database in" in capsys.readouterr().err
+
+
+def test_the_old_files_are_no_longer_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen: list[ServiceOptions] = []
+
+    async def remember(options: ServiceOptions) -> int:
+        seen.append(options)
+        return 0
+
+    monkeypatch.setattr("sys.argv", _argv(tmp_path))
+    assert main(run_service=remember) == 0
+    assert seen[0].database == tmp_path / "zonemaster.sqlite"
+    assert (seen[0].state_file, seen[0].channel_file, seen[0].switch_file) == (None, None, None)
 
 
 def test_a_device_id_that_is_not_twelve_hex_digits_is_refused(
@@ -130,6 +160,10 @@ def test_what_was_typed_is_what_the_service_is_handed(monkeypatch: pytest.Monkey
             "60",
             "--registry-url",
             "http://127.0.0.1:9000",
+            "--channel-file",
+            str(tmp_path / "channels.json"),
+            "--state-file",
+            str(tmp_path / "zone-state.json"),
         ),
     )
 

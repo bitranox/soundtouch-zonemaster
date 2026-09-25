@@ -159,20 +159,18 @@ class LegacyFiles:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ServiceOptions:
-    """One validated service: where it binds, what it plays, and the two files it owns."""
+    """One validated service: where it binds, what it plays, and the database it owns."""
 
     bind_ip: str
     device_id: str
-    switch_file: Path
-    """Off means we stand down. Missing, empty or unreadable means on (``domain/switch.py``)."""
-    state_file: Path
-    """What a restart starts from: the channel and the membership."""
-    channel_file: Path
-    """The house's channel list, in a file a person can read and repair.
-
-    Missing means "not seeded yet" and is normal on a first start; unusable is REFUSED rather than
-    started empty, because this is the only copy of something a person built (``domain/channellist.py``).
-    """
+    database: Path
+    """The house database: the state, the channel list and the switch (``adapters/files/house_db.py``)."""
+    switch_file: Path | None = None
+    """The switch as a file, from before the database: imported once, then not read."""
+    state_file: Path | None = None
+    """The state as a file, from before the database: imported once, then set aside."""
+    channel_file: Path | None = None
+    """The channel list as a file, from before the database: imported once, then set aside."""
     registry_url: str = DEFAULT_BASE_URL
     consoles_allowed: tuple[str, ...] = ()
     """Device ids of consoles that may be taken into the zone anyway.
@@ -212,6 +210,11 @@ class ServiceOptions:
 
     Read when a place is resumed and never when one is written, so what is recorded stays where
     the house actually stopped and this can be changed at any time."""
+
+    @property
+    def legacy(self) -> LegacyFiles:
+        """The old files, as the one record the store imports them from."""
+        return LegacyFiles(state_file=self.state_file, channel_file=self.channel_file, switch_file=self.switch_file)
 
     def __post_init__(self) -> None:
         """Refuse a device id that is not one, then a window outside the measured bounds.

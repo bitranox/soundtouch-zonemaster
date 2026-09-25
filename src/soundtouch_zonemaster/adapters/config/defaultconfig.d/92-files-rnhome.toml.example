@@ -10,6 +10,7 @@
 
 [files]
 
+# database = "<dev path>/zonemaster.sqlite"
 # channel_file = "/var/lib/zonemaster/channels.json"
 # switch_file = "/var/lib/zonemaster/zone.switch"
 # state_file = "/var/lib/zonemaster/zone-state.json"

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -24,24 +25,20 @@ from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, clear_confi
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from soundtouch_zonemaster.application.options import ServiceOptions
     from soundtouch_zonemaster.application.ports import RunService
 
 DEPLOYED_ARGV = (
     "--bind-ip",
     "192.168.0.190",
-    "--channel-file",
-    "/var/lib/zonemaster/channels.json",
-    "--switch-file",
-    "/var/lib/zonemaster/zone.switch",
-    "--state-file",
-    "/var/lib/zonemaster/zone-state.json",
+    "--database",
+    "/var/lib/zonemaster/zonemaster.sqlite",
 )
-"""The options the deployed unit passes, read off ``systemctl cat soundtouch-multiroom.service``
-on 2026-09-11. Only the paths are rewritten below, because ``/var/lib/zonemaster`` does not exist
-on a development host and the state file's directory is checked at startup."""
+"""The options the deployed unit passes. Read off ``systemctl cat soundtouch-multiroom.service``
+on 2026-09-11 as the three old files; the database replaces them here so these tests still model a
+run that can start (Task 6 moves the deployed unit itself). Only the path is rewritten below,
+because ``/var/lib/zonemaster`` does not exist on a development host and the database's directory
+is checked at startup."""
 
 
 def _capture() -> tuple[list[ServiceOptions], RunService]:
@@ -73,7 +70,7 @@ def _house(tmp_path: Path, *, bind_ip: str = "10.0.0.1", zone: str = "", extra: 
     """
     return (
         f'[zone]\nbind_ip = "{bind_ip}"\n{zone}'
-        f'[files]\nchannel_file = "{tmp_path}/ch.json"\n'
+        f'[files]\ndatabase = "{tmp_path}/zonemaster.sqlite"\nchannel_file = "{tmp_path}/ch.json"\n'
         f'switch_file = "{tmp_path}/sw"\nstate_file = "{tmp_path}/st.json"\n' + extra
     )
 
@@ -94,7 +91,7 @@ def test_the_deployed_units_argv_still_wins_over_a_config_file_that_disagrees(
     assert main(run_service=run) == 0
     options = seen[0]
     assert options.bind_ip == "192.168.0.190", "the unit's address, not the file's"
-    assert options.channel_file == tmp_path / "channels.json"
+    assert options.channel_file == Path("/tmp/other.json"), "the unit says nothing about it, so the file answers"
     assert options.dial_window_s == 1.4, "and a setting the unit says nothing about still comes from the file"
 
 
@@ -124,7 +121,7 @@ def test_a_setting_missing_from_every_layer_is_refused_by_name(
 
     assert main() == 2
     message = capsys.readouterr().err
-    for missing in ("bind_ip", "channel_file", "switch_file", "state_file"):
+    for missing in ("bind_ip", "database"):
         assert missing in message
     assert "--bind-ip" in message
     assert "config-deploy" in message
@@ -151,8 +148,8 @@ def test_a_set_override_reaches_the_service_and_still_loses_to_a_typed_option(
 ) -> None:
     _user_config(
         isolated_config_layers,
-        f'[files]\nchannel_file = "{tmp_path}/ch.json"\nswitch_file = "{tmp_path}/sw"\n'
-        f'state_file = "{tmp_path}/st.json"\n',
+        f'[files]\ndatabase = "{tmp_path}/zonemaster.sqlite"\nchannel_file = "{tmp_path}/ch.json"\n'
+        f'switch_file = "{tmp_path}/sw"\nstate_file = "{tmp_path}/st.json"\n',
     )
     seen, run = _capture()
     monkeypatch.setattr(
@@ -432,6 +429,7 @@ def test_a_deployed_file_is_a_file_the_service_then_reads(
         (
             "20-files.toml",
             (
+                ("database", f"{tmp_path}/zonemaster.sqlite"),
                 ("channel_file", f"{tmp_path}/ch.json"),
                 ("switch_file", f"{tmp_path}/sw"),
                 ("state_file", f"{tmp_path}/st.json"),

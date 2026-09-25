@@ -980,6 +980,7 @@ def wired_service(
     options = ServiceOptions(
         bind_ip="127.0.0.1",
         device_id=MASTER_ID,
+        database=tmp_path / "zonemaster.sqlite",
         switch_file=tmp_path / "switch",
         state_file=tmp_path / "state.json",
         channel_file=tmp_path / "channels.json",
@@ -1265,6 +1266,7 @@ NOTHING_TYPED: dict[str, Any] = {
     "channel_file": None,
     "switch_file": None,
     "state_file": None,
+    "database": None,
     "registry_url": None,
     "allow_console": [],
     "unreachable_timeout_s": None,
@@ -1286,6 +1288,9 @@ def with_cli_values(given: dict[str, Any], *, configured: dict[str, Any]) -> Ser
         channel_file=cast("str | None", given["channel_file"]),
         switch_file=cast("str | None", given["switch_file"]),
         state_file=cast("str | None", given["state_file"]),
+        # Not in the corpus: the archive had no database. Every case is given one where the
+        # archive's own files lived, so what each case recorded about THOSE files still holds.
+        database=cast("str | None", given["database"]),
         registry_url=cast("str | None", given["registry_url"]),
         allow_console=tuple(cast("list[str]", given["allow_console"])),
         unreachable_timeout_s=cast("float | None", given["unreachable_timeout_s"]),
@@ -1322,8 +1327,14 @@ def rooted_where_its_relative_paths_exist(given: dict[str, Any], work: Path, mon
 
 
 def replay_service_options(case: dict[str, Any], work: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """One ``parse_service_options`` case: what argv and the files between them said."""
-    given = here(cast("dict[str, Any]", case["input"]["given"]), work)
+    """One ``parse_service_options`` case: what argv and the files between them said.
+
+    The archive had no database, so the recorded ``given`` never carries one; a default is put in
+    BEFORE ``here()`` runs, so the ``<WORK>`` token in it is substituted the same way every other
+    recorded path is - a default added afterward would carry the literal token into the run.
+    """
+    raw_given = {"database": f"{WORK_IN_CORPUS}/zonemaster.sqlite", **cast("dict[str, Any]", case["input"]["given"])}
+    given = here(raw_given, work)
     configured = here(cast("dict[str, Any]", case["input"]["configured"]), work)
     expect = cast("dict[str, Any]", case["expect"])
     rooted_where_its_relative_paths_exist(given, work, monkeypatch)

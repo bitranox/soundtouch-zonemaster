@@ -120,6 +120,16 @@ def _is_required(field: dataclasses.Field[Any]) -> bool:
     return field.default is dataclasses.MISSING and field.default_factory is dataclasses.MISSING
 
 
+def _has_nothing_to_show(field: dataclasses.Field[Any]) -> bool:
+    """Whether a file can show this field's default at all: no default, or a default of ``None``.
+
+    ``None`` is not a TOML value, so a field that falls back to it - the three old files, now that
+    the database is what a deployment must set - is commented out exactly like a required one, even
+    though a run may still leave it unset.
+    """
+    return _is_required(field) or _default_of(field) is None
+
+
 def test_the_scope_map_covers_the_record_exactly_and_nothing_else() -> None:
     """The map is the only enumeration of the settings, so it is checked both ways. One way only
     lets it gain an entry for a field nobody added, or miss a field somebody did."""
@@ -165,16 +175,19 @@ def test_every_value_the_prototype_file_ships_is_that_records_own_default() -> N
 
 
 def test_the_files_leave_exactly_the_settings_with_no_default_commented_out() -> None:
-    """The five that describe one deployment are shown but not set, because a value here would be
-    a guess about somebody else's machine. Adding a sixth required field and forgetting the files
-    fails here rather than at a startup weeks later."""
-    required = {name for name, field in _fields(ServiceOptions) if _is_required(field)}
+    """Three settings describe one deployment and have no default at all - bind_ip, device_id and
+    database - because a value here would be a guess about somebody else's machine. Three more, the
+    old files, have a default of ``None``, which is not a TOML value either, so they are shown
+    commented the same way even though a run may leave them unset. Adding a field with nothing
+    printable to show and forgetting the files fails here rather than at a startup weeks later."""
+    fields = dict(_fields(ServiceOptions))
+    nothing_to_show = {name for name, field in fields.items() if _has_nothing_to_show(field)}
     text = "\n".join(path.read_text(encoding="utf-8") for path in _scope_files())
-    shown = {name for name in required if f"# {name.rpartition('.')[2]} = " in text}
+    shown = {name for name in nothing_to_show if f"# {name.rpartition('.')[2]} = " in text}
     settable = {SETTINGS[path] for path in _shipped() if path in SETTINGS}
 
-    assert settable == {name for name, _ in _fields(ServiceOptions)} - required
-    assert shown == required, "every setting without a default needs a commented example in a file"
+    assert settable == set(fields) - nothing_to_show
+    assert shown == nothing_to_show, "every setting with nothing printable needs a commented example in a file"
 
 
 def test_the_base_file_carries_no_settings_and_every_section_has_one_file() -> None:

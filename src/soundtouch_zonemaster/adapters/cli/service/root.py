@@ -1,9 +1,7 @@
 """The service's group: argv over six config layers, one validated record, and the house held.
 
     uv run soundtouch-zonemaster-service --bind-ip 192.168.0.190 \
-        --channel-file /var/lib/zonemaster/channels.json \
-        --switch-file /var/lib/zonemaster/zone.switch \
-        --state-file /var/lib/zonemaster/zone-state.json
+        --database /var/lib/zonemaster/zonemaster.sqlite
 
 Every setting may also live in a configuration file, and a value typed on the command line still
 wins over all of them, so the line above keeps meaning exactly what it meant before there were any
@@ -56,10 +54,11 @@ class ServiceReport(BaseModel):
 
     bind_ip: str
     device_id: str
-    channel_file: str
+    database: str
+    channel_file: str | None
     registry_url: str
-    switch_file: str
-    state_file: str
+    switch_file: str | None
+    state_file: str | None
     exit_code: int
 
 
@@ -107,6 +106,7 @@ def service_options(func: Callable[..., Any]) -> Callable[..., Any]:
         ),
         option("--mpd-port", default=None, type=int, help="the control port MPD answers on"),
         option("--mpd-host", default=None, help="where MPD answers, for channels whose sound it holds"),
+        option("--database", default=None, help="the house database: state, channel list and switch"),
         option("--state-file", default=None, help="what the zone is remembered in across a restart"),
         option("--switch-file", default=None, help="the file that says off; anything else means on"),
         option("--dial-window-s", default=None, type=float, help="how long digits are collected into one number"),
@@ -129,6 +129,7 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
     channel_file: str | None,
     switch_file: str | None,
     state_file: str | None,
+    database: str | None,
     registry_url: str | None,
     allow_console: tuple[str, ...],
     unreachable_timeout_s: float | None,
@@ -165,6 +166,7 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
             channel_file=channel_file,
             switch_file=switch_file,
             state_file=state_file,
+            database=database,
             registry_url=registry_url,
             allow_console=allow_console,
             unreachable_timeout_s=unreachable_timeout_s,
@@ -213,10 +215,11 @@ def _report(options: ServiceOptions, rc: int, *, mode: OutputMode) -> None:
     report = ServiceReport(
         bind_ip=options.bind_ip,
         device_id=options.device_id,
-        channel_file=str(options.channel_file),
+        database=str(options.database),
+        channel_file=str(options.channel_file) if options.channel_file is not None else None,
         registry_url=options.registry_url,
-        switch_file=str(options.switch_file),
-        state_file=str(options.state_file),
+        switch_file=str(options.switch_file) if options.switch_file is not None else None,
+        state_file=str(options.state_file) if options.state_file is not None else None,
         exit_code=rc,
     )
     write_envelope(Envelope[ServiceReport](ok=rc == ExitCode.OK, command=service_command, data=report), mode=mode)

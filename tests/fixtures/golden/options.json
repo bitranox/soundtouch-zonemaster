@@ -70,12 +70,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: everything typed",
@@ -125,12 +126,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: everything configured, typed as a file delivers it",
@@ -197,12 +199,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: everything configured as strings",
@@ -263,12 +266,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: typed beats configured",
@@ -321,12 +325,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: an unused repeatable option leaves the configured consoles",
@@ -383,12 +388,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: a typed console replaces the configured ones",
@@ -447,12 +453,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: no device id anywhere falls back to this host",
@@ -498,12 +505,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: nothing given anywhere",
@@ -525,26 +533,27 @@
       "expect": {
         "raises": {
           "type": "OptionsError",
-          "message": "refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.",
+          "message": "refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.",
           "exit_code": 2,
           "cause": "ValidationError"
         },
         "logs": [],
         "envelopes": {
           "json_bare": {
-            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"}\n",
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster-service\",\"error\":\"OptionsError\",\"message\":\"refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"}\n",
             "stderr": ""
           },
           "json": {
-            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"\n}\n",
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster-service\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\"\n}\n",
             "stderr": ""
           },
           "human": {
             "stdout": "",
-            "stderr": "refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\n"
+            "stderr": "refused: no value anywhere for bind_ip. Give it on the command line (--bind-ip), or in a config file as zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.\n"
           }
         }
-      }
+      },
+      "divergence": "DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: only the address missing",
@@ -831,12 +840,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: the window exactly at the ceiling",
@@ -882,12 +892,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: a window that is not a number",
@@ -1346,12 +1357,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: relative file paths",
@@ -1397,12 +1409,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "service: a boolean where a number goes",
@@ -1455,12 +1468,13 @@
             },
             "mpd_host": "127.0.0.1",
             "mpd_port": 6600,
-            "mpd_rewind_s": 20.0
+            "mpd_rewind_s": 20.0,
+            "database": "<WORK>/options/zonemaster.sqlite"
           }
         },
         "logs": []
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 added ServiceOptions.mpd_host and ServiceOptions.mpd_port, which say where the Music Player Daemon answers its control protocol for a channel whose sound is a stored playlist it holds. Both carry a default, so no recorded INPUT changed and no recorded REFUSAL moved: every case the archive refused is refused here with the same message and the same exit code, and the two new fields are checked last for that reason. What moved is the shape of the value a successful parse produces, which carries these two more fields. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "prototype: a plain run",
@@ -2180,39 +2194,16 @@
         ],
         "overridden": [],
         "parse": {
-          "value": {
-            "type": "ServiceOptions",
-            "fields": {
-              "bind_ip": "10.0.0.1",
-              "device_id": "AABBCC001122",
-              "switch_file": "<WORK>/options/sw",
-              "state_file": "<WORK>/options/st.json",
-              "channel_file": "<WORK>/options/ch.json",
-              "registry_url": "http://127.0.0.1:8000",
-              "consoles_allowed": [
-                "AABBCC000012"
-              ],
-              "dial_window_s": 1.1,
-              "hold_threshold_s": 1.0,
-              "registry_poll_s": 30.0,
-              "switch_poll_s": 1.0,
-              "unreachable_timeout_s": 900.0,
-              "channel_policy": {
-                "port": 8081,
-                "backoff_s": [
-                  1.0,
-                  2.5
-                ]
-              },
-              "mpd_host": "127.0.0.1",
-              "mpd_port": 6600,
-              "mpd_rewind_s": 20.0
-            }
+          "raises": {
+            "type": "OptionsError",
+            "exit_code": 2,
+            "cause": "ValidationError",
+            "message": "refused: no value anywhere for database. Give it on the command line (--database), or in a config file as files.database - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__DATABASE."
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "layers: every setting from the environment",
@@ -2264,39 +2255,16 @@
         "unknown": [],
         "overridden": [],
         "parse": {
-          "value": {
-            "type": "ServiceOptions",
-            "fields": {
-              "bind_ip": "10.0.0.2",
-              "device_id": "AABBCC001122",
-              "switch_file": "<WORK>/options/sw",
-              "state_file": "<WORK>/options/st.json",
-              "channel_file": "<WORK>/options/ch.json",
-              "registry_url": "http://env",
-              "consoles_allowed": [
-                "AABBCC000012"
-              ],
-              "dial_window_s": 0.6,
-              "hold_threshold_s": 1.0,
-              "registry_poll_s": 12.0,
-              "switch_poll_s": 0.25,
-              "unreachable_timeout_s": 60.0,
-              "channel_policy": {
-                "port": 8081,
-                "backoff_s": [
-                  1.0,
-                  2.5
-                ]
-              },
-              "mpd_host": "127.0.0.1",
-              "mpd_port": 6600,
-              "mpd_rewind_s": 20.0
-            }
+          "raises": {
+            "type": "OptionsError",
+            "exit_code": 2,
+            "cause": "ValidationError",
+            "message": "refused: no value anywhere for database. Give it on the command line (--database), or in a config file as files.database - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__DATABASE."
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "layers: the environment beats the user file",
@@ -2337,39 +2305,16 @@
         "unknown": [],
         "overridden": [],
         "parse": {
-          "value": {
-            "type": "ServiceOptions",
-            "fields": {
-              "bind_ip": "10.0.0.2",
-              "device_id": "AABBCC001122",
-              "switch_file": "<WORK>/options/sw",
-              "state_file": "<WORK>/options/st.json",
-              "channel_file": "<WORK>/options/ch.json",
-              "registry_url": "http://127.0.0.1:8000",
-              "consoles_allowed": [],
-              "dial_window_s": 0.8,
-              "hold_threshold_s": 1.0,
-              "registry_poll_s": 30.0,
-              "switch_poll_s": 1.0,
-              "unreachable_timeout_s": 900.0,
-              "channel_policy": {
-                "port": 8080,
-                "backoff_s": [
-                  1.0,
-                  2.0,
-                  5.0,
-                  10.0
-                ]
-              },
-              "mpd_host": "127.0.0.1",
-              "mpd_port": 6600,
-              "mpd_rewind_s": 20.0
-            }
+          "raises": {
+            "type": "OptionsError",
+            "exit_code": 2,
+            "cause": "ValidationError",
+            "message": "refused: no value anywhere for database. Give it on the command line (--database), or in a config file as files.database - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__DATABASE."
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "layers: an environment window that is not a number",
@@ -2412,14 +2357,14 @@
         "parse": {
           "raises": {
             "type": "OptionsError",
-            "message": "refused: dial_window_s: Input should be a valid number, unable to parse string as a number",
+            "message": "refused: no value anywhere for database. Give it on the command line (--database), or in a config file as files.database - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__DATABASE.",
             "exit_code": 2,
             "cause": "ValidationError"
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "layers: --set on top of a file",
@@ -2468,41 +2413,16 @@
           "zone.bind_ip"
         ],
         "parse": {
-          "value": {
-            "type": "ServiceOptions",
-            "fields": {
-              "bind_ip": "10.5.5.5",
-              "device_id": "AABBCC001122",
-              "switch_file": "<WORK>/options/sw",
-              "state_file": "<WORK>/options/st.json",
-              "channel_file": "<WORK>/options/ch.json",
-              "registry_url": "http://127.0.0.1:8000",
-              "consoles_allowed": [
-                "AABBCC000099"
-              ],
-              "dial_window_s": 1.6,
-              "hold_threshold_s": 1.0,
-              "registry_poll_s": 30.0,
-              "switch_poll_s": 1.0,
-              "unreachable_timeout_s": 900.0,
-              "channel_policy": {
-                "port": 8080,
-                "backoff_s": [
-                  1.0,
-                  2.0,
-                  5.0,
-                  10.0
-                ]
-              },
-              "mpd_host": "127.0.0.1",
-              "mpd_port": 6600,
-              "mpd_rewind_s": 20.0
-            }
+          "raises": {
+            "type": "OptionsError",
+            "exit_code": 2,
+            "cause": "ValidationError",
+            "message": "refused: no value anywhere for database. Give it on the command line (--database), or in a config file as files.database - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__DATABASE."
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "layers: a --set without an equals sign",
@@ -2659,14 +2579,14 @@
         "parse": {
           "raises": {
             "type": "OptionsError",
-            "message": "refused: no value anywhere for channel_file, state_file, switch_file. Give it on the command line (--channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__CHANNEL_FILE.",
+            "message": "refused: no value anywhere for database. Give it on the command line (--database), or in a config file as files.database - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__DATABASE.",
             "exit_code": 2,
             "cause": "ValidationError"
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "layers: a --set with a JSON string value",
@@ -2706,14 +2626,14 @@
         "parse": {
           "raises": {
             "type": "OptionsError",
-            "message": "refused: no value anywhere for channel_file, state_file, switch_file. Give it on the command line (--channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__CHANNEL_FILE.",
+            "message": "refused: no value anywhere for database. Give it on the command line (--database), or in a config file as files.database - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___FILES__DATABASE.",
             "exit_code": 2,
             "cause": "ValidationError"
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. A further field joined the same way on 2026-09-24, decided by the user (OPEN-WORK rank 188): hold_threshold_s, how long a key must stay down to be held rather than tapped, which a calibration now measures beside the dialling window instead of sharing its value. It carries a default, so no recorded INPUT changed and no recorded refusal moved; what moved is the shape of what is produced, which carries this one field more, placed after dial_window_s. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     },
     {
       "name": "layers: a user file that will not parse",
@@ -2802,14 +2722,14 @@
         "parse": {
           "raises": {
             "type": "OptionsError",
-            "message": "refused: no value anywhere for bind_ip, channel_file, state_file, switch_file. Give it on the command line (--bind-ip --channel-file --state-file --switch-file), or in a config file as files.channel_file, files.state_file, files.switch_file, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.",
+            "message": "refused: no value anywhere for bind_ip, database. Give it on the command line (--bind-ip --database), or in a config file as files.database, zone.bind_ip - run `soundtouch-zonemaster-service config-deploy --target user` to write one - or set SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP.",
             "exit_code": 2,
             "cause": "ValidationError"
           },
           "logs": []
         }
       },
-      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse."
+      "divergence": "DELIBERATE DIVERGENCE from the pre-rebuild code, decided by the user 2026-09-20. M3a Task 3 shipped a new configuration scope, defaultconfig.d/90-mpd.toml, carrying [mpd] host and port. The shipped defaults are a LAYER, so what the layers say now includes those two settings in every case, whatever the case's own file, environment or --set said. Nothing else moved: the values this case supplies are read exactly as the archive read them, and the refusals are unchanged. A second setting joined them the same day and the same way, mpd_rewind_s: how far back an MPD channel starts when the house comes back to it, added after the flat heard a channel resume the wrong file. It carries a default too, so the same holds - no recorded input changed and no recorded refusal moved; what moved is again the shape of a successful parse. DELIBERATE DIVERGENCE (OPEN-WORK rank 19, 2026-09-25): the house database replaced the three files as the service's store. ServiceOptions gained a required 'database'; the replay gives every case one beside the archive's files. The three files became optional import sources, so a run that names none of them is no longer refused for that."
     }
   ]
 }

@@ -240,6 +240,7 @@ def _options(
     return ServiceOptions(
         bind_ip=MASTER,
         device_id=MASTER_ID,
+        database=tmp_path / "zonemaster.sqlite",
         registry_url=world.registry.base_url,
         switch_file=tmp_path / "zone.switch",
         state_file=tmp_path / "zone-state.json",
