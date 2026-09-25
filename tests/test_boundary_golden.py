@@ -1230,7 +1230,7 @@ def here(value: Any, work: Path, *, token: str = WORK_IN_CORPUS) -> Any:
 def without_host_mac(recorded: dict[str, Any]) -> dict[str, Any]:
     """The recorded fields with ``<HOST_MAC>`` replaced by what this host answers.
 
-    One case gives no device id anywhere and falls back to this machine's MAC, which is a
+    Cases providing no device id anywhere fall back to this machine's MAC, which is a
     different number on the machine replaying it.
     """
     if recorded.get("device_id") != "<HOST_MAC>":

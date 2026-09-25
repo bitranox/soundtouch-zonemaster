@@ -39,12 +39,12 @@ DEPLOYED_ARGV = (
     "--state-file",
     "/var/lib/zonemaster/zone-state.json",
 )
-"""The options the deployed unit passes, read off ``systemctl cat soundtouch-multiroom.service``
-on 2026-09-11. The unit's own ``ExecStart`` is untouched by this task (that is Task 6's move); the
-database it needs now comes from the host layer instead, ``files.database`` in the deployment
-host's own layer file, which is what a test using this argv must add through ``_user_config`` or
-an equivalent isolated layer. Only the paths are rewritten below, because ``/var/lib/zonemaster``
-does not exist on a development host and each file's directory is checked at startup."""
+"""The options the deployed unit passes. The unit's ``ExecStart`` still names the three file paths,
+which are now one-time import sources. The database it needs comes from the host layer,
+``files.database`` in the deployment host's own configuration file, which is what a test using this
+argv must add through ``_user_config`` or an equivalent isolated layer. Only the paths are rewritten
+below, because ``/var/lib/zonemaster`` does not exist on a development host and each file's directory
+is checked at startup."""
 
 
 def _capture() -> tuple[list[ServiceOptions], RunService]:
@@ -592,8 +592,8 @@ def test_an_mpd_port_no_caller_could_dial_is_refused_by_name(
     to a caller, so it would be carried around as a setting that can never be dialled and reported
     as a daemon that is down. Refused at startup instead, naming which port it means - there is
     more than one in these options."""
-    # The unit's own argv names no database (Task 6's move); the deployment host's own layer file
-    # is what supplies one there, so this run gets the same through the isolated user layer.
+    # The unit's argv names no database; the deployment host's layer file supplies one, so we add
+    # it here through the isolated user layer.
     _user_config(isolated_config_layers, f'[files]\ndatabase = "{tmp_path}/zonemaster.sqlite"\n')
     argv = [part.replace("/var/lib/zonemaster", str(tmp_path)) for part in DEPLOYED_ARGV]
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv, "--mpd-port", "0"])
