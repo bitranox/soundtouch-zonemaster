@@ -1,12 +1,17 @@
 # soundtouch-zonemaster
 
 <!-- Badges -->
+[![CI](https://github.com/bitranox/soundtouch-zonemaster/actions/workflows/default_cicd_public.yml/badge.svg)](https://github.com/bitranox/soundtouch-zonemaster/actions/workflows/default_cicd_public.yml)
+[![CodeQL](https://github.com/bitranox/soundtouch-zonemaster/actions/workflows/codeql.yml/badge.svg)](https://github.com/bitranox/soundtouch-zonemaster/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Open in Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github&logoColor=white&style=flat-square)](https://codespaces.new/bitranox/soundtouch-zonemaster?quickstart=1)
+[![PyPI](https://img.shields.io/pypi/v/soundtouch-zonemaster.svg)](https://pypi.org/project/soundtouch-zonemaster/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/soundtouch-zonemaster.svg)](https://pypi.org/project/soundtouch-zonemaster/)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-46A3FF?logo=ruff&labelColor=000)](https://docs.astral.sh/ruff/)
 [![Types: pyright strict](https://img.shields.io/badge/types-pyright%20strict-2A6DB2.svg)](https://microsoft.github.io/pyright/)
+[![codecov](https://codecov.io/gh/bitranox/soundtouch-zonemaster/graph/badge.svg)](https://codecov.io/gh/bitranox/soundtouch-zonemaster)
 [![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
-[![Open in Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github&logoColor=white&style=flat-square)](https://codespaces.new/bitranox/soundtouch-zonemaster?quickstart=1)
 
 **A software zone master for Bose SoundTouch speakers, and the measured protocol description behind it**
 
@@ -68,7 +73,7 @@ configuration files.
 
 ## Installation
 
-The master needs Python 3.12 or newer. It is not on PyPI; run it from a clone.
+The master needs Python 3.12 or newer and runs on Linux.
 
 ### Recommended: uv
 
@@ -76,19 +81,29 @@ The master needs Python 3.12 or newer. It is not on PyPI; run it from a clone.
 # Install uv
 pip install --upgrade uv
 
-git clone https://github.com/bitranox/soundtouch-zonemaster.git
-cd soundtouch-zonemaster
+# the two commands, soundtouch-zonemaster and soundtouch-zonemaster-service, on the PATH
+uv tool install soundtouch-zonemaster
 
-uv venv
-uv pip install -e ".[dev]"
+# or run one without installing it
+uvx --from soundtouch-zonemaster soundtouch-zonemaster-service --help
 ```
 
-### Alternative: pip
+### Alternative: pipx or pip
 
 ```bash
-python -m pip install --upgrade pip
-python -m venv .venv && . .venv/bin/activate     # Windows: .venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
+pipx install soundtouch-zonemaster
+# or, inside a virtual environment:
+python -m pip install soundtouch-zonemaster
+```
+
+### From a clone (development)
+
+```bash
+git clone https://github.com/bitranox/soundtouch-zonemaster.git
+cd soundtouch-zonemaster
+uv venv
+uv pip install -e ".[dev]"
+make test
 ```
 
 Nothing has to be installed on the speakers, and no firmware is modified. The master needs to be on
