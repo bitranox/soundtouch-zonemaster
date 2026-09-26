@@ -31,7 +31,7 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse
 - `src/soundtouch_zonemaster/application/errors.py`  -  PortsBusyError, RegistryError
 - `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy; every default lives on a field
-- `src/soundtouch_zonemaster/application/ports.py`  -  Nineteen Protocols for adapter functions, bundled as ZoneServicePorts and PrototypePorts
+- `src/soundtouch_zonemaster/application/ports.py`  -  Protocols for adapter functions plus HouseStore (the state, the channel list and the switch in one file) and OpenHouseStore (its opener), bundled as ZoneServicePorts, PrototypePorts and ServiceCommands
 - `src/soundtouch_zonemaster/application/prototype.py`  -  The prototype's run: options in, the run loop it drives
 - `src/soundtouch_zonemaster/application/zone_service/`  -  The service loop as a chain of eight classes, one file each:
   - `constants.py`  -  The constants more than one class in the chain reads
@@ -45,11 +45,17 @@ Complete (v0.2.0+, the template rebuild)
   - `service.py`  -  ZoneService (the pass itself: poll, observe, reconcile, guard the switch)
 
 ### Adapters Layer
-- `src/soundtouch_zonemaster/adapters/files/`  -  The file boundaries, pydantic models parse every hand-edited document:
+- `src/soundtouch_zonemaster/adapters/files/`  -  The file and database boundaries the service reaches its state through:
   - `atomicfile.py`  -  The one temp-file-plus-fsync-and-rename writer state and channel files share
-  - `state_file.py`  -  The state file (read/write ZoneState)
-  - `channel_file.py`  -  The channel file, refuses to start empty rather than overwrite the list
-  - `switch_file.py`  -  The switch file, watched rather than read once
+  - `state_file.py`  -  The state file, from before the database (read/write ZoneState)
+  - `channel_file.py`  -  The channel file, from before the database, refuses to start empty rather than overwrite the list
+  - `switch_file.py`  -  The switch file, from before the database, watched rather than read once
+  - `house_db.py`  -  The house database: STRICT SQLite schema, pragmas, the one-writer flock beside the file
+  - `house_state.py`  -  The state, as rows: one table per collection field of ZoneState, replaced whole on every write
+  - `house_switch.py`  -  The switch, as one row; off only when the row says so; DbSwitch is the service's watch
+  - `house_channels.py`  -  The channel list, as rows, checked by the same rules the channel file is
+  - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
+  - `house_store.py`  -  SqliteHouseStore: the state, the channel list and the switch, in one file
 - `src/soundtouch_zonemaster/adapters/aftertouch/registry.py`  -  Who the speakers are, read from AfterTouch's own device list
 - `src/soundtouch_zonemaster/adapters/soundtouch/`  -  The zone protocol as a master speaks it:
   - `zone_master.py`  -  ZoneMaster: the zone itself - lifecycle, station, slaves, transport book
@@ -85,6 +91,7 @@ Complete (v0.2.0+, the template rebuild)
   - `service/root.py`  -  The group entry; invoke_without_command so an argv of options alone holds the zone
   - `service/config_cmd.py`  -  `config`: every value, and the file it came from
   - `service/deploy_cmd.py`  -  `config-deploy`: writes the files and prints which
+  - `service/store_cmd.py`  -  `switch` and `channels export|import`: the house database from the command line
 
 ### Composition Layer
 - `src/soundtouch_zonemaster/composition/__init__.py`  -  build_production() wires one adapter per port; hold_the_zone and run_prototype
@@ -97,10 +104,10 @@ Complete (v0.2.0+, the template rebuild)
 
 ### Configuration Defaults
 - `adapters/config/defaultconfig.d/10-zone.toml`  -  Zone behaviour (take-in waits, member book-keeping)
-- `adapters/config/defaultconfig.d/20-files.toml`  -  The three file paths (state, channel, switch)
+- `adapters/config/defaultconfig.d/20-files.toml`  -  The house database (`files.database`) and the three file paths (state, channel, switch) it imports once
 - `adapters/config/defaultconfig.d/30-registry.toml`  -  AfterTouch registry URL
 - `adapters/config/defaultconfig.d/40-membership.toml`  -  Membership windows (wakes, stand-down)
-- `adapters/config/defaultconfig.d/50-dialling.toml`  -  Dialling (digit timeout; the seventh state-file level is documented here)
+- `adapters/config/defaultconfig.d/50-dialling.toml`  -  Dialling (digit timeout; the seventh database level is documented here)
 - `adapters/config/defaultconfig.d/60-switch.toml`  -  Switch poll interval
 - `adapters/config/defaultconfig.d/70-observer.toml`  -  Observer reconnect backoff
 - `adapters/config/defaultconfig.d/80-prototype.toml`  -  `[prototype] never_touch`, shipped empty (a house names its own boxes in its host layer)
@@ -123,18 +130,18 @@ Complete (v0.2.0+, the template rebuild)
 
 ### Layer Assignments
 
-| Directory/Module            | Layer       | Responsibility                                         |
-|-----------------------------|-------------|--------------------------------------------------------|
-| `domain/`                   | Domain      | Pure rules as frozen dataclasses; no I/O, no framework |
-| `application/`              | Application | Ports, option records, both run loops                  |
-| `application/zone_service/` | Application | The service loop's class chain                         |
-| `adapters/files/`           | Adapters    | State, channel, switch file boundaries                 |
-| `adapters/aftertouch/`      | Adapters    | Speaker registry                                       |
-| `adapters/soundtouch/`      | Adapters    | The zone protocol over the wire, incl. generated pb    |
-| `adapters/config/`          | Adapters    | Six-layer configuration                                |
-| `adapters/logging/`         | Adapters    | The narration adapter                                  |
-| `adapters/cli/`             | Adapters    | rich-click commands, envelopes, safe console           |
-| `composition/`              | Composition | build_production(): one adapter per port               |
+| Directory/Module            | Layer       | Responsibility                                                            |
+|-----------------------------|-------------|---------------------------------------------------------------------------|
+| `domain/`                   | Domain      | Pure rules as frozen dataclasses; no I/O, no framework                    |
+| `application/`              | Application | Ports, option records, both run loops                                     |
+| `application/zone_service/` | Application | The service loop's class chain                                            |
+| `adapters/files/`           | Adapters    | The house database, plus the three legacy file boundaries it imports once |
+| `adapters/aftertouch/`      | Adapters    | Speaker registry                                                          |
+| `adapters/soundtouch/`      | Adapters    | The zone protocol over the wire, incl. generated pb                       |
+| `adapters/config/`          | Adapters    | Six-layer configuration                                                   |
+| `adapters/logging/`         | Adapters    | The narration adapter                                                     |
+| `adapters/cli/`             | Adapters    | rich-click commands, envelopes, safe console                              |
+| `composition/`              | Composition | build_production(): one adapter per port                                  |
 
 ### Import Enforcement
 
@@ -214,26 +221,38 @@ ships empty; a house names its own boxes in its host layer
 
 `invoke_without_command=True`: an argv naming only options holds the zone until SIGINT.
 
-| Option                                  | Description                                                      |
-|-----------------------------------------|------------------------------------------------------------------|
-| `--bind-ip IP`                          | Address on the speakers' LAN                                     |
-| `--channel-file PATH`                   | The house's channel list                                         |
-| `--switch-file PATH`                    | The watched switch                                               |
-| `--state-file PATH`                     | What survives a restart                                          |
-| `--station-url ...` / `--seed-from ...` | REMOVED; seeding comes from presets of the first box switched on |
-| `--profile NAME`                        | Configuration profile                                            |
-| `--set SECTION.KEY=VAL`                 | Override one setting for this run (repeatable)                   |
+| Option                                  | Description                                                                                                                |
+|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `--bind-ip IP`                          | Address on the speakers' LAN                                                                                               |
+| `--database PATH`                       | The house database: state, channel list and switch, one file                                                               |
+| `--channel-file PATH`                   | The channel list as a file, from before the database: imported once into an empty database, then renamed `<name>.imported` |
+| `--switch-file PATH`                    | The switch as a file, from before the database: imported once, then not read                                               |
+| `--state-file PATH`                     | The state as a file, from before the database: imported once, then set aside                                               |
+| `--station-url ...` / `--seed-from ...` | REMOVED; seeding comes from presets of the first box switched on                                                           |
+| `--profile NAME`                        | Configuration profile                                                                                                      |
+| `--set SECTION.KEY=VAL`                 | Override one setting for this run (repeatable)                                                                             |
 
 **Every setting may live in a configuration file**, read through `lib_layered_config` in the
 precedence `defaults -> app -> host -> user -> dotenv -> env`, with the command line above all
-six. A setting given in NO layer is refused by name with exit 2.
+six. A setting given in NO layer is refused by name with exit 2. A database that cannot be opened
+refuses the start; an old file that exists but cannot be parsed refuses the start too, naming the
+file, at the one-time import.
 
 **config**: every value, and the file it came from (`--section`, `--json`, `--redact`).
-Note: a calibrated `dial_window_s` is written to the state file and beats every config layer;
-`config` does not report that, the run's `--json` envelope does.
+Note: a calibrated `dial_window_s` is written to the database's `zone` row and beats every config
+layer; `config` does not report that, the run's `--json` envelope does.
 
 **config-deploy**: `--target [app|host|user]`, `--force`; writes `defaultconfig.toml` plus the
 `defaultconfig.d/` files where the layers read them, and prints which.
+
+**switch** `[on|off]`: read or set the switch. Opens the database without the writer lock, so it
+works while the service runs.
+
+**channels export** `--output FILE`: write the channel list as the JSON document a person reads
+and repairs. Opens without the writer lock.
+
+**channels import** `FILE`: replace the channel list with a file's. Opens WITH the writer lock, so
+it is refused (exit 1) while the service holds it.
 
 ---
 
@@ -258,4 +277,4 @@ Never run two suites at once: the tests bind fixed ports 40002/40003/40005/8090.
 
 ---
 
-**Last Updated:** 2026-09-12 (the template rebuild)
+**Last Updated:** 2026-09-26 (the house database)

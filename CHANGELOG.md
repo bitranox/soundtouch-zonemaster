@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- New commands: `soundtouch-zonemaster-service switch [on|off]`, `channels export --output FILE`,
+  `channels import FILE` (refused while the service runs).
+
+### Changed
+
+- The service keeps its state, the house's channel list and the switch in one SQLite database
+  (`files.database`, `--database`). On the first start after the upgrade it imports
+  `zone-state.json`, `channels.json` and `zone.switch` once each and renames them to `*.imported`.
+- A database that cannot be read now refuses the start. The state file used to start empty instead.
+- An old `zone-state.json` or `channels.json` that exists but cannot be parsed also refuses the
+  start, naming the file; nothing is imported and nothing is renamed.
+
 ## [0.4.8] 2026-09-25 19:53:39
 
 ### Changed
