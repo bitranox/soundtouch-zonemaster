@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
 
@@ -37,6 +36,7 @@ from ...application.options import (
     default_device_id,
 )
 from ...application.outcome import ExitCode, OptionsError, device_id_or_refuse, tcp_port_or_refuse
+from ...domain.database_url import carries_a_password
 from ...domain.dialling import WINDOW_CEILING_S, WINDOW_DEFAULT_S, WINDOW_FLOOR_S
 from ...domain.longpress import HOLD_THRESHOLD_CEILING_S, HOLD_THRESHOLD_DEFAULT_S, HOLD_THRESHOLD_FLOOR_S
 from ...domain.membership import UNREACHABLE_TIMEOUT_S
@@ -57,14 +57,6 @@ __all__ = [
     "merge_service_settings",
     "parse_service_options",
 ]
-
-_PASSWORD_QUERY_KEYS = frozenset({"password", "sslpassword"})
-"""Query keys a driver passes straight through as a connect argument, case-insensitively.
-
-Kept in step with ``adapters/files/house_db.PASSWORD_QUERY_KEYS`` by hand: this layer may not
-import ``adapters/files`` (import-linter), so the set is duplicated rather than shared, and
-``tests/test_database_password_parity.py`` is what catches the two drifting apart.
-"""
 
 
 class ChannelPolicyInput(BaseModel):
@@ -142,25 +134,12 @@ class ServiceOptionsInput(BaseModel):
         """A URL is echoed by envelopes, `config` and logs; libpq reads the password from ~/.pgpass
         instead. The store refuses it too, for the verbs that reach it without this record.
 
-        A password can arrive in the URL's own userinfo, or as one of ``_PASSWORD_QUERY_KEYS``
-        (``password``, ``sslpassword``) some drivers pass straight through as a connect argument;
-        all are refused here, the same shapes ``adapters/files/house_db.py`` refuses at the store.
-        Read with the stdlib rather than SQLAlchemy's own parser, so this boundary - which runs
-        ahead of the store and ahead of knowing the backend is even one this program supports -
-        never needs that dependency: this layer's job is only to catch a password before it is
-        echoed anywhere, not to validate the URL, and ``urlsplit`` finds the userinfo even on a URL
-        SQLAlchemy's parser would refuse outright (a bad port, for one). A setting that fails to
-        parse is left to the store's own refusal rather than echoed here, since a malformed URL can
-        itself be the thing carrying the password.
+        The rule - which shapes carry a password, and how to tell - lives in
+        ``domain/database_url.py`` rather than here, so this layer (which may not import
+        ``adapters/files`` and so cannot share SQLAlchemy's own parser) and the store agree on it
+        without keeping two copies of the key set.
         """
-        if "://" not in value:
-            return value
-        try:
-            parsed = urlsplit(value)
-        except ValueError:
-            return value
-        has_password_key = any(key.lower() in _PASSWORD_QUERY_KEYS for key, _ in parse_qsl(parsed.query))
-        if parsed.password is not None or has_password_key:
+        if carries_a_password(value):
             message = "refused: the database URL carries a password; keep it in ~/.pgpass (or PGPASSFILE) instead"
             raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return value

@@ -295,6 +295,44 @@ def test_redact_masks_every_value_that_came_out_of_a_private_override_file(
     assert masked["dialling.window_s"] != REDACTED_PLACEHOLDER, "a tracked public default stays readable"
 
 
+def test_config_masks_a_database_url_password_without_redact(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A database URL's password is a secret regardless of which layer set it or whether
+    ``--redact`` was asked for - unlike ``--redact``'s own masking, which only reaches a ``.env``
+    or a private override file. Set through the ENVIRONMENT layer, which ``--redact`` does not
+    touch at all, so a pass here that came from ``--redact`` catching it a different way is ruled
+    out."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", "postgresql+psycopg://zm@db.example/zm?sslpassword=TOPSECRET")
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json-bare", "config", "--section", "database"])
+
+    assert main() == 0
+    envelope = json.loads(capsys.readouterr().out)
+    value = envelope["data"]["config"]["database.url"]
+    assert "TOPSECRET" not in value
+    assert "db.example" in value, "only the password parts are masked, not the whole URL"
+
+
+def test_config_masks_a_database_url_password_with_redact_too(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The other shape the finding measured: a userinfo password AND a ``?password=`` query value,
+    with ``--redact`` also given. Both must still be gone - ``--redact``'s own by-origin masking
+    does not cover the environment layer either, so this pins the URL rule holds even then."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", "postgresql+psycopg://zm:pw1@db.example/zm?password=s3cret")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["soundtouch-zonemaster-service", "--json-bare", "config", "--section", "database", "--redact"],
+    )
+
+    assert main() == 0
+    captured = capsys.readouterr()
+    assert "pw1" not in captured.out
+    assert "pw1" not in captured.err
+    assert "s3cret" not in captured.out
+    assert "s3cret" not in captured.err
+
+
 def test_config_refuses_a_section_that_is_not_there_rather_than_printing_nothing(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

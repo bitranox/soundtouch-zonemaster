@@ -9,13 +9,23 @@ from __future__ import annotations
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Any
 
+from ...domain.database_url import masked as masked_database_url
 from .errors import ConfigInputError
 from .loader import is_private_file
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterator, Mapping, Sequence
 
-__all__ = ["flatten", "mask_values_from_layer", "mask_values_from_private_files", "where"]
+__all__ = [
+    "flatten",
+    "mask_database_url",
+    "mask_values_from_layer",
+    "mask_values_from_private_files",
+    "where",
+]
+
+DATABASE_URL_KEY = "database.url"
+"""The one dotted key ``config`` reports whose value can itself be a URL carrying a password."""
 
 
 def where(origin: Mapping[str, Any] | None) -> str:
@@ -25,6 +35,24 @@ def where(origin: Mapping[str, Any] | None) -> str:
     path = origin.get("path")
     layer = origin.get("layer", "unknown")
     return f"{layer}: {path}" if path else str(layer)
+
+
+def mask_database_url(values: Sequence[tuple[str, Any]]) -> list[tuple[str, Any]]:
+    """The same pairs, with :data:`DATABASE_URL_KEY`'s value masked wherever it carries a password.
+
+    Unconditional, unlike :func:`mask_values_from_layer` and :func:`mask_values_from_private_files`:
+    a database URL can carry a password from ANY layer - a config file, an environment variable, a
+    dotenv, or ``--set`` on the command line - not only from a private file or a ``.env``, which
+    are the two things ``--redact`` exists to catch. So this masks the URL's password parts before
+    ``--redact`` is even asked about, in every output mode the ``config`` view has.
+    """
+
+    def mask(key: str, value: Any) -> Any:
+        if key == DATABASE_URL_KEY and isinstance(value, str):
+            return masked_database_url(value)
+        return value
+
+    return [(key, mask(key, value)) for key, value in values]
 
 
 def mask_values_from_layer(

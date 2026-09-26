@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from ....__init__conf__ import service_command
 from ....application.outcome import ExitCode
-from ...config.display import flatten, mask_values_from_layer, mask_values_from_private_files, where
+from ...config.display import flatten, mask_database_url, mask_values_from_layer, mask_values_from_private_files, where
 from ...config.errors import ConfigInputError
 from ...config.settings_map import CONFIGURABLE_NAMES
 from ..context import config_for, shared_of
@@ -58,6 +58,9 @@ def cli_config(ctx: click.Context, *, only: str | None, redact: bool) -> None:
         report_failure(exc, command=f"{service_command} config", mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
     provenance = {key: _SET_BY_HAND if key in merged.overridden else merged.config.origin(key) for key, _ in values}
+    # Unconditional and ahead of --redact: a database URL's password can come from any layer, not
+    # only from a .env or a private file, so it is masked in every output mode this command has.
+    values = mask_database_url(values)
     if redact:
         # The library masks by key NAME, which leaves a harmless-looking one like `e2e_host` in
         # clear. A `.env` holds what is true of ONE machine, so with --redact none of it is shown.

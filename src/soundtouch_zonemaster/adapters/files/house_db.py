@@ -46,6 +46,7 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError, DBAPIError, NoSuchModuleError, SQLAlchemyError
 
 from ...application.errors import StoreBusyError, StoreError
+from ...domain.database_url import PASSWORD_QUERY_KEYS, carries_a_password
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -78,23 +79,15 @@ _ADVISORY_KEY = 1515147845
 _POSTGRES_TIMEOUT_S = 5
 _WRITE = "house_write"
 """The execution option that marks a WRITE transaction, read by the SQLite ``begin`` listener."""
-PASSWORD_QUERY_KEYS = frozenset({"password", "sslpassword"})
-"""Query keys a driver passes straight through as a connect argument, case-insensitively.
-
-``adapters/cli/boundary.py`` keeps its own copy of this same set: that layer may not import
-``adapters/files`` (import-linter), so the rule is duplicated rather than shared, and
-``tests/test_database_password_parity.py`` is what keeps the two from drifting apart.
-"""
 
 
 def database_url(setting: str) -> URL:
     """The database a setting names: a URL, or a plain path meaning a SQLite file. Raises :class:`StoreError`.
 
     A password is refused rather than accepted, because a URL is written into config files,
-    ``--json`` envelopes and logs; libpq reads it from ``~/.pgpass`` where none of those reach. A
-    password can arrive several ways - in the URL's own userinfo, or as one of
-    :data:`PASSWORD_QUERY_KEYS` (``password``, ``sslpassword``) some drivers (psycopg among them)
-    pass straight through as a connect argument - and all are refused; ``passfile`` names a file
+    ``--json`` envelopes and logs; libpq reads it from ``~/.pgpass`` where none of those reach.
+    Which shapes carry one is :func:`~soundtouch_zonemaster.domain.database_url.carries_a_password`'s
+    rule (the URL's own userinfo, or one of :data:`PASSWORD_QUERY_KEYS`); ``passfile`` names a file
     rather than a secret and is accepted. A setting that fails to parse is never echoed back: it
     can be the very thing carrying the password that made it malformed.
     """
@@ -108,7 +101,7 @@ def database_url(setting: str) -> URL:
             message = "the database setting could not be read as a SQLite path"
         raise StoreError(message) from exc
     shown = _redacted(url)
-    if url.password is not None or any(key.lower() in PASSWORD_QUERY_KEYS for key in url.query):
+    if carries_a_password(setting):
         message = f"{shown}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
         raise StoreError(message)
     backend = url.get_backend_name()
@@ -125,10 +118,9 @@ def _redacted(url: URL) -> str:
     """The URL, safe to put in a message: userinfo hidden, and any password-shaped query value masked.
 
     ``render_as_string(hide_password=True)`` alone hides only the userinfo; a query key still comes
-    back verbatim, which is exactly how a password passed as ``?password=...`` (and, until this was
-    fixed, ``?sslpassword=...``) used to leak. This is the one place that masks a query value, so
-    every other reader of the URL - ``HouseDatabase.where`` included - goes through it rather than
-    repeating the mask.
+    back verbatim, which is how a password passed as ``?password=...`` or ``?sslpassword=...``
+    would leak. This is the one place that masks a query value, so every other reader of the URL -
+    ``HouseDatabase.where`` included - goes through it rather than repeating the mask.
     """
     query = {key: ("***" if key.lower() in PASSWORD_QUERY_KEYS else value) for key, value in url.query.items()}
     return url.set(query=query).render_as_string(hide_password=True)
