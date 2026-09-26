@@ -28,7 +28,7 @@ from ...domain.mpd import entry_after
 from ...domain.playorder import directory_jump, play_order
 from ...domain.state import Place
 from ...domain.station import StationRequest
-from ..errors import MpdError, NotInMpdError, PortsBusyError
+from ..errors import MpdError, NotInMpdError, PortsBusyError, StoreError
 from .constants import JOIN_RETRY_S, wait_for_the_next_pass_s
 from .volume import VolumeGuard
 
@@ -685,8 +685,16 @@ class ZoneReconcile(VolumeGuard):
 
         Idempotent, and the same thing whether the switch went off or the service is ending. From
         a speaker's side those are one event: the zone is over, and it is on its own again.
+
+        Remembering where MPD was is best-effort: a store that cannot be written (SQLite busy, a
+        PostgreSQL statement timeout) must not stop the zone from being let go, because the
+        speakers would otherwise stay bound to a master that has already given up. A failed write
+        is logged and the dissolve goes on exactly as it would have.
         """
-        await self._remember_where_mpd_is()
+        try:
+            await self._remember_where_mpd_is()
+        except StoreError as exc:
+            self.log(ERROR_KIND, f"could not remember where mpd was, so the house dissolves without it: {exc}")
         await self._stop_fading()
         await self._stop_house_writes()
         master, self.master = self.master, None

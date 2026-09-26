@@ -53,6 +53,7 @@ from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
 from soundtouch_zonemaster.adapters.soundtouch.speaker_http import SPEAKER_HTTP_TIMEOUT_S
 from soundtouch_zonemaster.adapters.soundtouch.zone_master import ZoneMaster
+from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.options import ChannelPolicy, ServiceOptions
 from soundtouch_zonemaster.application.zone_service.constants import (
     FADE_S,
@@ -61,7 +62,7 @@ from soundtouch_zonemaster.application.zone_service.constants import (
     PORTS_BUSY_RETRY_S,
 )
 from soundtouch_zonemaster.application.zone_service.service import ZoneService
-from soundtouch_zonemaster.composition import build_production, hold_the_zone
+from soundtouch_zonemaster.composition import build_production, hold_the_zone, open_house_store
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.dialling import WINDOW_DEFAULT_S, WINDOW_FLOOR_S
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, KeyName, KeyState, SourceName
@@ -74,6 +75,10 @@ from soundtouch_zonemaster.domain.zonexml import station_content_item
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
     from pathlib import Path
+
+    from soundtouch_zonemaster.application.options import LegacyFiles
+    from soundtouch_zonemaster.application.ports import HouseStore, SwitchReader
+    from soundtouch_zonemaster.domain.logfn import LogFn
 
 MASTER = "127.0.0.1"
 MASTER_ID = "5EB0CE000001"
@@ -3643,6 +3648,113 @@ async def test_leaving_an_mpd_channel_writes_down_how_far_into_it_the_house_got(
             await _press_preset(world.studio, STUDIO_ID, 1)
             await eventually(lambda: _playing(service).endswith("?c=1"), "the house left it for the radio one")
             await eventually(lambda: positions_of(options) == {"12": AT_61_5}, "the position was written down")
+
+
+class _StoreThatCannotSaveState:
+    """A real store, wrapped so ``save_state`` can be made to fail once armed.
+
+    Everything else goes straight to the real store underneath; only ``save_state`` is
+    intercepted, which is the one call ``_stand_down`` makes through ``_remember_where_mpd_is``
+    before it dissolves the zone.
+    """
+
+    def __init__(self, real: HouseStore) -> None:
+        self._real = real
+        self.armed = False
+
+    def open(self, *, exclusive: bool) -> None:
+        self._real.open(exclusive=exclusive)
+
+    def close(self) -> None:
+        self._real.close()
+
+    def import_legacy(self, files: LegacyFiles) -> None:
+        self._real.import_legacy(files)
+
+    def load_state(self) -> ZoneState:
+        return self._real.load_state()
+
+    def save_state(self, state: ZoneState) -> None:
+        if self.armed:
+            message = "simulated: the house database refused the write"
+            raise StoreError(message)
+        self._real.save_state(state)
+
+    def load_channels(self) -> ChannelList:
+        return self._real.load_channels()
+
+    def save_channels(self, channels: ChannelList) -> None:
+        self._real.save_channels(channels)
+
+    def export_channels(self) -> str:
+        return self._real.export_channels()
+
+    def import_channels(self, path: Path) -> ChannelList:
+        return self._real.import_channels(path)
+
+    def is_on(self) -> bool:
+        return self._real.is_on()
+
+    def set_switch(self, *, on: bool) -> bool:
+        return self._real.set_switch(on=on)
+
+    def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader:
+        return self._real.switch(poll_s=poll_s, ignored_file=ignored_file)
+
+
+@asynccontextmanager
+async def _running_with_a_store_that_cannot_save_state(
+    options: ServiceOptions, logs: list[str]
+) -> AsyncGenerator[tuple[ZoneService, _StoreThatCannotSaveState], None]:
+    """The real wiring, except the store the service opens is the wrapper above - injected at the
+    ``open_store`` port, which is exactly the seam the service already takes a ``HouseStore``
+    through, never a monkeypatch of the store's own internals."""
+    created: list[_StoreThatCannotSaveState] = []
+
+    def _open_store(database: str, *, log: LogFn) -> HouseStore:
+        store = _StoreThatCannotSaveState(open_house_store(database, log=log))
+        created.append(store)
+        return store
+
+    ports = replace(build_production().zone_ports, open_store=_open_store)
+    service = ZoneService(options, log=lambda kind, text: logs.append(f"{kind}: {text}"), ports=ports)
+    task = asyncio.create_task(service.run())
+    try:
+        await eventually(lambda: len(created) == 1, "the service opened its store")
+        yield service, created[0]
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+async def test_a_store_that_cannot_save_state_does_not_stop_the_dissolve(world: World, tmp_path: Path) -> None:
+    """A StoreError while remembering where MPD was must not abort the stand-down (finding 3): the
+    speakers still hear the zone dissolve, and the failure is logged rather than swallowed or left
+    to leave the house bound to a master that is already gone."""
+    async with _mpd(status_lines=PLAYING_AT_61_5) as fake:
+        options = _radio_and_mpd(world, tmp_path, fake)
+        logs: list[str] = []
+
+        async with _running_with_a_store_that_cannot_save_state(options, logs) as (service, store):
+            await _both_wake(world)
+            await _press_preset(world.studio, STUDIO_ID, 1)
+            await _press_preset(world.studio, STUDIO_ID, 2)
+            await eventually(lambda: _playing(service).endswith("?c=12"), "the zone is on the MPD channel")
+
+            store.armed = True
+            _flip(options, on=False)
+
+            await eventually(
+                lambda: len(dissolves(world.studio)) == 1 and len(dissolves(world.hallway)) == 1,
+                "both boxes were told the zone is over although the state write failed",
+            )
+            await eventually(lambda: service.master is None, "the master is gone, not merely idle")
+            await eventually(
+                lambda: any("could not remember where mpd was" in line for line in logs),
+                "the failed write was logged rather than swallowed",
+            )
+        assert positions_of(options) == {}, "the position that failed to save is not there afterwards"
 
 
 async def test_the_position_survives_a_restart_and_the_book_goes_on_where_it_stopped(
