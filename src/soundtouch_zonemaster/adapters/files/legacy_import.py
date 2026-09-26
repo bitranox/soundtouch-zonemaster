@@ -21,27 +21,28 @@ from typing import TYPE_CHECKING
 from ...application.errors import StoreError
 from .channel_file import ChannelFileError, load_channels
 from .house_channels import channel_count, write_channels
-from .house_db import transaction
 from .house_state import read_state, write_state
 from .house_switch import read_switch, write_switch
 from .state_file import StateFileError, load_state_strict
 from .switch_file import Switch
 
 if TYPE_CHECKING:
-    import sqlite3
     from pathlib import Path
+
+    from sqlalchemy.engine import Connection
 
     from ...application.options import LegacyFiles
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
     from ...domain.state import ZoneState
+    from .house_db import HouseDatabase
 
 __all__ = ["IMPORTED_SUFFIX", "import_legacy"]
 
 IMPORTED_SUFFIX = ".imported"
 
 
-def import_legacy(connection: sqlite3.Connection, files: LegacyFiles, *, database: Path, log: LogFn) -> None:
+def import_legacy(database: HouseDatabase, files: LegacyFiles, *, log: LogFn) -> None:
     """Import every old file that exists into its empty part, then set the imported ones aside.
 
     The channel file and the state file are the two parts whose parse can RAISE (an unusable
@@ -55,11 +56,11 @@ def import_legacy(connection: sqlite3.Connection, files: LegacyFiles, *, databas
     the transaction changes nothing observable and keeps the transaction itself short.
     """
     switch = _read_switch(files.switch_file, log=log)
-    with transaction(connection):
+    with database.writing() as connection:
         taken = [
-            _take_channels(connection, files.channel_file, database=database, log=log),
-            _take_state(connection, files.state_file, database=database, log=log),
-            _take_switch(connection, files.switch_file, on=switch, database=database, log=log),
+            _take_channels(connection, files.channel_file, where=database.where, log=log),
+            _take_state(connection, files.state_file, where=database.where, log=log),
+            _take_switch(connection, files.switch_file, on=switch, where=database.where, log=log),
         ]
     for path in taken:
         if path is not None:
@@ -86,45 +87,43 @@ def _read_state(path: Path) -> ZoneState:
         raise StoreError(str(exc)) from exc
 
 
-def _take_channels(connection: sqlite3.Connection, path: Path | None, *, database: Path, log: LogFn) -> Path | None:
+def _take_channels(connection: Connection, path: Path | None, *, where: str, log: LogFn) -> Path | None:
     if path is None or not path.exists():
         return None
     if channel_count(connection) > 0:
-        _not_read(path, what="a channel list", database=database, log=log)
+        _not_read(path, what="a channel list", where=where, log=log)
         return None
     channels = _read_channels(path, log=log)
-    write_channels(connection, channels)
-    log("store", f"{path}: imported {len(channels.channels)} channel(s) into {database}")
+    write_channels(connection, channels, where=where)
+    log("store", f"{path}: imported {len(channels.channels)} channel(s) into {where}")
     return path
 
 
-def _take_state(connection: sqlite3.Connection, path: Path | None, *, database: Path, log: LogFn) -> Path | None:
+def _take_state(connection: Connection, path: Path | None, *, where: str, log: LogFn) -> Path | None:
     if path is None or not path.exists():
         return None
     if read_state(connection) is not None:
-        _not_read(path, what="a state", database=database, log=log)
+        _not_read(path, what="a state", where=where, log=log)
         return None
     state = _read_state(path)
     write_state(connection, state)
-    log("store", f"{path}: imported the state into {database}")
+    log("store", f"{path}: imported the state into {where}")
     return path
 
 
-def _take_switch(
-    connection: sqlite3.Connection, path: Path | None, *, on: bool | None, database: Path, log: LogFn
-) -> Path | None:
+def _take_switch(connection: Connection, path: Path | None, *, on: bool | None, where: str, log: LogFn) -> Path | None:
     if path is None or on is None:
         return None
     if read_switch(connection) is not None:
-        _not_read(path, what="the switch", database=database, log=log)
+        _not_read(path, what="the switch", where=where, log=log)
         return None
     write_switch(connection, on=on)
-    log("store", f"{path}: imported the switch ({'on' if on else 'off'}) into {database}")
+    log("store", f"{path}: imported the switch ({'on' if on else 'off'}) into {where}")
     return path
 
 
-def _not_read(path: Path, *, what: str, database: Path, log: LogFn) -> None:
-    log("store", f"{path}: not imported, {database} already holds {what}; this file is not read")
+def _not_read(path: Path, *, what: str, where: str, log: LogFn) -> None:
+    log("store", f"{path}: not imported, {where} already holds {what}; this file is not read")
 
 
 def _set_aside(path: Path, *, log: LogFn) -> None:

@@ -75,7 +75,7 @@ def cli_switch(ctx: click.Context, *, word: str | None) -> None:
     store = _open(ctx, shared, exclusive=False, command=command)
     try:
         changed = False if word is None else store.set_switch(on=word == "on")
-        report = SwitchReport(database=str(database_for(shared)), on=store.is_on(), changed=changed)
+        report = SwitchReport(database=database_for(shared), on=store.is_on(), changed=changed)
     finally:
         store.close()
     if shared.mode.machine:
@@ -132,7 +132,7 @@ def cli_channels_import(ctx: click.Context, *, path: str) -> None:
 
 
 def _report_channels(shared: Shared, *, command: str, count: int, path: str) -> None:
-    report = ChannelsReport(database=str(database_for(shared)), channels=count, path=path)
+    report = ChannelsReport(database=database_for(shared), channels=count, path=path)
     if shared.mode.machine:
         write_envelope(Envelope[ChannelsReport](ok=True, command=command, data=report), mode=shared.mode)
         return

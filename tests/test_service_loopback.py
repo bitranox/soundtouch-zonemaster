@@ -47,7 +47,7 @@ from speaker_double import (
 )
 
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
-from soundtouch_zonemaster.adapters.files.house_store import SqliteHouseStore
+from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.files.state_file import save_state
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
@@ -245,7 +245,7 @@ def _options(
     return ServiceOptions(
         bind_ip=MASTER,
         device_id=MASTER_ID,
-        database=tmp_path / "zonemaster.sqlite",
+        database=str(tmp_path / "zonemaster.sqlite"),
         registry_url=world.registry.base_url,
         switch_file=tmp_path / "zone.switch",
         state_file=tmp_path / "zone-state.json",
@@ -285,9 +285,9 @@ def _switch_file(options: ServiceOptions) -> Path:
     return _legacy(options.switch_file)
 
 
-def _store_of(options: ServiceOptions) -> SqliteHouseStore:
+def _store_of(options: ServiceOptions) -> SqlHouseStore:
     """A READER on the service's database, which the service's writer lock does not block."""
-    store = SqliteHouseStore(options.database, log=lambda _kind, _text: None)
+    store = SqlHouseStore(options.database, log=lambda _kind, _text: None)
     store.open(exclusive=False)
     return store
 

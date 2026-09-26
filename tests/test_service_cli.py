@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import lib_cli_exit_tools
 
 from soundtouch_zonemaster.__init__conf__ import version
-from soundtouch_zonemaster.adapters.files.house_store import SqliteHouseStore
+from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.logging.narration import log
 from soundtouch_zonemaster.entry import service_main as main
 
@@ -78,7 +78,7 @@ def test_the_old_files_are_no_longer_required(monkeypatch: pytest.MonkeyPatch, t
 
     monkeypatch.setattr("sys.argv", _argv(tmp_path))
     assert main(run_service=remember) == 0
-    assert seen[0].database == tmp_path / "zonemaster.sqlite"
+    assert seen[0].database == str(tmp_path / "zonemaster.sqlite")
     assert (seen[0].state_file, seen[0].channel_file, seen[0].switch_file) == (None, None, None)
 
 
@@ -313,7 +313,7 @@ def test_a_database_another_service_holds_refuses_the_start_as_busy(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     """One writer: a second service is told the database is held, and the answer is no (exit 1)."""
-    holder = SqliteHouseStore(tmp_path / "zonemaster.sqlite", log=log)
+    holder = SqlHouseStore(str(tmp_path / "zonemaster.sqlite"), log=log)
     holder.open(exclusive=True)
     try:
         monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare"))

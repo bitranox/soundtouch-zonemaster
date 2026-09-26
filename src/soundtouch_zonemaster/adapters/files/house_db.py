@@ -1,20 +1,30 @@
-"""The house database: one SQLite file for the state, the channel list and the switch.
+"""The house database: where it is, how a connection to it behaves, and who may write it.
 
-One file rather than three, because a second writer is coming (the web app of OPEN-WORK rank 16)
-and three whole-file JSON rewrites race each other with no way to say which one won. SQLite gives
-each write a transaction and each reader a consistent view.
+One database rather than three files, because a second writer is coming (the web app of
+OPEN-WORK rank 16) and three whole-file JSON rewrites race each other with no way to say which one
+won. The setting names it as a URL, or as a plain path meaning a SQLite file, so a house that
+never runs a database server writes a path and nothing else.
 
-Opened in WAL mode with ``synchronous = FULL``: the service is read back after whatever ended the
-last run, including a power cut, and FULL is what makes a committed transaction survive one in WAL
-mode. The tables are STRICT, so a value of the wrong type is refused by the file itself rather than
-discovered by whoever reads it next; that needs SQLite 3.37, which is checked before anything
-opens. ``PRAGMA user_version`` carries the schema version, and a file written by a NEWER version
-is refused rather than read with a schema that does not describe it.
+**SQLite** is opened in WAL mode with ``synchronous = FULL``: the service is read back after
+whatever ended the last run, including a power cut, and FULL is what makes a committed
+transaction survive one in WAL mode. A WRITE transaction begins ``BEGIN IMMEDIATE``, so a writer
+waits at the start rather than half-way and the legacy import's check-then-write cannot
+interleave with another writer; a READ transaction begins plain ``BEGIN``, so a reader never
+blocks the service. The driver's own transaction handling is switched off for that, because it
+would emit its own BEGIN at a moment of its choosing.
 
-**One writer.** The service holds an exclusive ``flock`` on ``<database>.lock`` for its whole run,
-and so does ``channels import``. The lock sits beside the database rather than inside it, because
-a lock the kernel releases when the process dies cannot be left behind by a crash, and a row
-saying "busy" can.
+**PostgreSQL** gets bounded connect and statement timeouts: the service calls the store on its
+event loop, and a server that stopped answering must cost it seconds, not the zone.
+
+**One writer.** The service holds the writer lock for its whole run, and so does ``channels
+import``. On SQLite it is an exclusive ``flock`` on ``<database>.lock`` beside the file, on
+PostgreSQL a session advisory lock; both are released by the kernel or the server the moment
+their holder dies, which a row saying "busy" would not be.
+
+**The schema** is Alembic's (``migrations/``), and a database behind its head is brought up to it
+only while the writer lock is held, so two processes never migrate at once. A database at a
+revision this version does not know was written by a newer one, and is refused rather than read
+with a schema that does not describe it.
 """
 
 from __future__ import annotations
@@ -23,96 +33,121 @@ import fcntl
 import os
 import sqlite3
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
+
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from alembic.util.exc import CommandError
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.exc import ArgumentError, DBAPIError, NoSuchModuleError, SQLAlchemyError
 
 from ...application.errors import StoreBusyError, StoreError
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-    from pathlib import Path
+    from typing import NoReturn
 
-__all__ = ["LOCK_SUFFIX", "MIN_SQLITE", "SCHEMA_VERSION", "WriterLock", "connect", "transaction"]
+    from sqlalchemy.engine import Connection, Engine
+    from sqlalchemy.pool import ConnectionPoolEntry
 
-SCHEMA_VERSION = 1
-MIN_SQLITE = (3, 37, 0)
+__all__ = [
+    "LOCK_SUFFIX",
+    "MIGRATIONS",
+    "MIN_SQLITE",
+    "SUPPORTED",
+    "AdvisoryLock",
+    "FileLock",
+    "HouseDatabase",
+    "database_url",
+    "reason_for",
+    "redacted_setting",
+]
+
 LOCK_SUFFIX = ".lock"
+MIN_SQLITE = (3, 37, 0)
+SUPPORTED = ("sqlite", "postgresql")
+MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 
-_SCHEMA = (
-    "CREATE TABLE IF NOT EXISTS zone (id INTEGER PRIMARY KEY CHECK (id = 1), channel TEXT,"
-    " dial_window_s REAL, hold_threshold_s REAL) STRICT",
-    "CREATE TABLE IF NOT EXISTS member (device_id TEXT PRIMARY KEY) STRICT",
-    "CREATE TABLE IF NOT EXISTS muted (device_id TEXT PRIMARY KEY, volume INTEGER NOT NULL) STRICT",
-    "CREATE TABLE IF NOT EXISTS out_of_multiroom (device_id TEXT PRIMARY KEY) STRICT",
-    "CREATE TABLE IF NOT EXISTS place (channel TEXT PRIMARY KEY, track INTEGER NOT NULL,"
-    " seconds REAL NOT NULL, file TEXT) STRICT",
-    "CREATE TABLE IF NOT EXISTS owed_volume (device_id TEXT PRIMARY KEY, steps INTEGER NOT NULL) STRICT",
-    "CREATE TABLE IF NOT EXISTS channel (number TEXT NOT NULL UNIQUE, name TEXT NOT NULL, kind TEXT NOT NULL,"
-    " url TEXT NOT NULL, mpd_entry TEXT NOT NULL, mpd_directory TEXT NOT NULL,"
-    " in_rotation INTEGER NOT NULL CHECK (in_rotation IN (0, 1)), at_end TEXT NOT NULL) STRICT",
-    "CREATE TABLE IF NOT EXISTS switch (id INTEGER PRIMARY KEY CHECK (id = 1),"
-    " word TEXT NOT NULL CHECK (word IN ('on', 'off')), changed_at TEXT NOT NULL) STRICT",
-)
-"""IF NOT EXISTS because two processes can both find version 0 and both try to create the
-schema; the second one's BEGIN IMMEDIATE waits for the first, and must then find nothing to do.
-Rows keep their insertion order through ``rowid``, which is what the ordered lists read back by."""
+_ADVISORY_KEY = 1515147845
+"""The house's advisory lock on a shared PostgreSQL server: "ZONE" as four bytes, fixed forever."""
+_POSTGRES_TIMEOUT_S = 5
+_WRITE = "house_write"
+"""The execution option that marks a WRITE transaction, read by the SQLite ``begin`` listener."""
 
 
-def connect(database: Path) -> sqlite3.Connection:
-    """Open the house database, creating the schema on a new file. Raises :class:`StoreError`."""
-    if sqlite3.sqlite_version_info < MIN_SQLITE:
-        message = f"{database}: SQLite {sqlite3.sqlite_version} is older than 3.37.0, which STRICT tables need"
-        raise StoreError(message)
+def database_url(setting: str) -> URL:
+    """The database a setting names: a URL, or a plain path meaning a SQLite file. Raises :class:`StoreError`.
+
+    A password is refused rather than accepted, because a URL is written into config files,
+    ``--json`` envelopes and logs; libpq reads it from ``~/.pgpass`` where none of those reach. A
+    password can arrive two ways - in the URL's own userinfo, or as a ``password`` query key some
+    drivers (psycopg among them) pass straight through as a connect argument - and both are refused;
+    ``passfile`` names a file rather than a secret and is accepted. A setting that fails to parse is
+    never echoed back: it can be the very thing carrying the password that made it malformed.
+    """
+    is_url = "://" in setting
     try:
-        connection = sqlite3.connect(database, isolation_level=None)
-    except sqlite3.Error as exc:
-        message = f"{database}: could not be opened ({exc})"
+        url = make_url(setting) if is_url else URL.create("sqlite", database=setting)
+    except (ArgumentError, ValueError) as exc:
+        if is_url:
+            message = 'the database setting is not a database URL (it has "://" but SQLAlchemy cannot parse it)'
+        else:
+            message = "the database setting could not be read as a SQLite path"
         raise StoreError(message) from exc
-    try:
-        _prepare(connection, database)
-    except sqlite3.DatabaseError as exc:
-        connection.close()
-        message = f"{database}: not a house database ({exc})"
-        raise StoreError(message) from exc
-    except StoreError:
-        connection.close()
-        raise
-    except BaseException:
-        connection.close()
-        raise
-    return connection
-
-
-def _prepare(connection: sqlite3.Connection, database: Path) -> None:
-    """Set the pragmas every connection needs, then bring a new file up to the schema."""
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA busy_timeout = 5000")
-    version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-    if version > SCHEMA_VERSION:
-        message = f"{database}: written by a newer version (schema {version}, this one reads {SCHEMA_VERSION})"
+    shown = _redacted(url)
+    if url.password is not None or any(key.lower() == "password" for key in url.query):
+        message = f"{shown}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
         raise StoreError(message)
-    connection.execute("PRAGMA journal_mode = WAL")
-    connection.execute("PRAGMA synchronous = FULL")
-    if version < SCHEMA_VERSION:
-        with transaction(connection):
-            for statement in _SCHEMA:
-                connection.execute(statement)
-            connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    backend = url.get_backend_name()
+    if backend not in SUPPORTED:
+        message = f"{shown}: {backend} is not supported (only {', '.join(SUPPORTED)})"
+        raise StoreError(message)
+    if backend == "sqlite" and url.database in (None, "", ":memory:"):
+        message = f"{setting}: an in-memory SQLite database keeps nothing; name a file"
+        raise StoreError(message)
+    return url
 
 
-@contextmanager
-def transaction(connection: sqlite3.Connection) -> Generator[sqlite3.Connection]:
-    """All of it or none of it. IMMEDIATE, so a writer waits at the start rather than half-way."""
-    connection.execute("BEGIN IMMEDIATE")
+def _redacted(url: URL) -> str:
+    """The URL, safe to put in a message: userinfo hidden, and any ``password``-shaped query value masked.
+
+    ``render_as_string(hide_password=True)`` alone hides only the userinfo; a query key still comes
+    back verbatim, which is exactly how a password passed as ``?password=...`` used to leak.
+    """
+    query = {key: ("***" if key.lower() == "password" else value) for key, value in url.query.items()}
+    return url.set(query=query).render_as_string(hide_password=True)
+
+
+def redacted_setting(setting: str) -> str:
+    """The setting, safe to name in a message before it is even known to be a valid database.
+
+    ``HouseDatabase.where`` only exists once a setting has already been through
+    :func:`database_url`; a store's own refusals (already open, used before ``open()``, needs the
+    writer lock) can fire before that ever ran, and the raw setting can still be a URL carrying a
+    password. Parsing here is best-effort and never raises: an unparsable setting cannot be echoed
+    either, for the same reason :func:`database_url` never echoes one.
+    """
+    if "://" not in setting:
+        return setting
     try:
-        yield connection
-    except BaseException:
-        connection.execute("ROLLBACK")
-        raise
-    connection.execute("COMMIT")
+        url = make_url(setting)
+    except (ArgumentError, ValueError):
+        return "<a database URL that could not be parsed>"
+    return _redacted(url)
 
 
-class WriterLock:
-    """The one-writer rule, as a lock the kernel drops the moment its holder dies."""
+class _WriterLock(Protocol):
+    def acquire(self) -> None: ...
+
+    def release(self) -> None: ...
+
+
+class FileLock:
+    """The one-writer rule on SQLite, as a lock the kernel drops the moment its holder dies."""
 
     def __init__(self, database: Path) -> None:
         self.path = database.with_name(database.name + LOCK_SUFFIX)
@@ -139,3 +174,221 @@ class WriterLock:
             return
         os.close(self._fd)
         self._fd = None
+
+
+class AdvisoryLock:
+    """The one-writer rule on PostgreSQL: a session advisory lock on a connection of its own.
+
+    AUTOCOMMIT, so the connection holding it is never "idle in transaction" for the length of a
+    run. Released explicitly before the connection goes back to the pool, because a pooled
+    connection keeps its session - and with it the lock - after ``close()``. The lock lives on
+    that ONE server session: a server restart or a killed session drops it without notice, and
+    ``pool_pre_ping`` never checks a connection that stays checked out, so nothing here would see
+    it happen. That is the PostgreSQL counterpart of a ``flock`` dropped when its holder dies, and
+    it is accepted for the same reason.
+    """
+
+    def __init__(self, engine: Engine, *, where: str) -> None:
+        self._engine = engine
+        self.where = where
+        self._connection: Connection | None = None
+
+    def acquire(self) -> None:
+        connection = self._engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+        try:
+            held = connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": _ADVISORY_KEY}).scalar_one()
+        except SQLAlchemyError:
+            connection.close()
+            raise
+        if not held:
+            connection.close()
+            message = f"{self.where}: held by another process (is the service running?)"
+            raise StoreBusyError(message)
+        self._connection = connection
+
+    def release(self) -> None:
+        if self._connection is None:
+            return
+        try:
+            self._connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _ADVISORY_KEY})
+        finally:
+            self._connection.close()
+            self._connection = None
+
+
+class HouseDatabase:
+    """One house database: an engine that behaves the same on every backend, and its writer lock."""
+
+    def __init__(self, setting: str, *, busy_timeout_s: float = 5.0) -> None:
+        self.url = database_url(setting)
+        self.where = setting if "://" not in setting else self.url.render_as_string(hide_password=True)
+        self._busy_timeout_s = busy_timeout_s
+        self._engine: Engine | None = None
+        self._lock: _WriterLock | None = None
+        self._locked = False
+
+    def open(self, *, exclusive: bool) -> None:
+        """Connect, take the writer lock when asked, and bring the schema to head. Nothing is held on a refusal.
+
+        Building the engine is inside its own guard: an unknown dialect+driver combination raises
+        ``NoSuchModuleError`` and a driver module this environment never installed raises a plain
+        ``ImportError``, neither of which the caller (the service, a CLI command) is written to
+        recognise - both must leave here as the one ``StoreError`` they refuse on. ``ImportError``
+        is caught only around that step: a broken Alembic migration module is a programming error,
+        not a missing driver, and must reach ``report_crash`` with its traceback rather than being
+        folded into the same refusal.
+        """
+        try:
+            self._engine = self._build_engine()
+        except (SQLAlchemyError, ImportError) as exc:
+            self._refuse(exc)
+        except BaseException:
+            self.close()
+            raise
+        try:
+            self._lock = self._build_lock(self._engine)
+            if exclusive:
+                self._lock.acquire()
+                self._locked = True
+            self._bring_up_to_date(self._lock)
+        except SQLAlchemyError as exc:
+            self._refuse(exc)
+        except BaseException:
+            self.close()
+            raise
+
+    def _refuse(self, exc: Exception) -> NoReturn:
+        """Close whatever ``open()`` managed to build, then raise the one ``StoreError`` callers refuse on."""
+        self.close()
+        message = f"{self.where}: could not be opened as a house database ({reason_for(exc)})"
+        raise StoreError(message) from exc
+
+    def close(self) -> None:
+        """Give the lock back, then the connections. Harmless when nothing is open.
+
+        The state is reset and the engine disposed in ``finally``, so a lock that fails to
+        release (a dead PostgreSQL session raising on ``pg_advisory_unlock``) still leaves nothing
+        held open and nothing stuck thinking the lock is still ours - even though the release
+        error itself still reaches the caller.
+        """
+        try:
+            if self._lock is not None and self._locked:
+                self._lock.release()
+        finally:
+            self._locked = False
+            self._lock = None
+            if self._engine is not None:
+                self._engine.dispose()
+            self._engine = None
+
+    @contextmanager
+    def reading(self) -> Generator[Connection]:
+        """Nothing enforces read-only here.
+
+        A write made through this is rolled back at the end, the same as any other exception.
+        Never blocks the writer on SQLite.
+        """
+        with self._require().connect() as connection:
+            yield connection
+
+    @contextmanager
+    def writing(self) -> Generator[Connection]:
+        """All of it or none of it: committed at the end, rolled back on any exception."""
+        with self._require().execution_options(**{_WRITE: True}).begin() as connection:
+            yield connection
+
+    def _require(self) -> Engine:
+        if self._engine is None:
+            message = f"{self.where}: the house database was used before open()"
+            raise StoreError(message)
+        return self._engine
+
+    def _build_engine(self) -> Engine:
+        if self.url.get_backend_name() == "sqlite":
+            if sqlite3.sqlite_version_info < MIN_SQLITE:
+                message = (
+                    f"{self.where}: SQLite {sqlite3.sqlite_version} is older than 3.37.0, which STRICT tables need"
+                )
+                raise StoreError(message)
+            engine = create_engine(self.url, connect_args={"timeout": self._busy_timeout_s})
+            event.listen(engine, "connect", _sqlite_connect)
+            event.listen(engine, "begin", _sqlite_begin)
+            return engine
+        return create_engine(
+            self.url,
+            pool_pre_ping=True,
+            connect_args={
+                "connect_timeout": _POSTGRES_TIMEOUT_S,
+                "options": f"-c statement_timeout={_POSTGRES_TIMEOUT_S * 1000}",
+            },
+        )
+
+    def _build_lock(self, engine: Engine) -> _WriterLock:
+        if self.url.get_backend_name() == "sqlite":
+            return FileLock(Path(str(self.url.database)))
+        return AdvisoryLock(engine, where=self.where)
+
+    def _bring_up_to_date(self, lock: _WriterLock) -> None:
+        """Migrate a database behind head, and only under the writer lock."""
+        script = ScriptDirectory(str(MIGRATIONS))
+        if self._current(script) == script.get_current_head():
+            return
+        if self._locked:
+            self._upgrade()
+            return
+        lock.acquire()
+        try:
+            self._upgrade()
+        finally:
+            lock.release()
+
+    def _current(self, script: ScriptDirectory) -> str | None:
+        with self.reading() as connection:
+            current = MigrationContext.configure(connection).get_current_revision()
+        if current is None:
+            return None
+        try:
+            script.get_revision(current)
+        except CommandError as exc:
+            message = (
+                f"{self.where}: written by a newer version (schema {current}, "
+                f"this one reads up to {script.get_current_head()})"
+            )
+            raise StoreError(message) from exc
+        return current
+
+    def _upgrade(self) -> None:
+        config = Config()
+        config.set_main_option("script_location", str(MIGRATIONS))
+        with self.writing() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+
+
+def _sqlite_connect(dbapi_connection: sqlite3.Connection, _record: ConnectionPoolEntry) -> None:
+    """Hand transaction control to SQLAlchemy, and set what every connection to the file needs."""
+    dbapi_connection.isolation_level = None
+    dbapi_connection.execute("PRAGMA journal_mode = WAL")
+    dbapi_connection.execute("PRAGMA synchronous = FULL")
+
+
+def _sqlite_begin(connection: Connection) -> None:
+    """IMMEDIATE for a write, so it waits at the start rather than half-way; deferred for a read."""
+    write = bool(connection.get_execution_options().get(_WRITE, False))
+    connection.exec_driver_sql("BEGIN IMMEDIATE" if write else "BEGIN")
+
+
+def reason_for(exc: Exception) -> str:
+    """The driver's own words when there are any, the error's name otherwise - never a whole traceback.
+
+    Shared with :class:`~soundtouch_zonemaster.adapters.files.house_store.SqlHouseStore`'s own
+    guard, so the two do not repeat the same line: a ``DBAPIError`` speaks for itself through
+    ``.orig``; a missing driver module (``ModuleNotFoundError``) or an unknown dialect+driver
+    combination (``NoSuchModuleError``) names its type AND carries the library's own message,
+    neither of which can hold a password; anything else is named by its type alone.
+    """
+    if isinstance(exc, DBAPIError):
+        return str(exc.orig)
+    if isinstance(exc, (ModuleNotFoundError, NoSuchModuleError)):
+        return f"{type(exc).__name__}: {exc}"
+    return type(exc).__name__

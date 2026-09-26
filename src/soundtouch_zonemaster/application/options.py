@@ -163,8 +163,8 @@ class ServiceOptions:
 
     bind_ip: str
     device_id: str
-    database: Path
-    """The house database: the state, the channel list and the switch (``adapters/files/house_db.py``)."""
+    database: str
+    """The house database: a URL, or a plain path meaning a SQLite file (``adapters/files/house_db.py``)."""
     switch_file: Path | None = None
     """The switch as a file, from before the database: imported once, then not read."""
     state_file: Path | None = None

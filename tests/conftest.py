@@ -37,8 +37,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from sqlalchemy import create_engine, text
 
 from soundtouch_zonemaster.adapters.config import loader
+from soundtouch_zonemaster.adapters.files.house_schema import METADATA
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -143,3 +145,38 @@ def a_house_that_protects_its_console(isolated_config_layers: Path) -> Path:
     written.write_text(_THE_HOUSE_S_HOST_LAYER, encoding="utf-8")
     loader.clear_config_cache()
     return written
+
+
+POSTGRES_URL_ENV = "ZONEMASTER_TEST_POSTGRES_URL"
+"""A PostgreSQL URL (no password; libpq reads ~/.pgpass) to run every store test against as well.
+Unset, the store tests run on SQLite alone, which is what `make test` does. The URL MUST name a
+THROWAWAY database: every store test drops the house tables in it, both before and after."""
+
+
+def _backends() -> list[str]:
+    return ["sqlite", "postgresql"] if os.environ.get(POSTGRES_URL_ENV) else ["sqlite"]
+
+
+def _empty_postgres(url: str) -> None:
+    """Drop every house table and Alembic's own, so each test starts from a database never used.
+
+    Destructive on purpose: the caller-supplied URL must name a throwaway database, because this
+    runs before AND after every test that uses it.
+    """
+    engine = create_engine(url)
+    with engine.begin() as connection:
+        METADATA.drop_all(connection)
+        connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
+    engine.dispose()
+
+
+@pytest.fixture(params=_backends())
+def house_database(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[str]:
+    """The house database a store test runs against: a SQLite file always, PostgreSQL when configured."""
+    if request.param == "sqlite":
+        yield str(tmp_path / "house.sqlite")
+        return
+    url = os.environ[POSTGRES_URL_ENV]
+    _empty_postgres(url)
+    yield url
+    _empty_postgres(url)

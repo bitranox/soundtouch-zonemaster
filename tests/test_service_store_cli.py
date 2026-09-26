@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING
 
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
-from soundtouch_zonemaster.adapters.files.house_store import SqliteHouseStore
+from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.enums import ChannelKind
 from soundtouch_zonemaster.entry import service_main as main
@@ -55,7 +55,7 @@ def test_switching_off_is_read_back_and_reports_the_change(
 def test_the_switch_works_while_the_service_holds_the_database(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    service = SqliteHouseStore(tmp_path / "db.sqlite", log=lambda _k, _t: None)
+    service = SqlHouseStore(str(tmp_path / "db.sqlite"), log=lambda _k, _t: None)
     service.open(exclusive=True)
     try:
         assert _run(monkeypatch, "--json", "--database", str(tmp_path / "db.sqlite"), "switch", "off") == 0
@@ -69,7 +69,7 @@ def test_an_import_is_refused_while_the_service_runs_and_changes_nothing(
 ) -> None:
     source = tmp_path / "edited.json"
     save_channels(source, LIST)
-    service = SqliteHouseStore(tmp_path / "db.sqlite", log=lambda _k, _t: None)
+    service = SqlHouseStore(str(tmp_path / "db.sqlite"), log=lambda _k, _t: None)
     service.open(exclusive=True)
     try:
         rc = _run(monkeypatch, "--json", "--database", str(tmp_path / "db.sqlite"), "channels", "import", str(source))

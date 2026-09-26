@@ -87,8 +87,8 @@ class ServiceOptionsInput(BaseModel):
 
     bind_ip: str
     device_id: str
-    database: Path
-    """The house database: the state, the channel list and the switch (``adapters/files/house_db.py``)."""
+    database: str
+    """The house database: a URL, or a plain path meaning a SQLite file (``adapters/files/house_db.py``)."""
     switch_file: Path | None = None
     """The switch as a file, from before the database: imported once, then not read."""
     state_file: Path | None = None
@@ -181,7 +181,7 @@ class ServiceOptionsInput(BaseModel):
             (self.state_file, "write the state file in"),
             (self.channel_file, "write the channel file in"),
             (self.switch_file, "read the switch file from"),
-            (self.database, "keep the house database in"),
+            (_database_file(self.database), "keep the house database in"),
         ):
             if path is not None and not path.parent.is_dir():
                 message = f"refused: {path.parent} is not a directory to {what}"
@@ -214,6 +214,11 @@ class ServiceOptionsInput(BaseModel):
             mpd_port=self.mpd_port,
             mpd_rewind_s=self.mpd_rewind_s,
         )
+
+
+def _database_file(database: str) -> Path | None:
+    """The file a database setting names when it is a plain path; a URL is checked by the store at open."""
+    return None if "://" in database else Path(database)
 
 
 def merge_service_settings(*, configured: Mapping[str, Any], given: Mapping[str, Any]) -> dict[str, Any]:

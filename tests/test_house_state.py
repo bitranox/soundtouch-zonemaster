@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from soundtouch_zonemaster.adapters.files.house_db import connect, transaction
+from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase
 from soundtouch_zonemaster.adapters.files.house_state import read_state, write_state
 from soundtouch_zonemaster.adapters.files.house_switch import DbSwitch, read_switch, write_switch
 from soundtouch_zonemaster.domain.state import Place, ZoneState
@@ -25,53 +25,73 @@ EVERY_FIELD = ZoneState(
 )
 
 
-def test_an_empty_database_has_no_state_rather_than_an_empty_one(tmp_path: Path) -> None:
-    connection = connect(tmp_path / "house.sqlite")
-    assert read_state(connection) is None
+def _opened(house_database: str) -> HouseDatabase:
+    database = HouseDatabase(house_database)
+    database.open(exclusive=False)
+    return database
 
 
-def test_every_field_comes_back_as_it_was_written(tmp_path: Path) -> None:
-    connection = connect(tmp_path / "house.sqlite")
-    with transaction(connection):
+def test_an_empty_database_has_no_state_rather_than_an_empty_one(house_database: str) -> None:
+    database = _opened(house_database)
+    with database.reading() as connection:
+        assert read_state(connection) is None
+    database.close()
+
+
+def test_every_field_comes_back_as_it_was_written(house_database: str) -> None:
+    database = _opened(house_database)
+    with database.writing() as connection:
         write_state(connection, EVERY_FIELD)
-    assert read_state(connection) == EVERY_FIELD
+    with database.reading() as connection:
+        assert read_state(connection) == EVERY_FIELD
+    database.close()
 
 
-def test_a_second_write_replaces_the_first_entirely(tmp_path: Path) -> None:
-    connection = connect(tmp_path / "house.sqlite")
-    with transaction(connection):
+def test_a_second_write_replaces_the_first_entirely(house_database: str) -> None:
+    database = _opened(house_database)
+    with database.writing() as connection:
         write_state(connection, EVERY_FIELD)
-    with transaction(connection):
+    with database.writing() as connection:
         write_state(connection, ZoneState(members=("AABBCC0000A2",)))
-    assert read_state(connection) == ZoneState(members=("AABBCC0000A2",))
+    with database.reading() as connection:
+        assert read_state(connection) == ZoneState(members=("AABBCC0000A2",))
+    database.close()
 
 
-def test_the_member_order_is_the_order_it_was_written_in(tmp_path: Path) -> None:
-    connection = connect(tmp_path / "house.sqlite")
-    with transaction(connection):
-        write_state(connection, ZoneState(members=("AABBCC0000A3", "AABBCC0000A1")))
-    assert read_state(connection) == ZoneState(members=("AABBCC0000A3", "AABBCC0000A1"))
+def test_the_member_order_is_the_order_it_was_written_in(house_database: str) -> None:
+    database = _opened(house_database)
+    with database.writing() as connection:
+        write_state(connection, ZoneState(members=("AABBCC0000A3", "AABBCC0000A1", "AABBCC0000A2")))
+    with database.reading() as connection:
+        assert read_state(connection) == ZoneState(members=("AABBCC0000A3", "AABBCC0000A1", "AABBCC0000A2"))
+    database.close()
 
 
-def test_a_switch_never_set_reads_as_unset_and_is_on(tmp_path: Path) -> None:
-    connection = connect(tmp_path / "house.sqlite")
-    assert read_switch(connection) is None
+def test_a_switch_never_set_reads_as_unset_and_is_on(house_database: str) -> None:
+    database = _opened(house_database)
+    with database.reading() as connection:
+        assert read_switch(connection) is None
+    database.close()
 
 
-def test_off_is_off_and_on_is_on(tmp_path: Path) -> None:
-    connection = connect(tmp_path / "house.sqlite")
-    with transaction(connection):
+def test_off_is_off_and_on_is_on(house_database: str) -> None:
+    database = _opened(house_database)
+    with database.writing() as connection:
         assert write_switch(connection, on=False) is True
-    assert read_switch(connection) is False
-    with transaction(connection):
+    with database.reading() as connection:
+        assert read_switch(connection) is False
+    with database.writing() as connection:
         assert write_switch(connection, on=True) is True
-    assert read_switch(connection) is True
+    with database.reading() as connection:
+        assert read_switch(connection) is True
+    database.close()
 
 
-def test_switching_on_a_switch_never_set_is_no_change(tmp_path: Path) -> None:
-    connection = connect(tmp_path / "house.sqlite")
-    with transaction(connection):
+def test_switching_on_a_switch_never_set_is_no_change(house_database: str) -> None:
+    database = _opened(house_database)
+    with database.writing() as connection:
         assert write_switch(connection, on=True) is False
+    database.close()
 
 
 def test_the_watch_reports_a_change_once_and_names_a_file_nobody_reads(tmp_path: Path) -> None:

@@ -10,7 +10,6 @@ the same three things, so it builds one of these too rather than growing its own
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, ConfigDict
@@ -67,10 +66,10 @@ def store_opener_of(ctx: click.Context) -> OpenHouseStore:
     return cast("OpenHouseStore", ctx.meta[_STORE_OPENER])
 
 
-def database_for(shared: Shared) -> Path:
+def database_for(shared: Shared) -> str:
     """The database this invocation means: typed, else configured, else refused by name (exit 2)."""
     if shared.database is not None:
-        return Path(shared.database)
+        return shared.database
     configured = configured_settings(config_for(shared).config).get("database")
     if configured is None:
         message = (
@@ -78,4 +77,4 @@ def database_for(shared: Shared) -> Path:
             "or in a config file as files.database"
         )
         raise OptionsError(message, exit_code=ExitCode.ERROR)
-    return Path(str(configured))
+    return str(configured)

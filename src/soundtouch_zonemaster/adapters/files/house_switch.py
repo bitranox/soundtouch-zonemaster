@@ -17,12 +17,16 @@ import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy import delete, insert, select
+
 from ...domain.switch import OFF
+from .house_schema import SWITCH
 
 if TYPE_CHECKING:
-    import sqlite3
     from collections.abc import AsyncGenerator, Callable
     from pathlib import Path
+
+    from sqlalchemy.engine import Connection
 
     from ...domain.logfn import LogFn
 
@@ -31,24 +35,21 @@ __all__ = ["ON", "DbSwitch", "read_switch", "write_switch"]
 ON = "on"
 
 
-def read_switch(connection: sqlite3.Connection) -> bool | None:
+def read_switch(connection: Connection) -> bool | None:
     """True for on, False for off, nothing when nobody has ever set it."""
-    row = connection.execute("SELECT word FROM switch WHERE id = 1").fetchone()
-    return None if row is None else row["word"] != OFF
+    word = connection.scalar(select(SWITCH.c.word).where(SWITCH.c.id == 1))
+    return None if word is None else str(word) != OFF
 
 
-def write_switch(connection: sqlite3.Connection, *, on: bool) -> bool:
+def write_switch(connection: Connection, *, on: bool) -> bool:
     """Set it, and say whether what the service READS changed. The caller holds the transaction.
 
     A switch never set already reads as on, so setting it on is no change even though a row
     appears: the answer is about the house, not about the table.
     """
     before = read_switch(connection)
-    connection.execute(
-        "INSERT INTO switch (id, word, changed_at) VALUES (1, ?, ?)"
-        " ON CONFLICT (id) DO UPDATE SET word = excluded.word, changed_at = excluded.changed_at",
-        (ON if on else OFF, datetime.now(UTC).isoformat()),
-    )
+    connection.execute(delete(SWITCH))
+    connection.execute(insert(SWITCH).values(id=1, word=ON if on else OFF, changed_at=datetime.now(UTC).isoformat()))
     return (True if before is None else before) != on
 
 

@@ -11,69 +11,72 @@ copy of something a person built, and an empty start would let the next save ove
 
 from __future__ import annotations
 
-import sqlite3
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
+from sqlalchemy import delete, func, insert, select
 
 from ...application.errors import StoreError
 from .channel_file import ChannelDocument, ChannelListDocument
+from .house_schema import CHANNEL
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from sqlalchemy.engine import Connection, RowMapping
 
     from ...domain.channellist import Channel, ChannelList
 
 __all__ = ["channel_count", "read_channels", "write_channels"]
 
-_SELECT = "SELECT number, name, kind, url, mpd_entry, mpd_directory, in_rotation, at_end FROM channel ORDER BY rowid"
-_INSERT = (
-    "INSERT INTO channel (number, name, kind, url, mpd_entry, mpd_directory, in_rotation, at_end)"
-    " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+_COLUMNS = (
+    CHANNEL.c.number,
+    CHANNEL.c.name,
+    CHANNEL.c.kind,
+    CHANNEL.c.url,
+    CHANNEL.c.mpd_entry,
+    CHANNEL.c.mpd_directory,
+    CHANNEL.c.in_rotation,
+    CHANNEL.c.at_end,
 )
 
 
-def channel_count(connection: sqlite3.Connection) -> int:
+def channel_count(connection: Connection) -> int:
     """How many channels the database holds; zero is the part the importer may fill."""
-    return int(connection.execute("SELECT COUNT(*) FROM channel").fetchone()[0])
+    return int(connection.scalar(select(func.count()).select_from(CHANNEL)) or 0)
 
 
-def read_channels(connection: sqlite3.Connection, *, database: Path) -> ChannelList:
-    """The channel list, or a :class:`StoreError` naming the file and how many problems it has."""
-    documents = [_document(row) for row in connection.execute(_SELECT)]
+def read_channels(connection: Connection, *, where: str) -> ChannelList:
+    """The channel list, or a :class:`StoreError` naming the database and how many problems it has."""
+    rows = connection.execute(select(*_COLUMNS).order_by(CHANNEL.c.position)).mappings()
+    documents = [_document(row) for row in rows]
     try:
         parsed = ChannelListDocument.model_validate({"channels": documents})
     except ValidationError as exc:
-        message = f"{database}: the channel list is unusable ({exc.error_count()} problem(s))"
+        message = f"{where}: the channel list is unusable ({exc.error_count()} problem(s))"
         raise StoreError(message) from exc
     return parsed.to_channel_list()
 
 
-def write_channels(connection: sqlite3.Connection, channels: ChannelList) -> None:
+def write_channels(connection: Connection, channels: ChannelList, *, where: str) -> None:
     """Replace the whole list, keeping its order. The caller holds the transaction.
 
-    ``channel.number`` is UNIQUE, and nothing in the domain refuses two channels sharing one: a
-    legacy ``channels.json`` a person hand-edited can hold a duplicate, and the first-start import
-    would otherwise hit SQLite's raw :class:`sqlite3.IntegrityError` and crash rather than name the
-    problem. The caller's ``transaction`` rolls this write back on any exception, this one included,
-    so a refused write leaves whatever list was there before it untouched.
+    Nothing in the domain refuses two channels sharing a number, and a hand-edited legacy
+    ``channels.json`` can hold one. It is refused HERE, by name and before anything is written,
+    rather than left to the UNIQUE index: the index's error differs per backend and names
+    whichever duplicate it met first, and on PostgreSQL it would also abort the transaction under
+    the caller's feet. The index stays, for a row written past this function.
     """
-    connection.execute("DELETE FROM channel")
-    try:
-        connection.executemany(_INSERT, [_row(one) for one in channels.channels])
-    except sqlite3.IntegrityError as exc:
-        database = connection.execute("PRAGMA database_list").fetchone()[2]
-        numbers = ", ".join(_duplicated_numbers(channels))
-        message = f"{database}: the channel list has a duplicate number ({numbers})"
-        raise StoreError(message) from exc
+    duplicated = _duplicated_numbers(channels)
+    if duplicated:
+        message = f"{where}: the channel list has a duplicate number ({', '.join(duplicated)})"
+        raise StoreError(message)
+    connection.execute(delete(CHANNEL))
+    rows = [{"position": index, **_row(one)} for index, one in enumerate(channels.channels)]
+    if rows:
+        connection.execute(insert(CHANNEL), rows)
 
 
 def _duplicated_numbers(channels: ChannelList) -> tuple[str, ...]:
-    """Every number that names more than one channel, sorted and named once each.
-
-    Computed from the list itself rather than parsed out of SQLite's own text, so the message is
-    deterministic and does not depend on which duplicate the UNIQUE index happened to reject.
-    """
+    """Every number that names more than one channel, sorted and named once each."""
     seen: set[str] = set()
     duplicated: set[str] = set()
     for channel in channels.channels:
@@ -83,7 +86,7 @@ def _duplicated_numbers(channels: ChannelList) -> tuple[str, ...]:
     return tuple(sorted(duplicated))
 
 
-def _document(row: sqlite3.Row) -> dict[str, object]:
+def _document(row: RowMapping) -> dict[str, object]:
     """One row as the channel document names its fields (``at_end`` is ``end``, a SQL keyword)."""
     return {
         "number": row["number"],
@@ -97,16 +100,16 @@ def _document(row: sqlite3.Row) -> dict[str, object]:
     }
 
 
-def _row(channel: Channel) -> tuple[str, str, str, str, str, str, int, str]:
+def _row(channel: Channel) -> dict[str, object]:
     """One channel as plain values: the document's JSON form, so enums are their wire strings."""
     dumped = ChannelDocument.of(channel).model_dump(mode="json")
-    return (
-        str(dumped["number"]),
-        str(dumped["name"]),
-        str(dumped["kind"]),
-        str(dumped["url"]),
-        str(dumped["mpd_entry"]),
-        str(dumped["mpd_directory"]),
-        int(bool(dumped["in_rotation"])),
-        str(dumped["end"]),
-    )
+    return {
+        "number": str(dumped["number"]),
+        "name": str(dumped["name"]),
+        "kind": str(dumped["kind"]),
+        "url": str(dumped["url"]),
+        "mpd_entry": str(dumped["mpd_entry"]),
+        "mpd_directory": str(dumped["mpd_directory"]),
+        "in_rotation": int(bool(dumped["in_rotation"])),
+        "at_end": str(dumped["end"]),
+    }

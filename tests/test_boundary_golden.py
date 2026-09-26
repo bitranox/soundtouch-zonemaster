@@ -958,7 +958,7 @@ def wired_service(
     def log(kind: str, text: str) -> None:
         lines.append((kind, text))
 
-    def open_store(database: Path, *, log: LogFn) -> FakeStore:
+    def open_store(database: str, *, log: LogFn) -> FakeStore:
         return FakeStore()
 
     async def fetch_speakers(base_url: str = "", *, log: LogFn | None = None) -> tuple[Speaker, ...]:
@@ -1009,7 +1009,7 @@ def wired_service(
     options = ServiceOptions(
         bind_ip="127.0.0.1",
         device_id=MASTER_ID,
-        database=tmp_path / "zonemaster.sqlite",
+        database=str(tmp_path / "zonemaster.sqlite"),
         switch_file=tmp_path / "switch",
         state_file=tmp_path / "state.json",
         channel_file=tmp_path / "channels.json",

@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..adapters.aftertouch import registry
-from ..adapters.files.house_store import SqliteHouseStore
+from ..adapters.files.house_store import SqlHouseStore
 from ..adapters.logging.narration import log
 from ..adapters.mpd.client import MpdControl
 from ..adapters.soundtouch import observer, speaker_http, wire
@@ -36,8 +36,6 @@ from ..application.prototype import run
 from ..application.zone_service import ZoneService
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from ..application import ports as port_types
     from ..application.options import Options, ServiceOptions
     from ..domain.enums import Encryption
@@ -81,14 +79,14 @@ def open_prototype_master(
     )
 
 
-def open_house_store(database: Path, *, log: LogFn) -> port_types.HouseStore:
+def open_house_store(database: str, *, log: LogFn) -> port_types.HouseStore:
     """The house database both the service and the store verbs of its CLI reach through.
 
     A function rather than the class handed over by name, because the CLI names it too and
     neither should have to know which adapter answers: it returns a store not yet opened, and
     opening it is the caller's first touch of the disk.
     """
-    return SqliteHouseStore(database, log=log)
+    return SqlHouseStore(database, log=log)
 
 
 def build_production() -> AppServices:
@@ -147,4 +145,4 @@ if TYPE_CHECKING:
     _master_is_a_zone_master_port: port_types.ZoneMasterPort = ZoneMaster(bind_ip="", device_id="", log=log)
     _master_is_a_prototype_master: port_types.PrototypeMaster = ZoneMaster(bind_ip="", device_id="", log=log)
     _open_store: port_types.OpenHouseStore = open_house_store
-    _store_is_a_house_store: port_types.HouseStore = SqliteHouseStore(Path(), log=log)
+    _store_is_a_house_store: port_types.HouseStore = SqlHouseStore("", log=log)

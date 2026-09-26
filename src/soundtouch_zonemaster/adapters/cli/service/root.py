@@ -247,7 +247,7 @@ def _report(options: ServiceOptions, rc: int, *, mode: OutputMode) -> None:
     report = ServiceReport(
         bind_ip=options.bind_ip,
         device_id=options.device_id,
-        database=str(options.database),
+        database=options.database,
         channel_file=str(options.channel_file) if options.channel_file is not None else None,
         registry_url=options.registry_url,
         switch_file=str(options.switch_file) if options.switch_file is not None else None,

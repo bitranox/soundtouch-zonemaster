@@ -119,9 +119,9 @@ class HouseStore(Protocol):
 
 
 class OpenHouseStore(Protocol):
-    """A store over one database file, not yet opened. Opening it is the first thing that touches disk."""
+    """A store over one database, not yet opened. Opening it is the first thing that touches it."""
 
-    def __call__(self, database: Path, *, log: LogFn) -> HouseStore: ...
+    def __call__(self, database: str, *, log: LogFn) -> HouseStore: ...
 
 
 # --- the speakers, and the service next door --------------------------------------------------

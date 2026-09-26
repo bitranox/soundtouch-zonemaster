@@ -26,6 +26,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "alembic>=1.20.0",
     "httpx>=0.28.1",
     "lib_cli_exit_tools>=2.3.4",
     "lib_layered_config>=5.6.2",
@@ -33,15 +34,20 @@ dependencies = [
     "pydantic>=2.13.5",
     "pydantic-xml>=2.21.1",
     "rich-click>=1.9.9",
+    "sqlalchemy>=2.1.1",
     "websockets>=17.1",
 ]
 
 [project.optional-dependencies]
+postgres = [
+    "psycopg[binary]>=3.3.6",
+]
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "coverage[toml]>=7.16.1",
+    "psycopg[binary]>=3.3.6",
     # The gate's own tools, declared so `uv run <tool>` in this venv matches what
     # bmk runs. bmk resolves them from its own pinned toolchain either way, so a
     # floor here documents the version this project was proven against.

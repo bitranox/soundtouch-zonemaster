@@ -11,71 +11,86 @@ would be a second way of being right that nothing tests.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import delete, insert, select
 
 from ...domain.state import Place, ZoneState
+from .house_schema import MEMBER, MUTED, OUT_OF_MULTIROOM, OWED_VOLUME, PLACE, ZONE
 
 if TYPE_CHECKING:
-    import sqlite3
+    from sqlalchemy import Table
+    from sqlalchemy.engine import Connection
 
 __all__ = ["read_state", "write_state"]
 
-_CLEAR = (
-    "DELETE FROM member",
-    "DELETE FROM muted",
-    "DELETE FROM out_of_multiroom",
-    "DELETE FROM place",
-    "DELETE FROM owed_volume",
-)
+_REPLACED = (ZONE, MEMBER, MUTED, OUT_OF_MULTIROOM, PLACE, OWED_VOLUME)
 
 
-def read_state(connection: sqlite3.Connection) -> ZoneState | None:
+def read_state(connection: Connection) -> ZoneState | None:
     """The state, or nothing when no state was ever written."""
-    zone = connection.execute("SELECT channel, dial_window_s, hold_threshold_s FROM zone WHERE id = 1").fetchone()
+    zone = connection.execute(
+        select(ZONE.c.channel, ZONE.c.dial_window_s, ZONE.c.hold_threshold_s).where(ZONE.c.id == 1)
+    ).one_or_none()
     if zone is None:
         return None
-    channel: str | None = zone["channel"]
-    dial_window_s: float | None = zone["dial_window_s"]
-    hold_threshold_s: float | None = zone["hold_threshold_s"]
+    channel, dial_window_s, hold_threshold_s = zone
     return ZoneState(
         channel=None if channel is None else str(channel),
-        members=tuple(str(row[0]) for row in connection.execute("SELECT device_id FROM member ORDER BY rowid")),
+        members=tuple(str(one) for one in connection.scalars(select(MEMBER.c.device_id).order_by(MEMBER.c.position))),
         muted={
-            str(row[0]): int(row[1]) for row in connection.execute("SELECT device_id, volume FROM muted ORDER BY rowid")
+            str(device): int(volume)
+            for device, volume in connection.execute(
+                select(MUTED.c.device_id, MUTED.c.volume).order_by(MUTED.c.position)
+            )
         },
         out_of_multiroom=tuple(
-            str(row[0]) for row in connection.execute("SELECT device_id FROM out_of_multiroom ORDER BY rowid")
+            str(one)
+            for one in connection.scalars(select(OUT_OF_MULTIROOM.c.device_id).order_by(OUT_OF_MULTIROOM.c.position))
         ),
         positions={
-            str(row[0]): Place(track=int(row[1]), seconds=float(row[2]), file=None if row[3] is None else str(row[3]))
-            for row in connection.execute("SELECT channel, track, seconds, file FROM place ORDER BY rowid")
+            str(number): Place(track=int(track), seconds=float(seconds), file=None if file is None else str(file))
+            for number, track, seconds, file in connection.execute(
+                select(PLACE.c.channel, PLACE.c.track, PLACE.c.seconds, PLACE.c.file).order_by(PLACE.c.position)
+            )
         },
         dial_window_s=None if dial_window_s is None else float(dial_window_s),
         hold_threshold_s=None if hold_threshold_s is None else float(hold_threshold_s),
         owed_volume={
-            str(row[0]): int(row[1])
-            for row in connection.execute("SELECT device_id, steps FROM owed_volume ORDER BY rowid")
+            str(device): int(steps)
+            for device, steps in connection.execute(
+                select(OWED_VOLUME.c.device_id, OWED_VOLUME.c.steps).order_by(OWED_VOLUME.c.position)
+            )
         },
     )
 
 
-def write_state(connection: sqlite3.Connection, state: ZoneState) -> None:
+def write_state(connection: Connection, state: ZoneState) -> None:
     """Replace the whole state. The caller holds the transaction."""
+    for table in _REPLACED:
+        connection.execute(delete(table))
     connection.execute(
-        "INSERT INTO zone (id, channel, dial_window_s, hold_threshold_s) VALUES (1, ?, ?, ?)"
-        " ON CONFLICT (id) DO UPDATE SET channel = excluded.channel,"
-        " dial_window_s = excluded.dial_window_s, hold_threshold_s = excluded.hold_threshold_s",
-        (state.channel, state.dial_window_s, state.hold_threshold_s),
+        insert(ZONE).values(
+            id=1, channel=state.channel, dial_window_s=state.dial_window_s, hold_threshold_s=state.hold_threshold_s
+        )
     )
-    for statement in _CLEAR:
-        connection.execute(statement)
-    connection.executemany("INSERT INTO member (device_id) VALUES (?)", [(one,) for one in state.members])
-    connection.executemany("INSERT INTO muted (device_id, volume) VALUES (?, ?)", list(state.muted.items()))
-    connection.executemany(
-        "INSERT INTO out_of_multiroom (device_id) VALUES (?)", [(one,) for one in state.out_of_multiroom]
+    _in_order(connection, MEMBER, [{"device_id": one} for one in state.members])
+    _in_order(connection, MUTED, [{"device_id": device, "volume": volume} for device, volume in state.muted.items()])
+    _in_order(connection, OUT_OF_MULTIROOM, [{"device_id": one} for one in state.out_of_multiroom])
+    _in_order(
+        connection,
+        PLACE,
+        [
+            {"channel": number, "track": place.track, "seconds": place.seconds, "file": place.file}
+            for number, place in state.positions.items()
+        ],
     )
-    connection.executemany(
-        "INSERT INTO place (channel, track, seconds, file) VALUES (?, ?, ?, ?)",
-        [(number, place.track, place.seconds, place.file) for number, place in state.positions.items()],
+    _in_order(
+        connection, OWED_VOLUME, [{"device_id": device, "steps": steps} for device, steps in state.owed_volume.items()]
     )
-    connection.executemany("INSERT INTO owed_volume (device_id, steps) VALUES (?, ?)", list(state.owed_volume.items()))
+
+
+def _in_order(connection: Connection, table: Table, rows: list[dict[str, Any]]) -> None:
+    """Insert rows numbered by where they stand. An empty list inserts nothing (executemany refuses [])."""
+    if rows:
+        connection.execute(insert(table), [{"position": index, **row} for index, row in enumerate(rows)])
