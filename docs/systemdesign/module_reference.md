@@ -24,8 +24,8 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/domain/channellist.py`  -  The house's channels: the dialable numbers, the ladder, the list rule
 - `src/soundtouch_zonemaster/domain/dialling.py`  -  One digit buffer per speaker, and the one wait time above all of them
 - `src/soundtouch_zonemaster/domain/calibration.py`  -  The gesture that starts a calibration, and the window it measures
-- `src/soundtouch_zonemaster/domain/state.py`  -  ZoneState: the state file's record, what survives a restart
-- `src/soundtouch_zonemaster/domain/switch.py`  -  The switch rule: off only when the file says so
+- `src/soundtouch_zonemaster/domain/state.py`  -  ZoneState: the house's state, what survives a restart
+- `src/soundtouch_zonemaster/domain/switch.py`  -  The switch rule: off only when the switch row says so
 
 ### Application Layer
 - `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse

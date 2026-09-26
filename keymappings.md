@@ -15,8 +15,8 @@ matter are listed first, and each section says which of them it depends on.
 | The house           | playing / quiet                 | whether the zone master is playing a channel right now                 |
 | The box             | asleep (STANDBY) / awake        | what the box last reported about itself                                |
 | The box's place     | a zone slave / outside the zone | whether the master has taken the box in                                |
-| Multiroom           | in / out                        | a double-tapped thumb; kept in the state file                          |
-| The channel playing | radio / MPD                     | the `kind` of the channel in the channel file                          |
+| Multiroom           | in / out                        | a double-tapped thumb; kept in the house database                      |
+| The channel playing | radio / MPD                     | the `kind` of the channel in the channel list                          |
 | A calibration       | running / not running           | the calibration gesture, below                                         |
 | The gesture         | tap / hold                      | whether the key came back up inside the hold threshold                 |
 
@@ -41,7 +41,7 @@ How long the house waits after a key before it reads the digits or steps as one 
 - It is armed when a key comes back UP, not when it goes down, so the time a thumb rests on a key is
   not charged against the next one.
 - A calibrated window (see [Calibration](#calibration-next-previous-next-previous)) is written to the
-  state file and beats every configuration layer and the command line.
+  house database's `zone` row and beats every configuration layer and the command line.
 
 ## The hold threshold
 
@@ -136,9 +136,9 @@ a slow tap is one step too.
 
 ### The end of an MPD channel
 
-Each MPD channel says in the channel file what happens when its playlist runs out by itself:
+Each MPD channel says in the channel list what happens when its playlist runs out by itself:
 
-| `end` in the channel file | At the natural end                                                                                                    |
+| `end` in the channel list | At the natural end                                                                                                    |
 |---------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `wrap`, or no `end`       | Plays on from the first file (MPD `repeat` on). Right for music.                                                      |
 | `stop`                    | Falls silent, and the remembered place is forgotten, so the next time somebody dials it the book starts from the top. |
@@ -182,12 +182,12 @@ second goes down within the dialling window of the first coming up; a third tap 
 The rotation takes a HOLD because it changes the whole house: a single stray touch must not take
 a channel out for everybody with nothing audible to say so.
 
-The rotation is what next and previous walk through. It is stored in the channel file, so a hold
+The rotation is what next and previous walk through. It is stored in the channel list, so a hold
 changes it for the whole house. A channel out of the rotation keeps its number and can still be
 dialled, which is how a stray thumbs down is undone from the room. The last channel in the rotation
 cannot be taken out: the press is refused and logged.
 
-Multiroom is per box and is stored in the state file, so it survives a restart. A box taken out is
+Multiroom is per box and is kept in the house database, so it survives a restart. A box taken out is
 released from the zone - the master sends it `/removeZoneSlave`, which also puts it into standby -
 and at once handed the channel the house was playing, so the room is silent for about a second
 and then plays on by itself. From then on its preset keys dial for it alone (see the dialling
@@ -198,10 +198,13 @@ and reports its keys only as anonymous touches (measured 2026-09-24), so a doubl
 never arrives. Switching it on - the power key, or a preset key while it is in standby - puts it
 back into multiroom, and it joins the zone like any box that wakes. The service's own wake of the
 box, the station it hands it right after the release, does not count. A double thumbs up still
-brings back a box the release did not reach, since that box is still a zone slave. As a last resort
-the flag is the box's device id in the state file's `out_of_multiroom` list; edit that only while
-the service is stopped, because the service reads the file at start and writes it back whenever its
-state changes.
+brings back a box the release did not reach, since that box is still a zone slave. There is no CLI
+verb for this flag; as a last resort it is one row per excluded box in the house database's
+`out_of_multiroom` table (a `device_id` column, no other columns worth reading). Edit it only while
+the service is stopped - the service holds the writer lock while it runs and rewrites the whole
+table on every state change, so a row deleted underneath it is simply written back - for example
+`DELETE FROM out_of_multiroom WHERE device_id = '<id>';` against the database the deployment names
+(`sqlite3 <path>`, or `psql` for PostgreSQL).
 
 Pressing a thumb in a state where it changes nothing (a channel already in the rotation) is logged
 and does nothing. **While a calibration runs**, both thumbs do nothing.
@@ -224,7 +227,7 @@ keys are that room's own again.
 - **Two keys at once do not work.** The remote sends only the key held first (measured 2026-09-24,
   `docs/measurements/2026-09-24-thumb-and-volume.md`), so the thumb has to come first.
 - **A box that is off, or on another input, is not written.** It is owed the step instead, in the
-  state file, and takes it when it next joins: the join turns it down and fades it back up to its
+  house database, and takes it when it next joins: the join turns it down and fades it back up to its
   own level plus what it missed. A box owed below zero joins at zero.
 - **A box out of multiroom takes nothing.** It left the house on purpose.
 - **A box still fading in when you turn the house** ends its fade at the moved level.
@@ -251,7 +254,7 @@ leaves the window unchanged.
 
 The hold threshold becomes the longest time a key was DOWN in the same presses, with the same margin
 and rounding, clamped to 1.0 to 2.0 s. With fewer than three usable presses it stays as it was. Both
-results are saved in the state file, and the log line names both.
+results are saved in the house database's `zone` row, and the log line names both.
 
 Pressed slowly, the four steps of the gesture can each leave the window before the next one lands,
 and the zone then steps a channel and steps back. The listener ends where they started, having heard
