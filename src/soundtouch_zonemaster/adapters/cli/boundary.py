@@ -21,10 +21,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
-from sqlalchemy.engine import make_url
-from sqlalchemy.exc import ArgumentError
 
 from ...__init__conf__ import service_command
 from ...application.options import (
@@ -137,17 +136,22 @@ class ServiceOptionsInput(BaseModel):
 
         A password can arrive in the URL's own userinfo, or as a ``password`` query key some
         drivers pass straight through as a connect argument; both are refused here, the same two
-        shapes ``adapters/files/house_db.py`` refuses at the store. A setting that fails to parse
-        is left to that store's own refusal rather than echoed here, since a malformed URL can
-        itself be the thing carrying the password.
+        shapes ``adapters/files/house_db.py`` refuses at the store. Read with the stdlib rather
+        than SQLAlchemy's own parser, so this boundary - which runs ahead of the store and ahead of
+        knowing the backend is even one this program supports - never needs that dependency: this
+        layer's job is only to catch a password before it is echoed anywhere, not to validate the
+        URL, and ``urlsplit`` finds the userinfo even on a URL SQLAlchemy's parser would refuse
+        outright (a bad port, for one). A setting that fails to parse is left to the store's own
+        refusal rather than echoed here, since a malformed URL can itself be the thing carrying the
+        password.
         """
         if "://" not in value:
             return value
         try:
-            url = make_url(value)
-        except (ArgumentError, ValueError):
+            parsed = urlsplit(value)
+        except ValueError:
             return value
-        if url.password is not None or any(key.lower() == "password" for key in url.query):
+        if parsed.password is not None or any(key.lower() == "password" for key, _ in parse_qsl(parsed.query)):
             message = "refused: the database URL carries a password; keep it in ~/.pgpass (or PGPASSFILE) instead"
             raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return value

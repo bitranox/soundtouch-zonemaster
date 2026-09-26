@@ -1,0 +1,10 @@
+# This checkout's own [database] url, over the public default in 25-database.toml.
+#
+# Copy this file to 93-database-rnhome.toml (the same name without .example) and put the real
+# value in the copy. The copy is gitignored: every file named <anything>-rnhome.<ext> is private
+# to the machine it sits on, and the wheel build excludes it as well. This example is tracked so
+# the shape can be found; the path below is a placeholder.
+
+[database]
+
+# url = "<dev path>/zonemaster.sqlite"

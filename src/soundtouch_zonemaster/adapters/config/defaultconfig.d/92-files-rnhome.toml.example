@@ -5,12 +5,12 @@
 # machine it sits on, and the wheel build excludes it as well. This example is tracked so the
 # shape can be found.
 #
-# The four are commented out here because where they live is a property of one machine; a
-# checkout that runs the service names them here, on the command line, or in the environment.
+# The three are commented out here because where they live is a property of one machine; a
+# checkout that runs the service names them here, on the command line, or in the environment. The
+# database is [database] url, in 93-database-rnhome.toml.example beside this file.
 
 [files]
 
-# database = "<dev path>/zonemaster.sqlite"
 # channel_file = "/var/lib/zonemaster/channels.json"
 # switch_file = "/var/lib/zonemaster/zone.switch"
 # state_file = "/var/lib/zonemaster/zone-state.json"

@@ -354,10 +354,22 @@ def test_version_in_machine_mode_is_the_same_envelope_as_everything_else(
     }
 
 
-def test_a_database_url_carrying_a_password_is_refused_without_repeating_it() -> None:
+@pytest.mark.parametrize(
+    "database",
+    [
+        pytest.param("postgresql+psycopg://zm:s3cret@db.example/zm", id="userinfo"),
+        pytest.param("postgresql+psycopg://zm@db.example/zm?password=s3cret", id="query-key-lowercase"),
+        pytest.param("postgresql+psycopg://zm@db.example/zm?PassWord=s3cret", id="query-key-mixed-case"),
+        pytest.param("postgresql+psycopg://zm:s3cret@db.example:54x2/zm", id="bad-port-with-userinfo"),
+    ],
+)
+def test_a_database_url_carrying_a_password_is_refused_without_repeating_it(database: str) -> None:
     """The URL is echoed by envelopes, ``config`` and logs; the password belongs in ``~/.pgpass``
     (or ``PGPASSFILE``) instead, which is what the refusal must point a reader to without ever
-    printing the secret itself."""
+    printing the secret itself - in the userinfo, in a ``password`` query key whatever its case,
+    and even on a URL a stricter parser would refuse outright for its bad port: ``urlsplit`` still
+    finds the userinfo on that one, which is why the boundary reads with it rather than with
+    SQLAlchemy's own parser (a reviewer's probe against the SQLAlchemy-backed predecessor)."""
     with pytest.raises(OptionsError) as caught:
         parse_service_options(
             bind_ip="127.0.0.1",
@@ -365,7 +377,7 @@ def test_a_database_url_carrying_a_password_is_refused_without_repeating_it() ->
             channel_file=None,
             switch_file=None,
             state_file=None,
-            database="postgresql+psycopg://zm:s3cret@db.example/zm",
+            database=database,
             registry_url=None,
             allow_console=(),
             unreachable_timeout_s=None,

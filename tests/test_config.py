@@ -66,6 +66,20 @@ def _scope_files() -> list[Path]:
     return sorted(path for path in _scope_dir().iterdir() if path.suffix == ".toml")
 
 
+def _file_for_section(section: str) -> Path:
+    """The one shipped file that declares ``[section]``, header included.
+
+    One section, one file (pinned by ``test_the_base_file_carries_no_settings_and_every_section_has_one_file``),
+    so this is unambiguous even for a section every value in which is commented out: the header
+    line ``[section]`` still parses as an empty table.
+    """
+    for path in _scope_files():
+        if section in tomllib.loads(path.read_text(encoding="utf-8")):
+            return path
+    message = f"no shipped file declares [{section}]"
+    raise AssertionError(message)
+
+
 def _shipped() -> dict[str, Any]:
     """Every value the shipped files actually set, by dotted config path."""
     found: dict[str, Any] = {}
@@ -183,10 +197,16 @@ def test_the_files_leave_exactly_the_settings_with_no_default_commented_out() ->
     printable to show and forgetting the files fails here rather than at a startup weeks later."""
     fields = dict(_fields(ServiceOptions))
     nothing_to_show = {name for name, field in fields.items() if _has_nothing_to_show(field)}
-    text = "\n".join(path.read_text(encoding="utf-8") for path in _scope_files())
     # The marker is the config file's own key, not the field's name: they agree everywhere except
-    # `database`, whose field kept its name while its config key moved to `[database] url`.
-    shown = {name for name in nothing_to_show if f"# {config_path_of(name).rpartition('.')[2]} = " in text}
+    # `database`, whose field kept its name while its config key moved to `[database] url`. Each
+    # name is searched only in the ONE file that owns its section - `registry` also has a `url`,
+    # so searching the whole tree's text for "# url = " would match there too.
+    shown: set[str] = set()
+    for name in nothing_to_show:
+        section, _, key = config_path_of(name).partition(".")
+        text = _file_for_section(section).read_text(encoding="utf-8")
+        if f"# {key} = " in text:
+            shown.add(name)
     settable = {SETTINGS[path] for path in _shipped() if path in SETTINGS}
 
     assert settable == set(fields) - nothing_to_show

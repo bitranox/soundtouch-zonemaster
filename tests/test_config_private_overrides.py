@@ -109,6 +109,7 @@ def test_there_is_a_tracked_example_for_each_scope_that_carries_machine_values()
     assert [path.name for path in _examples()] == [
         "91-zone-rnhome.toml.example",
         "92-files-rnhome.toml.example",
+        "93-database-rnhome.toml.example",
         "98-prototype-rnhome.toml.example",
     ]
 

@@ -13,9 +13,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- The service keeps its state, the house's channel list and the switch in one SQLite database
-  (`files.database`, `--database`). On the first start after the upgrade it imports
-  `zone-state.json`, `channels.json` and `zone.switch` once each and renames them to `*.imported`.
+- The service keeps its state, the house's channel list and the switch in one database
+  (`database.url`, `--database`): a SQLite file by default, or a PostgreSQL URL for a machine that
+  already runs one. On the first start after the upgrade it imports `zone-state.json`,
+  `channels.json` and `zone.switch` once each and renames them to `*.imported`.
 - A database that cannot be read now refuses the start. The state file used to start empty instead.
 - An old `zone-state.json` or `channels.json` that exists but cannot be parsed also refuses the
   start, naming the file; nothing is imported and nothing is renamed.
