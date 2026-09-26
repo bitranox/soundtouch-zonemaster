@@ -57,9 +57,8 @@ def test_masked_leaves_a_non_password_query_value_alone() -> None:
 
 
 def test_masked_does_not_raise_on_a_password_beside_a_port_that_is_not_a_number() -> None:
-    """The regression this test guards: an earlier draft read the port through ``urlsplit``'s own
-    ``.port`` property, which coerces it to an int and raises on ``54x2`` - exactly a URL this
-    function still has to mask rather than crash on."""
+    """A port that is not a number is text like any other here: the mask never converts it, so a
+    URL SQLAlchemy would refuse outright for its port is still masked rather than crashed on."""
     shown = masked("postgresql+psycopg://zm:s3cret@db.example:54x2/zm")
     assert "s3cret" not in shown
     assert "54x2" in shown, "only the password is masked; the rest of the netloc is unchanged"

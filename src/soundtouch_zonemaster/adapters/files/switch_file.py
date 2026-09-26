@@ -1,19 +1,17 @@
-"""The switch file: the only way to tell the service to let the house alone.
+"""The old switch file, read once as a one-time import source.
 
-Off means the zone is dissolved and the speakers are independent again. The Bose zone function
-between real speakers is untouched either way, so turning this off does not take multiroom away
-from anybody - it takes US out of it.
+The service reads the switch from its row in the house database (``house_switch.py``), never from
+this file. ``legacy_import.py`` reads the file once, when the database has no switch row yet,
+and writes what it said into that row.
 
 **Off only when the file says so.** Missing, empty, unreadable, or holding something nobody
-recognises all mean ON. One rule, so there is nothing to get subtly wrong at two in the morning:
-a lost file cannot silently stop the house working, and turning the service off stays a deliberate
-act rather than an accident. The cost is that a typo means on; the reverse default would make a
-deleted file look like a working service that has quietly stopped.
+recognises all mean ON - the rule the row follows too, for the same reason: a lost switch cannot
+silently stop the house working, and turning the service off stays a deliberate act rather than
+an accident. The cost is that a typo means on.
 
-**Watched, not read once.** Most editors do not modify a file in place - they write a new one and
-rename it over the old - so anything holding on to what it opened at start keeps reporting the
-value from then, forever, with nothing about it looking broken. The path is therefore re-opened on
-every poll and no descriptor is kept.
+:meth:`Switch.watch` re-opens the path on every poll rather than keeping a descriptor, because
+most editors write a new file and rename it over the old one. Nothing in the service calls it:
+the service watches the row through ``house_switch.DbSwitch``.
 
 The word and the poll interval are the domain's (``domain/switch.py``); what is here is the
 reading of a real file.
@@ -36,7 +34,7 @@ __all__ = ["Switch"]
 
 
 class Switch:
-    """The switch file, read now or watched for as long as the service runs."""
+    """The old switch file: read once by the legacy import, or watched by polling it."""
 
     def __init__(self, path: Path, *, log: LogFn, poll_s: float = POLL_S) -> None:
         self.path = path

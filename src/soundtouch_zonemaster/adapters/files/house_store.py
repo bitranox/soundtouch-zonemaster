@@ -66,12 +66,13 @@ class SqlHouseStore:
     def close(self) -> None:
         """Close the database, resetting this store's own state even when that raises.
 
-        The reset happens in ``finally`` rather than after a plain call: ``HouseDatabase.close()``
-        already swallows a lock release that fails on a session already gone (a dead PostgreSQL
-        connection), but a caller may still reach this from elsewhere while a genuine close error
-        propagates for another reason, and without the ``finally`` a store left thinking it was
-        still open would refuse the next ``open()`` by name as "already open" - unable to reconnect
-        at all until the process restarts.
+        ``HouseDatabase.close()`` re-raises whatever its lock release raises, after disposing the
+        engine in its own ``finally``; only ``AdvisoryLock.release`` suppresses a failed unlock
+        statement on a session already gone. A database-library error then leaves here as a
+        ``StoreError`` through ``_guarded``, anything else (an ``OSError`` closing a ``FileLock``)
+        as it was raised, and either way this store is reset in ``finally`` before the caller sees
+        it: a store left thinking it was still open would refuse the next ``open()`` as "already
+        open", unable to reconnect until the process restarts.
         """
         if self._house is None:
             return

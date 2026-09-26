@@ -192,7 +192,9 @@ list is `soundtouch-zonemaster-service channels export|import`.
 PostgreSQL support needs the package installed with its `postgres` extra (`pip install
 "soundtouch-zonemaster[postgres]"`); it is built against the same schema as SQLite and covered by
 the unit tests with SQLite, but it is not exercised against a real PostgreSQL server as part of
-this project's own gate.
+this project's own gate (`make test`). The store tests run against PostgreSQL too when
+`ZONEMASTER_TEST_POSTGRES_URL`, in the environment or in the checkout's `.env`, names a throwaway
+database: every store test drops the house tables in it. See `.env.example`.
 
 ## Usage
 

@@ -1,6 +1,6 @@
 """The switch, as one row: off only when the row says so.
 
-The rule is the one the switch file had (``switch_file.py``), and the reason is the same. A
+The rule is the one ``switch_file.py`` applies to the old file, for the same reason. A
 missing row, or a read that fails, means ON, so a lost database cannot silently stop the house
 working, and turning the service off stays a deliberate act. The word and the poll interval are
 still the domain's (``domain/switch.py``).
