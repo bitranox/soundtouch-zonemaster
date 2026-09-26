@@ -37,10 +37,10 @@ SETTINGS: Mapping[str, str] = {
     # where in a config file it is written  ->  which ServiceOptions field it fills
     "zone.bind_ip": "bind_ip",
     "zone.device_id": "device_id",
-    "files.database": "database",
     "files.channel_file": "channel_file",
     "files.switch_file": "switch_file",
     "files.state_file": "state_file",
+    "database.url": "database",
     "registry.url": "registry_url",
     "registry.poll_s": "registry_poll_s",
     "membership.consoles_allowed": "consoles_allowed",

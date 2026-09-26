@@ -41,7 +41,7 @@ DEPLOYED_ARGV = (
 )
 """The options the deployed unit passes. The unit's ``ExecStart`` still names the three file paths,
 which are now one-time import sources. The database it needs comes from the host layer,
-``files.database`` in the deployment host's own configuration file, which is what a test using this
+``database.url`` in the deployment host's own configuration file, which is what a test using this
 argv must add through ``_user_config`` or an equivalent isolated layer. Only the paths are rewritten
 below, because ``/var/lib/zonemaster`` does not exist on a development host and each file's directory
 is checked at startup."""
@@ -76,7 +76,8 @@ def _house(tmp_path: Path, *, bind_ip: str = "10.0.0.1", zone: str = "", extra: 
     """
     return (
         f'[zone]\nbind_ip = "{bind_ip}"\n{zone}'
-        f'[files]\ndatabase = "{tmp_path}/zonemaster.sqlite"\nchannel_file = "{tmp_path}/ch.json"\n'
+        f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n'
+        f'[files]\nchannel_file = "{tmp_path}/ch.json"\n'
         f'switch_file = "{tmp_path}/sw"\nstate_file = "{tmp_path}/st.json"\n' + extra
     )
 
@@ -89,7 +90,8 @@ def test_the_deployed_units_argv_still_wins_over_a_config_file_that_disagrees(
     _user_config(
         isolated_config_layers,
         f'[zone]\nbind_ip = "10.9.9.9"\n'
-        f'[files]\ndatabase = "{tmp_path}/zonemaster.sqlite"\nchannel_file = "/tmp/other.json"\n'
+        f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n'
+        f'[files]\nchannel_file = "/tmp/other.json"\n'
         f"[dialling]\nwindow_s = 1.4\n",
     )
     argv = [part.replace("/var/lib/zonemaster", str(tmp_path)) for part in DEPLOYED_ARGV]
@@ -156,7 +158,8 @@ def test_a_set_override_reaches_the_service_and_still_loses_to_a_typed_option(
 ) -> None:
     _user_config(
         isolated_config_layers,
-        f'[files]\ndatabase = "{tmp_path}/zonemaster.sqlite"\nchannel_file = "{tmp_path}/ch.json"\n'
+        f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n'
+        f'[files]\nchannel_file = "{tmp_path}/ch.json"\n'
         f'switch_file = "{tmp_path}/sw"\nstate_file = "{tmp_path}/st.json"\n',
     )
     seen, run = _capture()
@@ -437,12 +440,12 @@ def test_a_deployed_file_is_a_file_the_service_then_reads(
         (
             "20-files.toml",
             (
-                ("database", f"{tmp_path}/zonemaster.sqlite"),
                 ("channel_file", f"{tmp_path}/ch.json"),
                 ("switch_file", f"{tmp_path}/sw"),
                 ("state_file", f"{tmp_path}/st.json"),
             ),
         ),
+        ("25-database.toml", (("url", f"{tmp_path}/zonemaster.sqlite"),)),
     ):
         path = scopes / name
         body = path.read_text(encoding="utf-8")
@@ -594,7 +597,7 @@ def test_an_mpd_port_no_caller_could_dial_is_refused_by_name(
     more than one in these options."""
     # The unit's argv names no database; the deployment host's layer file supplies one, so we add
     # it here through the isolated user layer.
-    _user_config(isolated_config_layers, f'[files]\ndatabase = "{tmp_path}/zonemaster.sqlite"\n')
+    _user_config(isolated_config_layers, f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n')
     argv = [part.replace("/var/lib/zonemaster", str(tmp_path)) for part in DEPLOYED_ARGV]
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv, "--mpd-port", "0"])
 

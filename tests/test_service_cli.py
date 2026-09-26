@@ -17,16 +17,17 @@ import json
 from typing import TYPE_CHECKING
 
 import lib_cli_exit_tools
+import pytest
 
 from soundtouch_zonemaster.__init__conf__ import version
+from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.logging.narration import log
+from soundtouch_zonemaster.application.outcome import ExitCode, OptionsError
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
     from soundtouch_zonemaster.application.options import ServiceOptions
 
@@ -351,3 +352,29 @@ def test_version_in_machine_mode_is_the_same_envelope_as_everything_else(
         "data": {"version": version},
         "skipped": [],
     }
+
+
+def test_a_database_url_carrying_a_password_is_refused_without_repeating_it() -> None:
+    """The URL is echoed by envelopes, ``config`` and logs; the password belongs in ``~/.pgpass``
+    (or ``PGPASSFILE``) instead, which is what the refusal must point a reader to without ever
+    printing the secret itself."""
+    with pytest.raises(OptionsError) as caught:
+        parse_service_options(
+            bind_ip="127.0.0.1",
+            device_id=None,
+            channel_file=None,
+            switch_file=None,
+            state_file=None,
+            database="postgresql+psycopg://zm:s3cret@db.example/zm",
+            registry_url=None,
+            allow_console=(),
+            unreachable_timeout_s=None,
+            dial_window_s=None,
+            mpd_host=None,
+            mpd_port=None,
+            mpd_rewind_s=None,
+            configured={},
+        )
+    assert caught.value.exit_code == ExitCode.REFUSED
+    assert "s3cret" not in str(caught.value)
+    assert "pgpass" in str(caught.value)

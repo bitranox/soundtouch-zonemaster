@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from ...__init__conf__ import service_command
 from ...application.options import (
@@ -126,6 +128,29 @@ class ServiceOptionsInput(BaseModel):
     @classmethod
     def _twelve_hex_digits(cls, value: str) -> str:
         return device_id_or_refuse(value)
+
+    @field_validator("database")
+    @classmethod
+    def _no_password_in_a_database_url(cls, value: str) -> str:
+        """A URL is echoed by envelopes, `config` and logs; libpq reads the password from ~/.pgpass
+        instead. The store refuses it too, for the verbs that reach it without this record.
+
+        A password can arrive in the URL's own userinfo, or as a ``password`` query key some
+        drivers pass straight through as a connect argument; both are refused here, the same two
+        shapes ``adapters/files/house_db.py`` refuses at the store. A setting that fails to parse
+        is left to that store's own refusal rather than echoed here, since a malformed URL can
+        itself be the thing carrying the password.
+        """
+        if "://" not in value:
+            return value
+        try:
+            url = make_url(value)
+        except (ArgumentError, ValueError):
+            return value
+        if url.password is not None or any(key.lower() == "password" for key in url.query):
+            message = "refused: the database URL carries a password; keep it in ~/.pgpass (or PGPASSFILE) instead"
+            raise OptionsError(message, exit_code=ExitCode.REFUSED)
+        return value
 
     @field_validator("dial_window_s")
     @classmethod

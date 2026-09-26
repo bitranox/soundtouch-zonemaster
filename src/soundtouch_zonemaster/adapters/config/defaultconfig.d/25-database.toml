@@ -1,0 +1,23 @@
+# Where the house database is.
+#
+# The service keeps what it remembers, the house's channel list and the switch in one database:
+# a SQLite file by default, or a PostgreSQL database for a machine that already runs one.
+
+[database]
+
+# The house database, as a plain path or as a URL.
+#
+# Default: none. Effect: a plain path (or sqlite:////absolute/path) is one SQLite file, plus its
+# -wal and -shm files while the service runs and a .lock file beside it; its DIRECTORY has to
+# exist and is checked at startup. postgresql+psycopg://user@host/dbname is a PostgreSQL database,
+# which needs the package installed with its postgres extra; the one-writer lock is then an
+# advisory lock on the server.
+# A URL carrying a password is REFUSED: keep the password in ~/.pgpass (or the file PGPASSFILE
+# names), where the PostgreSQL client finds it and no configuration layer, envelope or log shows it.
+# When to set: always. It must not live in /tmp. On the deployed unit it sits in
+# /var/lib/zonemaster, which systemd creates through StateDirectory=.
+# Consequence of losing it: the house comes back on its default channel with every box in
+# multiroom, the channel list is rebuilt from a box's presets (places 1 to 6 only), and the
+# switch reads as on. Export the channel list (`channels export`) to keep a copy a person can read.
+#   env: SOUNDTOUCH_ZONEMASTER___DATABASE__URL
+# url = "/var/lib/zonemaster/zonemaster.sqlite"

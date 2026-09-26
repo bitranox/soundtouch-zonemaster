@@ -74,7 +74,7 @@ def database_for(shared: Shared) -> str:
     if configured is None:
         message = (
             "refused: no value anywhere for database. Give it on the command line (--database), "
-            "or in a config file as files.database"
+            "or in a config file as database.url"
         )
         raise OptionsError(message, exit_code=ExitCode.ERROR)
     return str(configured)

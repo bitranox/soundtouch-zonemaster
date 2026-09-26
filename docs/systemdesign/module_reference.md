@@ -104,7 +104,8 @@ Complete (v0.2.0+, the template rebuild)
 
 ### Configuration Defaults
 - `adapters/config/defaultconfig.d/10-zone.toml`  -  Zone behaviour (take-in waits, member book-keeping)
-- `adapters/config/defaultconfig.d/20-files.toml`  -  The house database (`files.database`) and the three file paths (state, channel, switch) it imports once
+- `adapters/config/defaultconfig.d/20-files.toml`  -  The three file paths (state, channel, switch) the house database imports once
+- `adapters/config/defaultconfig.d/25-database.toml`  -  The house database (`database.url`), SQLite or PostgreSQL
 - `adapters/config/defaultconfig.d/30-registry.toml`  -  AfterTouch registry URL
 - `adapters/config/defaultconfig.d/40-membership.toml`  -  Membership windows (wakes, stand-down)
 - `adapters/config/defaultconfig.d/50-dialling.toml`  -  Dialling (digit timeout; the seventh database level is documented here)

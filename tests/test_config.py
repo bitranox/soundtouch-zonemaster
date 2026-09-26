@@ -40,6 +40,7 @@ from soundtouch_zonemaster.adapters.config.settings_map import (
     PROTOTYPE_SETTINGS,
     SECTIONS,
     SETTINGS,
+    config_path_of,
     prototype_settings,
     service_settings,
     unknown_settings,
@@ -183,7 +184,9 @@ def test_the_files_leave_exactly_the_settings_with_no_default_commented_out() ->
     fields = dict(_fields(ServiceOptions))
     nothing_to_show = {name for name, field in fields.items() if _has_nothing_to_show(field)}
     text = "\n".join(path.read_text(encoding="utf-8") for path in _scope_files())
-    shown = {name for name in nothing_to_show if f"# {name.rpartition('.')[2]} = " in text}
+    # The marker is the config file's own key, not the field's name: they agree everywhere except
+    # `database`, whose field kept its name while its config key moved to `[database] url`.
+    shown = {name for name in nothing_to_show if f"# {config_path_of(name).rpartition('.')[2]} = " in text}
     settable = {SETTINGS[path] for path in _shipped() if path in SETTINGS}
 
     assert settable == set(fields) - nothing_to_show

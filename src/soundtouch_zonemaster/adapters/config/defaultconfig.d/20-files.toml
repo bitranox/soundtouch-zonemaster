@@ -1,22 +1,9 @@
-# Where this deployment keeps what it remembers.
+# The files the service kept before there was a house database.
 #
-# The database is the one file the service owns. The three files below it are what the service
-# kept before there was a database: each is imported ONCE into an empty database and then renamed
-# to <name>.imported, so they only matter on the first start after an upgrade.
+# Each is imported ONCE into an empty database and then renamed to <name>.imported, so they only
+# matter on the first start after an upgrade. The database itself is [database] url.
 
 [files]
-
-# The house database: the remembered state, the house's channel list, and the switch.
-#
-# Default: none. Effect: one SQLite file (plus its -wal and -shm files while the service runs,
-# and a .lock file beside it). Its DIRECTORY has to exist and is checked at startup.
-# When to set: always. It must not live in /tmp. On the deployed unit it sits in
-# /var/lib/zonemaster, which systemd creates through StateDirectory=.
-# Consequence of losing it: the house comes back on its default channel with every box in
-# multiroom, the channel list is rebuilt from a box's presets (places 1 to 6 only), and the
-# switch reads as on. Export the channel list (`channels export`) to keep a copy a person can read.
-#   env: SOUNDTOUCH_ZONEMASTER___FILES__DATABASE
-# database = "/var/lib/zonemaster/zonemaster.sqlite"
 
 # The channel list as a file, from before the database. Imported once if the database holds no
 # channel list, then renamed. A file that exists but cannot be parsed REFUSES the start.
