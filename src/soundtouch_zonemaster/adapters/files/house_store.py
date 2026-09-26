@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from ...application.options import LegacyFiles
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
+    from ...domain.secret import Secret
 
 __all__ = ["SqlHouseStore"]
 
@@ -41,8 +42,11 @@ __all__ = ["SqlHouseStore"]
 class SqlHouseStore:
     """The state, the channel list and the switch, in one SQLite file or PostgreSQL database."""
 
-    def __init__(self, database: str, *, log: LogFn) -> None:
+    def __init__(self, database: str, *, password: Secret | None = None, log: LogFn) -> None:
         self.database = database
+        self._password = password
+        """Handed to the database at ``open``, which refuses one for SQLite and passes it to the
+        PostgreSQL driver as a connect argument. Never part of ``where`` or any message."""
         self.where = masked(database)
         """The database, safe to put in any message: the domain's mask of the setting, which can carry a password."""
         self.log = log
@@ -58,7 +62,7 @@ class SqlHouseStore:
         if self._house is not None:
             message = f"{self.where}: the house store is already open"
             raise StoreError(message)
-        house = HouseDatabase(self.database)
+        house = HouseDatabase(self.database, password=self._password)
         house.open(exclusive=exclusive)
         self._house = house
         self._exclusive = exclusive

@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from ....__init__conf__ import service_command
 from ....application.errors import StoreBusyError, StoreError
 from ....application.outcome import ExitCode, OptionsError
+from ...config.errors import ConfigInputError
 from ...logging.narration import log
 from .. import safe_console
 from ..context import database_for, shared_of, store_opener_of
@@ -50,9 +51,12 @@ class ChannelsReport(BaseModel):
 def _open(ctx: click.Context, shared: Shared, *, exclusive: bool, command: str) -> HouseStore:
     """The store for this invocation, opened, or the refusal reported and the context exited."""
     try:
-        database = database_for(shared)
-        store = store_opener_of(ctx)(database, log=log)
+        choice = database_for(shared)
+        store = store_opener_of(ctx)(choice.setting, password=choice.password, log=log)
         store.open(exclusive=exclusive)
+    except ConfigInputError as exc:
+        report_failure(exc, command=command, mode=shared.mode)
+        ctx.exit(ExitCode.ERROR)
     except OptionsError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(exc.exit_code)

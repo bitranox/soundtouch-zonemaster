@@ -435,11 +435,11 @@ def test_version_in_machine_mode_is_the_same_envelope_as_everything_else(
     ],
 )
 def test_a_database_url_carrying_a_password_is_refused_without_repeating_it(database: str) -> None:
-    """The URL is echoed by envelopes, ``config`` and logs; the password belongs in ``~/.pgpass``
-    (or ``PGPASSFILE``) instead, which is what the refusal must point a reader to without ever
-    printing the secret itself - in the userinfo, in a ``password`` query key whatever its case,
-    and even on a URL SQLAlchemy would refuse outright for its bad port: the domain's rule reads
-    the text, so it still finds the userinfo on that one."""
+    """The URL is echoed by envelopes, ``config`` and logs; the password belongs in the
+    ``database.password`` setting or in ``~/.pgpass`` instead, which is what the refusal must point
+    a reader to without ever printing the secret itself - in the userinfo, in a ``password`` query
+    key whatever its case, and even on a URL SQLAlchemy would refuse outright for its bad port: the
+    domain's rule reads the text, so it still finds the userinfo on that one."""
     with pytest.raises(OptionsError) as caught:
         parse_service_options(
             bind_ip="127.0.0.1",
@@ -459,4 +459,5 @@ def test_a_database_url_carrying_a_password_is_refused_without_repeating_it(data
         )
     assert caught.value.exit_code == ExitCode.REFUSED
     assert "s3cret" not in str(caught.value)
+    assert "database.password" in str(caught.value)
     assert "pgpass" in str(caught.value)

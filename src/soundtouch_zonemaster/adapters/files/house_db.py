@@ -14,7 +14,10 @@ blocks the service. The driver's own transaction handling is switched off for th
 would emit its own BEGIN at a moment of its choosing.
 
 **PostgreSQL** gets bounded connect and statement timeouts: the service calls the store on its
-event loop, and a server that stopped answering must cost it seconds, not the zone.
+event loop, and a server that stopped answering must cost it seconds, not the zone. Its password
+is the ``database.password`` setting, handed to the driver as a connect argument and never put in
+the URL; without one nothing is passed, and libpq finds its own in ``~/.pgpass``, the file
+``PGPASSFILE`` names, or ``PGPASSWORD``.
 
 **One writer.** The service holds the writer lock for its whole run, and so does ``channels
 import``. On SQLite it is an exclusive ``flock`` on ``<database>.lock`` beside the file, on
@@ -55,6 +58,8 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import Connection, Engine
     from sqlalchemy.pool import ConnectionPoolEntry
 
+    from ...domain.secret import Secret
+
 __all__ = [
     "LOCK_SUFFIX",
     "MIGRATIONS",
@@ -75,6 +80,8 @@ MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 _ADVISORY_KEY = 1515147845
 """The house's advisory lock on a shared PostgreSQL server: "ZONE" as four bytes, fixed forever."""
 _POSTGRES_TIMEOUT_S = 5
+_ELSEWHERE = "give it as database.password (or keep it in ~/.pgpass) instead"
+"""Where a password belongs, for a refusal of one found in the URL: the setting the boundary reads."""
 _WRITE = "house_write"
 """The execution option that marks a WRITE transaction, read by the SQLite ``begin`` listener."""
 
@@ -83,7 +90,8 @@ def database_url(setting: str) -> URL:
     """The database a setting names: a URL, or a plain path meaning a SQLite file. Raises :class:`StoreError`.
 
     A password is refused rather than accepted, because a URL is written into config files,
-    ``--json`` envelopes and logs; libpq reads it from ``~/.pgpass`` where none of those reach.
+    ``--json`` envelopes and logs; the password is its own setting, which none of those show, or
+    libpq reads it from ``~/.pgpass``.
     Which shapes carry one is :func:`~soundtouch_zonemaster.domain.database_url.carries_a_password`'s
     rule (the URL's own userinfo, or a password query key); ``passfile`` names a file
     rather than a secret and is accepted. That rule reads text, so it is checked together with
@@ -105,12 +113,12 @@ def database_url(setting: str) -> URL:
     # its first "@" and would render the rest of it as the host.
     shown = masked(setting)
     if carries_a_password(setting):
-        message = f"{shown}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
+        message = f"{shown}: carries a password; {_ELSEWHERE}"
         raise StoreError(message)
     if _sqlalchemy_reads_a_password(url):
         # A backstop: the domain rule is held no looser than this reading, and when it is not,
         # the mask shows the setting as typed, so this refusal names no part of it.
-        message = "the database URL carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
+        message = f"the database URL carries a password; {_ELSEWHERE}"
         raise StoreError(message)
     backend = url.get_backend_name()
     if backend not in SUPPORTED:
@@ -213,10 +221,19 @@ class AdvisoryLock:
 class HouseDatabase:
     """One house database: an engine that behaves the same on every backend, and its writer lock."""
 
-    def __init__(self, setting: str, *, busy_timeout_s: float = 5.0) -> None:
+    def __init__(self, setting: str, *, password: Secret | None = None, busy_timeout_s: float = 5.0) -> None:
+        """Read the setting and refuse what cannot be opened; nothing is connected yet.
+
+        A password given for a SQLite database is refused by name: SQLite has none, and a setting
+        that is silently ignored reads to its author as one that is in force.
+        """
         self.url = database_url(setting)
         self.where = masked(setting)
         """The database, safe to put in any message: the domain's one display rule for a setting."""
+        if password is not None and self.url.get_backend_name() == "sqlite":
+            message = f"{self.where}: database.password is set, but a SQLite database has no password; remove it"
+            raise StoreError(message)
+        self._password = password
         self._busy_timeout_s = busy_timeout_s
         self._engine: Engine | None = None
         self._lock: _WriterLock | None = None
@@ -311,14 +328,15 @@ class HouseDatabase:
             event.listen(engine, "connect", _sqlite_connect)
             event.listen(engine, "begin", _sqlite_begin)
             return engine
-        return create_engine(
-            self.url,
-            pool_pre_ping=True,
-            connect_args={
-                "connect_timeout": _POSTGRES_TIMEOUT_S,
-                "options": f"-c statement_timeout={_POSTGRES_TIMEOUT_S * 1000}",
-            },
-        )
+        connect_args: dict[str, object] = {
+            "connect_timeout": _POSTGRES_TIMEOUT_S,
+            "options": f"-c statement_timeout={_POSTGRES_TIMEOUT_S * 1000}",
+        }
+        if self._password is not None:
+            # The one place the value is revealed: the driver's own connect argument, which no
+            # message, envelope or rendering of the URL ever includes.
+            connect_args["password"] = self._password.reveal()
+        return create_engine(self.url, pool_pre_ping=True, connect_args=connect_args)
 
     def _build_lock(self, engine: Engine) -> _WriterLock:
         if self.url.get_backend_name() == "sqlite":

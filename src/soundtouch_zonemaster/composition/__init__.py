@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from ..application.options import Options, ServiceOptions
     from ..domain.enums import Encryption
     from ..domain.logfn import LogFn
+    from ..domain.secret import Secret
 
 __all__ = ["AppServices", "build_production", "hold_the_zone", "open_house_store", "run_prototype"]
 
@@ -79,14 +80,14 @@ def open_prototype_master(
     )
 
 
-def open_house_store(database: str, *, log: LogFn) -> port_types.HouseStore:
+def open_house_store(database: str, *, password: Secret | None, log: LogFn) -> port_types.HouseStore:
     """The house database both the service and the store verbs of its CLI reach through.
 
     A function rather than the class handed over by name, because the CLI names it too and
     neither should have to know which adapter answers: it returns a store not yet opened, and
     opening it is the caller's first touch of the disk.
     """
-    return SqlHouseStore(database, log=log)
+    return SqlHouseStore(database, password=password, log=log)
 
 
 def build_production() -> AppServices:

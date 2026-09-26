@@ -79,6 +79,7 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.application.options import LegacyFiles
     from soundtouch_zonemaster.application.ports import HouseStore, SwitchReader
     from soundtouch_zonemaster.domain.logfn import LogFn
+    from soundtouch_zonemaster.domain.secret import Secret
 
 MASTER = "127.0.0.1"
 MASTER_ID = "5EB0CE000001"
@@ -3712,8 +3713,8 @@ async def _running_with_a_store_that_cannot_save_state(
     through, never a monkeypatch of the store's own internals."""
     created: list[_StoreThatCannotSaveState] = []
 
-    def _open_store(database: str, *, log: LogFn) -> HouseStore:
-        store = _StoreThatCannotSaveState(open_house_store(database, log=log))
+    def _open_store(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
+        store = _StoreThatCannotSaveState(open_house_store(database, password=password, log=log))
         created.append(store)
         return store
 

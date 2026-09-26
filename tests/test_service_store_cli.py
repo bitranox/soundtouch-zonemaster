@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+import pytest
+
+from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
@@ -14,8 +17,6 @@ from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
 
     from soundtouch_zonemaster.application.options import ServiceOptions
 
@@ -205,3 +206,53 @@ def test_no_database_anywhere_is_refused_by_name(
     rc = _run(monkeypatch, "--json", "switch")
     assert rc == 2
     assert "database" in str(_envelope(capsys)["message"])
+
+
+@pytest.mark.parametrize(
+    "verb",
+    [
+        pytest.param(("switch",), id="switch"),
+        pytest.param(("channels", "export", "--output", "{out}"), id="channels-export"),
+        pytest.param(("channels", "import", "{source}"), id="channels-import"),
+    ],
+)
+@pytest.mark.parametrize("mode", [("--json",), ("--json-bare",), ()], ids=["json", "json-bare", "human"])
+def test_every_store_verb_takes_the_password_setting_and_never_shows_it(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    verb: tuple[str, ...],
+    mode: tuple[str, ...],
+) -> None:
+    """The verbs open the store without the service's option record, so they read the password
+    from the configuration layers themselves. A SQLite database has none, and the store refuses
+    one given for it by name - which is how a test without a PostgreSQL server can see that the
+    verb handed it over at all. Neither the refusal nor anything else printed may carry it."""
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWORD", "TOPSECRET")
+    argv = [part.format(out=tmp_path / "out.json", source=source) for part in verb]
+
+    rc = _run(monkeypatch, *mode, "--database", str(tmp_path / "db.sqlite"), *argv)
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "database.password" in captured.out + captured.err, "refused for the password, by name"
+    assert "TOPSECRET" not in captured.out
+    assert "TOPSECRET" not in captured.err
+
+
+def test_a_config_file_that_will_not_parse_is_a_refusal_for_a_store_verb(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The verbs read the configuration for the password even when ``--database`` is typed, so a
+    broken file must be the same named refusal it is everywhere else, not a traceback."""
+    broken = isolated_config_layers / "xdg" / "soundtouch-zonemaster" / "config.toml"
+    broken.parent.mkdir(parents=True)
+    broken.write_text("[database\n", encoding="utf-8")
+    rc = _run(monkeypatch, "--json", "--database", str(tmp_path / "db.sqlite"), "switch")
+    envelope = _envelope(capsys)
+    assert rc == 2
+    assert envelope["ok"] is False
+    assert envelope["error"] == "ConfigInputError"

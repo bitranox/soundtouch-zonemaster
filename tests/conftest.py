@@ -33,6 +33,7 @@ import os
 import shutil
 import socket
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,6 +46,7 @@ from soundtouch_zonemaster.__init__conf__ import LAYEREDCONF_APP, LAYEREDCONF_SL
 from soundtouch_zonemaster.adapters.config import loader
 from soundtouch_zonemaster.adapters.files.house_schema import METADATA
 from soundtouch_zonemaster.domain.database_url import masked
+from soundtouch_zonemaster.domain.secret import Secret
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -183,22 +185,24 @@ def _postgres_dotenv() -> dict[str, str]:
     }
 
 
-def _resolve_postgres_url() -> str | None:
-    """The PostgreSQL URL to run the store tests against, or ``None`` for SQLite alone.
+def _resolve_postgres() -> tuple[str | None, Secret | None]:
+    """The PostgreSQL URL to run the store tests against (``None`` for SQLite alone), and its
+    password when this suite knows it.
 
     ``os.environ[POSTGRES_URL_ENV]`` wins when set; the checkout's own ``.env`` is read only when
     it is not, and then only once, so CI - which sets neither - runs SQLite only. The ``.env``'s
-    password is handed to libpq only when the URL came from the ``.env`` too: a URL from the
-    environment may name another server, and that password belongs to the ``.env``'s one.
+    password belongs to the ``.env``'s URL alone: a URL from the environment may name another
+    server, so it is neither handed to libpq nor returned for one.
     """
     from_env = os.environ.get(POSTGRES_URL_ENV)
     if from_env:
-        return from_env
+        return from_env, None
     dotenv = _postgres_dotenv()
     url = dotenv["url"] or None
-    if url is not None:
-        _export_pgpassword(dotenv["password"])
-    return url
+    if url is None:
+        return None, None
+    _export_pgpassword(dotenv["password"])
+    return url, Secret(dotenv["password"]) if dotenv["password"] else None
 
 
 def _export_pgpassword(password: str) -> None:
@@ -213,7 +217,7 @@ def _export_pgpassword(password: str) -> None:
         os.environ["PGPASSWORD"] = password
 
 
-POSTGRES_URL = _resolve_postgres_url()
+POSTGRES_URL, _POSTGRES_PASSWORD = _resolve_postgres()
 """Resolved once at collection time. ``None`` means the store tests run on SQLite alone."""
 
 
@@ -225,19 +229,23 @@ _POSTGRES_CONNECT_TIMEOUT_S = 5
 """How long one connection attempt to the test server may take before libpq gives up."""
 
 
-def _postgres_engine(url: str) -> Engine:
+def _postgres_engine(url: str, *, password: Secret | None = None) -> Engine:
     """An engine for the test server that gives up after a few seconds on an unreachable host
-    instead of waiting out the TCP connect timeout once per test."""
-    return create_engine(url, connect_args={"connect_timeout": _POSTGRES_CONNECT_TIMEOUT_S})
+    instead of waiting out the TCP connect timeout once per test. ``password`` is passed as a
+    connect argument when given, so a test that has taken ``PGPASSWORD`` away can still clean up."""
+    connect_args: dict[str, object] = {"connect_timeout": _POSTGRES_CONNECT_TIMEOUT_S}
+    if password is not None:
+        connect_args["password"] = password.reveal()
+    return create_engine(url, connect_args=connect_args)
 
 
-def _empty_postgres(url: str) -> None:
+def _empty_postgres(url: str, *, password: Secret | None = None) -> None:
     """Drop every house table and Alembic's own, so each test starts from a database never used.
 
     Destructive on purpose: the caller-supplied URL must name a throwaway database, because this
     runs before AND after every test that uses it.
     """
-    engine = _postgres_engine(url)
+    engine = _postgres_engine(url, password=password)
     with engine.begin() as connection:
         METADATA.drop_all(connection)
         connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
@@ -272,6 +280,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 
 def _uses_postgres(item: pytest.Item) -> bool:
+    if "postgres_login" in getattr(item, "fixturenames", ()):
+        return True
     callspec = getattr(item, "callspec", None)
     return callspec is not None and callspec.params.get("house_database") == "postgresql"
 
@@ -286,3 +296,29 @@ def house_database(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[s
     _empty_postgres(POSTGRES_URL)
     yield POSTGRES_URL
     _empty_postgres(POSTGRES_URL)
+
+
+@dataclass(frozen=True)
+class PostgresLogin:
+    """The PostgreSQL arm's URL and its password, for a test that hands the password over itself."""
+
+    url: str
+    password: Secret
+
+
+@pytest.fixture
+def postgres_login() -> Iterator[PostgresLogin]:
+    """The PostgreSQL arm's database, emptied before and after, with the password its ``.env`` gives.
+
+    Skipped like every other PostgreSQL case when the arm is not configured, and also when the URL
+    came from the environment rather than the ``.env``: this suite knows a password only for the
+    ``.env``'s own server. The password is passed to the cleanup explicitly, so a test that removes
+    ``PGPASSWORD`` from its environment does not take the cleanup's login with it.
+    """
+    if POSTGRES_URL is None:
+        pytest.skip(f"no PostgreSQL arm configured ({POSTGRES_URL_ENV})")
+    if _POSTGRES_PASSWORD is None:
+        pytest.skip("the PostgreSQL arm's password is known only when its URL comes from the checkout's .env")
+    _empty_postgres(POSTGRES_URL, password=_POSTGRES_PASSWORD)
+    yield PostgresLogin(url=POSTGRES_URL, password=_POSTGRES_PASSWORD)
+    _empty_postgres(POSTGRES_URL, password=_POSTGRES_PASSWORD)

@@ -10,7 +10,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, func, insert, inspect, select, text, update
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import QueuePool
 
@@ -25,10 +25,13 @@ from soundtouch_zonemaster.adapters.files.house_schema import MEMBER, METADATA
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
 from soundtouch_zonemaster.domain.database_url import masked
+from soundtouch_zonemaster.domain.secret import Secret
 
 if TYPE_CHECKING:
     import sqlite3
     from pathlib import Path
+
+    from conftest import PostgresLogin
 
 HEAD = ScriptDirectory(str(MIGRATIONS)).get_current_head()
 
@@ -388,3 +391,112 @@ def test_advisory_lock_release_forgets_the_connection_even_when_close_itself_rai
 
     assert lock._connection is None, "the state is reset even though close() itself raised"  # pyright: ignore[reportPrivateUsage]
     engine.dispose()
+
+
+FAKE_PASSWORD = "TOPSECRET"
+
+
+class _StopBeforeConnectingError(Exception):
+    """Raised by the ``do_connect`` listener once it has seen what the driver would be handed."""
+
+
+def _driver_arguments(setting: str, *, password: Secret | None) -> dict[str, object]:
+    """What the driver's ``connect()`` would receive when the store opens ``setting``.
+
+    Read at SQLAlchemy's own ``do_connect`` event, the last point before the driver is called,
+    registered on the ``Engine`` class for the length of the call because the engine is the
+    store's own; the listener stops the connect there, so no server is needed.
+    """
+    seen: dict[str, object] = {}
+
+    def capture(_dialect: object, _record: object, _args: object, params: dict[str, object]) -> None:
+        seen.update(params)
+        raise _StopBeforeConnectingError
+
+    event.listen(Engine, "do_connect", capture)
+    try:
+        with pytest.raises(_StopBeforeConnectingError):
+            HouseDatabase(setting, password=password).open(exclusive=False)
+    finally:
+        event.remove(Engine, "do_connect", capture)
+    return seen
+
+
+def test_the_password_reaches_the_driver_as_a_connect_argument_and_never_the_url() -> None:
+    setting = "postgresql+psycopg://zonemaster@db.example/zonemaster"
+    house = HouseDatabase(setting, password=Secret(FAKE_PASSWORD))
+    assert house.url.password is None
+    assert FAKE_PASSWORD not in house.url.render_as_string(hide_password=False)
+    assert FAKE_PASSWORD not in house.where
+
+    params = _driver_arguments(setting, password=Secret(FAKE_PASSWORD))
+    assert params["password"] == FAKE_PASSWORD
+    assert params["user"] == "zonemaster", "the control: the URL's own parts arrive beside it"
+
+
+def test_no_password_passes_none_to_the_driver_so_libpq_finds_its_own() -> None:
+    params = _driver_arguments("postgresql+psycopg://zonemaster@db.example/zonemaster", password=None)
+    assert params["user"] == "zonemaster", "the control: the listener saw this connect"
+    assert "password" not in params
+
+
+@pytest.mark.parametrize("setting", ["house.sqlite", "sqlite:///house.sqlite"], ids=["path", "url"])
+def test_a_password_for_a_sqlite_database_is_refused_by_name_without_its_value(tmp_path: Path, setting: str) -> None:
+    """SQLite has no password; one given for it would otherwise be ignored without a word."""
+    where = str(tmp_path / setting) if "://" not in setting else f"sqlite:///{tmp_path / 'house.sqlite'}"
+    with pytest.raises(StoreError) as caught:
+        HouseDatabase(where, password=Secret(FAKE_PASSWORD))
+    message = str(caught.value)
+    assert "database.password" in message
+    assert "SQLite" in message
+    assert FAKE_PASSWORD not in message
+
+
+def test_the_password_refusal_for_a_url_says_where_the_password_goes() -> None:
+    with pytest.raises(StoreError) as caught:
+        database_url("postgresql+psycopg://zonemaster:s3cret@db.example/zonemaster")
+    assert "database.password" in str(caught.value)
+
+
+def _without_libpq_s_own_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Take away every other way libpq finds a password, so only the connect argument can log in."""
+    monkeypatch.delenv("PGPASSWORD", raising=False)
+    monkeypatch.setenv("PGPASSFILE", "/dev/null")
+
+
+def test_the_password_setting_logs_in_on_postgresql(
+    monkeypatch: pytest.MonkeyPatch, postgres_login: PostgresLogin
+) -> None:
+    _without_libpq_s_own_password(monkeypatch)
+    database = HouseDatabase(postgres_login.url, password=postgres_login.password)
+    database.open(exclusive=True)
+    try:
+        with database.reading() as connection:
+            assert connection.execute(text("SELECT 1")).scalar_one() == 1
+    finally:
+        database.close()
+
+
+def test_without_the_password_setting_postgresql_refuses_the_login(
+    monkeypatch: pytest.MonkeyPatch, postgres_login: PostgresLogin
+) -> None:
+    """The control for the test above: with libpq's own sources gone, no connect argument means no
+    login - so the one above logged in through the setting and nothing else."""
+    _without_libpq_s_own_password(monkeypatch)
+    with pytest.raises(StoreError) as caught:
+        HouseDatabase(postgres_login.url, password=None).open(exclusive=False)
+    assert "password" in str(caught.value), "refused for the login, not for anything else"
+
+
+def test_a_wrong_password_on_postgresql_is_refused_without_repeating_it(
+    monkeypatch: pytest.MonkeyPatch, postgres_login: PostgresLogin
+) -> None:
+    _without_libpq_s_own_password(monkeypatch)
+    wrong = "WRONG-TOPSECRET"
+    with pytest.raises(StoreError) as caught:
+        HouseDatabase(postgres_login.url, password=Secret(wrong)).open(exclusive=False)
+    message = str(caught.value)
+    assert "password" in message, "refused for the login, not for anything else"
+    assert wrong not in message
+    leaked = postgres_login.password.reveal() in message
+    assert not leaked, "the real password appears in the refusal"

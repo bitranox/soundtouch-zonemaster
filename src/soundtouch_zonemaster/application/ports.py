@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from ..domain.events import SpeakerEvent
     from ..domain.logfn import LogFn
     from ..domain.mpd import MpdStatus
+    from ..domain.secret import Secret
     from ..domain.speakers import Speaker
     from ..domain.state import Place, ZoneState
     from ..domain.station import Station, StationRequest
@@ -125,9 +126,13 @@ class HouseStore(Protocol):
 
 
 class OpenHouseStore(Protocol):
-    """A store over one database, not yet opened. Opening it is the first thing that touches it."""
+    """A store over one database, not yet opened. Opening it is the first thing that touches it.
 
-    def __call__(self, database: str, *, log: LogFn) -> HouseStore: ...
+    ``password`` has no default on purpose: every caller that names a database must also say
+    whether it has a password for it, so a new path to the store cannot forget it silently.
+    ``None`` passes nothing, and the driver finds its own (``~/.pgpass`` for PostgreSQL)."""
+
+    def __call__(self, database: str, *, password: Secret | None, log: LogFn) -> HouseStore: ...
 
 
 # --- the speakers, and the service next door --------------------------------------------------

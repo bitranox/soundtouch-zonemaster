@@ -160,7 +160,7 @@ class ServiceState:
         It is not closed on a stand-down: the switch going off ends the ZONE, and MPD holding a
         socket open costs nothing, while reconnecting per channel change would cost a round trip
         in front of the one exchange whose ORDER the house can hear."""
-        self.store = ports.open_store(options.database, log=log)
+        self.store = ports.open_store(options.database, password=options.database_password, log=log)
         """The house database. Opened by ``run`` before anything is taken from the house, closed last.
 
         Built here and not opened, so constructing a service touches no disk; the switch below is

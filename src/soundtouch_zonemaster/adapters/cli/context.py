@@ -10,6 +10,7 @@ the same three things, so it builds one of these too rather than growing its own
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, ConfigDict
@@ -17,16 +18,25 @@ from pydantic import BaseModel, ConfigDict
 from ...application.outcome import ExitCode, OptionsError
 from ..config.loader import get_config
 from ..config.overrides import apply_set_overrides
-from .boundary import configured_settings
+from .boundary import configured_settings, database_password_of
 from .envelope import OutputMode
 
 if TYPE_CHECKING:
     import rich_click as click
 
     from ...application.ports import OpenHouseStore
+    from ...domain.secret import Secret
     from ..config.overrides import Merged
 
-__all__ = ["Shared", "config_for", "database_for", "remember_store_opener", "shared_of", "store_opener_of"]
+__all__ = [
+    "DatabaseChoice",
+    "Shared",
+    "config_for",
+    "database_for",
+    "remember_store_opener",
+    "shared_of",
+    "store_opener_of",
+]
 
 _STORE_OPENER = "open_store"
 """The ``ctx.meta`` key the store opener is kept under, since ``ctx.obj`` already carries Shared."""
@@ -66,15 +76,28 @@ def store_opener_of(ctx: click.Context) -> OpenHouseStore:
     return cast("OpenHouseStore", ctx.meta[_STORE_OPENER])
 
 
-def database_for(shared: Shared) -> str:
-    """The database this invocation means: typed, else configured, else refused by name (exit 2)."""
+@dataclass(frozen=True)
+class DatabaseChoice:
+    """The database an invocation opens and the password it opens it with, always together, so a
+    verb that has the one cannot open the store without having been handed the other."""
+
+    setting: str
+    password: Secret | None
+
+
+def database_for(shared: Shared) -> DatabaseChoice:
+    """The database this invocation means - typed, else configured, else refused by name (exit 2) -
+    and the password the configuration layers give for it (``database.password``; there is no
+    command-line option for it, since argv is visible to every user of the machine)."""
+    configured = configured_settings(config_for(shared).config)
+    password = database_password_of(configured)
     if shared.database is not None:
-        return shared.database
-    configured = configured_settings(config_for(shared).config).get("database")
-    if configured is None:
+        return DatabaseChoice(setting=shared.database, password=password)
+    setting = configured.get("database")
+    if setting is None:
         message = (
             "refused: no value anywhere for database. Give it on the command line (--database), "
             "or in a config file as database.url"
         )
         raise OptionsError(message, exit_code=ExitCode.ERROR)
-    return str(configured)
+    return DatabaseChoice(setting=str(setting), password=password)

@@ -136,8 +136,9 @@ class ServiceOptionsInput(BaseModel):
     @field_validator("database")
     @classmethod
     def _no_password_in_a_database_url(cls, value: str) -> str:
-        """A URL is echoed by envelopes, `config` and logs; libpq reads the password from ~/.pgpass
-        instead. The store refuses it too, for the verbs that reach it without this record.
+        """A URL is echoed by envelopes, `config` and logs; the password is the ``database.password``
+        setting instead (or libpq's own ``~/.pgpass``). The store refuses it too, for the verbs that
+        reach it without this record.
 
         The rule - which shapes carry a password, and how to tell - lives in
         ``domain/database_url.py`` rather than here, so this layer (which may not import
@@ -146,7 +147,10 @@ class ServiceOptionsInput(BaseModel):
         SQLAlchemy does, which is what lets this layer refuse without the parser.
         """
         if carries_a_password(value):
-            message = "refused: the database URL carries a password; keep it in ~/.pgpass (or PGPASSFILE) instead"
+            message = (
+                "refused: the database URL carries a password; "
+                f"give it as {config_path_of('database_password')} (or keep it in ~/.pgpass) instead"
+            )
             raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return value
 

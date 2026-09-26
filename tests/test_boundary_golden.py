@@ -127,6 +127,7 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.application.ports import AddressOf, MpdControlPort
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.mpd import MpdStatus
+    from soundtouch_zonemaster.domain.secret import Secret
     from soundtouch_zonemaster.domain.station import Station
 
 GOLDEN = Path(__file__).parent / "fixtures" / "golden"
@@ -960,7 +961,7 @@ def wired_service(
     def log(kind: str, text: str) -> None:
         lines.append((kind, text))
 
-    def open_store(database: str, *, log: LogFn) -> FakeStore:
+    def open_store(database: str, *, password: Secret | None, log: LogFn) -> FakeStore:
         return FakeStore()
 
     async def fetch_speakers(base_url: str = "", *, log: LogFn | None = None) -> tuple[Speaker, ...]:

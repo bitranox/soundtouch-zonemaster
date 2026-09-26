@@ -7,6 +7,7 @@ so what is asserted is the whole way from a file, a variable or a ``--set`` into
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import pytest
@@ -14,15 +15,18 @@ from nothing_typed import NOTHING_TYPED
 
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
+from soundtouch_zonemaster.application.options import ServiceOptions
 from soundtouch_zonemaster.application.outcome import OptionsError
+from soundtouch_zonemaster.application.zone_service import ZoneService
+from soundtouch_zonemaster.composition import build_production, open_house_store
 from soundtouch_zonemaster.domain.secret import Secret
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from soundtouch_zonemaster.application.options import ServiceOptions
-    from soundtouch_zonemaster.application.ports import RunService
+    from soundtouch_zonemaster.application.ports import HouseStore, RunService
+    from soundtouch_zonemaster.domain.logfn import LogFn
 
 FAKE = "TOPSECRET"
 PASSWORD_ENV = f"{ENV_PREFIX}DATABASE__PASSWORD"
@@ -135,3 +139,24 @@ def test_the_record_prints_no_password(monkeypatch: pytest.MonkeyPatch, tmp_path
     options = _run_with(monkeypatch, tmp_path)
     assert options.database_password is not None, "the control: the password did arrive"
     assert FAKE not in repr(options)
+
+
+def test_the_service_hands_its_store_the_password(tmp_path: Path) -> None:
+    """The service opens its store through the ``open_store`` port, and the password travels with
+    the database setting through it. Constructing the service is enough: it builds the store at
+    once and opens it only when run."""
+    handed: list[Secret | None] = []
+
+    def open_store(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
+        handed.append(password)
+        return open_house_store(str(tmp_path / "zonemaster.sqlite"), password=None, log=log)
+
+    options = ServiceOptions(
+        bind_ip="127.0.0.1",
+        device_id="AABBCC0000A1",
+        database="postgresql+psycopg://zonemaster@db.example/zonemaster",
+        database_password=Secret(FAKE),
+    )
+    ports = replace(build_production().zone_ports, open_store=open_store)
+    ZoneService(options, log=lambda _kind, _text: None, ports=ports)
+    assert handed == [Secret(FAKE)]
