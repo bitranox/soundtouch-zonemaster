@@ -177,38 +177,38 @@ def _postgres_dotenv() -> dict[str, str]:
     }
 
 
-def _postgres_url() -> str | None:
+def _resolve_postgres_url() -> str | None:
     """The PostgreSQL URL to run the store tests against, or ``None`` for SQLite alone.
 
-    ``os.environ[POSTGRES_URL_ENV]`` wins when set, unchanged from before; the checkout's own
-    ``.env`` is read only when it is not, so CI - which sets neither - still runs SQLite only.
+    ``os.environ[POSTGRES_URL_ENV]`` wins when set; the checkout's own ``.env`` is read only when
+    it is not, and then only once, so CI - which sets neither - runs SQLite only. The ``.env``'s
+    password is handed to libpq only when the URL came from the ``.env`` too: a URL from the
+    environment may name another server, and that password belongs to the ``.env``'s one.
     """
     from_env = os.environ.get(POSTGRES_URL_ENV)
     if from_env:
         return from_env
-    return _postgres_dotenv()["url"] or None
+    dotenv = _postgres_dotenv()
+    url = dotenv["url"] or None
+    if url is not None:
+        _export_pgpassword(dotenv["password"])
+    return url
 
 
-def _export_pgpassword_from_dotenv() -> None:
+def _export_pgpassword(password: str) -> None:
     """Hand libpq the PostgreSQL arm's password as ``PGPASSWORD``, never in a URL.
 
     Only when ``PGPASSWORD`` is not already set in this process's environment - a developer who
-    already exports it, or who relies on ``~/.pgpass``, is left alone - and only once, at
-    collection time, so every subprocess the store tests spawn inherits it too. The value is never
-    printed, logged, or put into an assertion message anywhere in this module.
+    already exports it, or who relies on ``~/.pgpass``, is left alone - and at collection time, so
+    every subprocess the store tests spawn inherits it too. The value is never printed, logged, or
+    put into an assertion message anywhere in this module.
     """
-    if os.environ.get("PGPASSWORD"):
-        return
-    password = _postgres_dotenv()["password"]
-    if password:
+    if password and not os.environ.get("PGPASSWORD"):
         os.environ["PGPASSWORD"] = password
 
 
-_export_pgpassword_from_dotenv()
-
-POSTGRES_URL = _postgres_url()
-"""Resolved once at collection time. ``None`` means SQLite-only, exactly as an unset
-``POSTGRES_URL_ENV`` always has."""
+POSTGRES_URL = _resolve_postgres_url()
+"""Resolved once at collection time. ``None`` means the store tests run on SQLite alone."""
 
 
 def _backends() -> list[str]:
