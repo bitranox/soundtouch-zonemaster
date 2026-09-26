@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -84,7 +85,9 @@ def test_a_row_the_channel_rules_refuse_is_refused_with_its_count(house_database
         )
     with (
         database.reading() as connection,
-        pytest.raises(StoreError, match=rf"{house_database}: the channel list is unusable \(2 problem\(s\)\)"),
+        pytest.raises(
+            StoreError, match=rf"{re.escape(house_database)}: the channel list is unusable \(2 problem\(s\)\)"
+        ),
     ):
         read_channels(connection, where=house_database)
     database.close()
@@ -107,7 +110,7 @@ def test_a_duplicate_channel_number_is_a_named_refusal(house_database: str) -> N
         )
     )
     with (
-        pytest.raises(StoreError, match=rf"{house_database}: the channel list has a duplicate number \(1\)"),
+        pytest.raises(StoreError, match=rf"{re.escape(house_database)}: the channel list has a duplicate number \(1\)"),
         database.writing() as connection,
     ):
         write_channels(connection, duplicated, where=house_database)

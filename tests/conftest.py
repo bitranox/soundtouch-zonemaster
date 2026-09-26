@@ -37,8 +37,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from lib_layered_config import read_config
 from sqlalchemy import create_engine, text
 
+from soundtouch_zonemaster.__init__conf__ import LAYEREDCONF_APP, LAYEREDCONF_SLUG, LAYEREDCONF_VENDOR
 from soundtouch_zonemaster.adapters.config import loader
 from soundtouch_zonemaster.adapters.files.house_schema import METADATA
 
@@ -148,13 +150,69 @@ def a_house_that_protects_its_console(isolated_config_layers: Path) -> Path:
 
 
 POSTGRES_URL_ENV = "ZONEMASTER_TEST_POSTGRES_URL"
-"""A PostgreSQL URL (no password; libpq reads ~/.pgpass) to run every store test against as well.
-Unset, the store tests run on SQLite alone, which is what `make test` does. The URL MUST name a
-THROWAWAY database: every store test drops the house tables in it, both before and after."""
+"""A PostgreSQL URL (no password; the store refuses one in the URL itself) to run every store
+test against as well. Checked first, so it still overrides the checkout's own ``.env`` below when
+both are set. Unset and no ``.env`` naming one either, the store tests run on SQLite alone, which
+is what `make test` does. The URL MUST name a THROWAWAY database: every store test drops the house
+tables in it, both before and after."""
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _postgres_dotenv() -> dict[str, str]:
+    """The ``ZONEMASTER_TEST_POSTGRES_URL`` and ``_PASSWORD`` keys from the checkout's own
+    gitignored ``.env``, read the same way ``tests/e2e_config.py`` reads its own house-specific
+    settings: through ``lib_layered_config`` with an explicit ``dotenv_path``, rather than a new
+    parser. This module's docstring says ``.env`` loading is deliberately absent from the six
+    layers every other test runs against - that still holds; this is the one place that reads it,
+    for the one setting that names a THROWAWAY database rather than anything a test's own
+    assertions depend on. A missing ``.env``, or a missing key inside it, reads back as ``""``.
+    """
+    config = read_config(
+        vendor=LAYEREDCONF_VENDOR, app=LAYEREDCONF_APP, slug=LAYEREDCONF_SLUG, dotenv_path=_REPO_ROOT / ".env"
+    )
+    return {
+        "url": str(config.get("zonemaster_test_postgres_url", default="")),
+        "password": str(config.get("zonemaster_test_postgres_password", default="")),
+    }
+
+
+def _postgres_url() -> str | None:
+    """The PostgreSQL URL to run the store tests against, or ``None`` for SQLite alone.
+
+    ``os.environ[POSTGRES_URL_ENV]`` wins when set, unchanged from before; the checkout's own
+    ``.env`` is read only when it is not, so CI - which sets neither - still runs SQLite only.
+    """
+    from_env = os.environ.get(POSTGRES_URL_ENV)
+    if from_env:
+        return from_env
+    return _postgres_dotenv()["url"] or None
+
+
+def _export_pgpassword_from_dotenv() -> None:
+    """Hand libpq the PostgreSQL arm's password as ``PGPASSWORD``, never in a URL.
+
+    Only when ``PGPASSWORD`` is not already set in this process's environment - a developer who
+    already exports it, or who relies on ``~/.pgpass``, is left alone - and only once, at
+    collection time, so every subprocess the store tests spawn inherits it too. The value is never
+    printed, logged, or put into an assertion message anywhere in this module.
+    """
+    if os.environ.get("PGPASSWORD"):
+        return
+    password = _postgres_dotenv()["password"]
+    if password:
+        os.environ["PGPASSWORD"] = password
+
+
+_export_pgpassword_from_dotenv()
+
+POSTGRES_URL = _postgres_url()
+"""Resolved once at collection time. ``None`` means SQLite-only, exactly as an unset
+``POSTGRES_URL_ENV`` always has."""
 
 
 def _backends() -> list[str]:
-    return ["sqlite", "postgresql"] if os.environ.get(POSTGRES_URL_ENV) else ["sqlite"]
+    return ["sqlite", "postgresql"] if POSTGRES_URL else ["sqlite"]
 
 
 def _empty_postgres(url: str) -> None:
@@ -176,7 +234,7 @@ def house_database(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[s
     if request.param == "sqlite":
         yield str(tmp_path / "house.sqlite")
         return
-    url = os.environ[POSTGRES_URL_ENV]
-    _empty_postgres(url)
-    yield url
-    _empty_postgres(url)
+    assert POSTGRES_URL is not None, "this fixture only parametrizes postgresql when POSTGRES_URL is set"
+    _empty_postgres(POSTGRES_URL)
+    yield POSTGRES_URL
+    _empty_postgres(POSTGRES_URL)
