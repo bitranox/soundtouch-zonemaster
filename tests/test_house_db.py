@@ -10,6 +10,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, func, insert, inspect, select, text, update
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import QueuePool
 
@@ -18,6 +19,7 @@ from soundtouch_zonemaster.adapters.files.house_db import (
     AdvisoryLock,
     FileLock,
     HouseDatabase,
+    _redacted,
     database_url,
 )
 from soundtouch_zonemaster.adapters.files.house_schema import MEMBER, METADATA
@@ -204,6 +206,12 @@ def test_a_url_carrying_a_password_in_the_query_is_refused_without_repeating_it(
     assert "s3cret" not in str(caught.value)
 
 
+def test_a_url_carrying_sslpassword_in_the_query_is_refused_without_repeating_it() -> None:
+    with pytest.raises(StoreError) as caught:
+        database_url("postgresql+psycopg://zonemaster@db.example/zonemaster?sslpassword=s3cret")
+    assert "s3cret" not in str(caught.value)
+
+
 def test_a_url_carrying_a_passfile_in_the_query_is_accepted() -> None:
     url = database_url("postgresql+psycopg://zonemaster@db.example/zonemaster?passfile=/etc/pgpass")
     assert url.get_backend_name() == "postgresql"
@@ -236,6 +244,21 @@ def test_where_is_the_redacted_url_for_a_url_setting() -> None:
     database = HouseDatabase(setting)
     assert database.where == database.url.render_as_string(hide_password=True)
     assert database.where != setting
+
+
+def test_where_masks_a_password_shaped_query_value_that_render_as_string_alone_would_not() -> None:
+    """The one display rule: ``HouseDatabase.where`` goes through ``_redacted`` rather than a bare
+    ``render_as_string(hide_password=True)``, which hides only the userinfo and leaves a query
+    value verbatim. Built with a URL object directly, bypassing ``database_url``'s own refusal, so
+    this pins the masking rule on its own rather than the refusal that makes it unreachable via the
+    normal construction path."""
+    url = make_url("postgresql+psycopg://zonemaster@db.example/zonemaster").set(
+        query={"sslpassword": "TOPSECRET"},
+    )
+    redacted = _redacted(url)
+    assert "TOPSECRET" not in redacted
+    assert url.render_as_string(hide_password=True) != redacted
+    assert "TOPSECRET" in url.render_as_string(hide_password=True)
 
 
 def test_sqlite_reading_uses_wal_journal_mode_and_full_synchronous(tmp_path: Path) -> None:

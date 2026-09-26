@@ -58,6 +58,14 @@ __all__ = [
     "parse_service_options",
 ]
 
+_PASSWORD_QUERY_KEYS = frozenset({"password", "sslpassword"})
+"""Query keys a driver passes straight through as a connect argument, case-insensitively.
+
+Kept in step with ``adapters/files/house_db.PASSWORD_QUERY_KEYS`` by hand: this layer may not
+import ``adapters/files`` (import-linter), so the set is duplicated rather than shared, and
+``tests/test_database_password_parity.py`` is what catches the two drifting apart.
+"""
+
 
 class ChannelPolicyInput(BaseModel):
     """A channel policy as a config file delivers it, before it is the record's own.
@@ -134,16 +142,16 @@ class ServiceOptionsInput(BaseModel):
         """A URL is echoed by envelopes, `config` and logs; libpq reads the password from ~/.pgpass
         instead. The store refuses it too, for the verbs that reach it without this record.
 
-        A password can arrive in the URL's own userinfo, or as a ``password`` query key some
-        drivers pass straight through as a connect argument; both are refused here, the same two
-        shapes ``adapters/files/house_db.py`` refuses at the store. Read with the stdlib rather
-        than SQLAlchemy's own parser, so this boundary - which runs ahead of the store and ahead of
-        knowing the backend is even one this program supports - never needs that dependency: this
-        layer's job is only to catch a password before it is echoed anywhere, not to validate the
-        URL, and ``urlsplit`` finds the userinfo even on a URL SQLAlchemy's parser would refuse
-        outright (a bad port, for one). A setting that fails to parse is left to the store's own
-        refusal rather than echoed here, since a malformed URL can itself be the thing carrying the
-        password.
+        A password can arrive in the URL's own userinfo, or as one of ``_PASSWORD_QUERY_KEYS``
+        (``password``, ``sslpassword``) some drivers pass straight through as a connect argument;
+        all are refused here, the same shapes ``adapters/files/house_db.py`` refuses at the store.
+        Read with the stdlib rather than SQLAlchemy's own parser, so this boundary - which runs
+        ahead of the store and ahead of knowing the backend is even one this program supports -
+        never needs that dependency: this layer's job is only to catch a password before it is
+        echoed anywhere, not to validate the URL, and ``urlsplit`` finds the userinfo even on a URL
+        SQLAlchemy's parser would refuse outright (a bad port, for one). A setting that fails to
+        parse is left to the store's own refusal rather than echoed here, since a malformed URL can
+        itself be the thing carrying the password.
         """
         if "://" not in value:
             return value
@@ -151,7 +159,8 @@ class ServiceOptionsInput(BaseModel):
             parsed = urlsplit(value)
         except ValueError:
             return value
-        if parsed.password is not None or any(key.lower() == "password" for key, _ in parse_qsl(parsed.query)):
+        has_password_key = any(key.lower() in _PASSWORD_QUERY_KEYS for key, _ in parse_qsl(parsed.query))
+        if parsed.password is not None or has_password_key:
             message = "refused: the database URL carries a password; keep it in ~/.pgpass (or PGPASSFILE) instead"
             raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return value

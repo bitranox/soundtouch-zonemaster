@@ -67,6 +67,8 @@ def _store_refuses(database: str) -> bool:
         pytest.param("postgresql+psycopg://zm:@db.example/zm", id="empty-password"),
         pytest.param("postgresql+psycopg://zm@db.example/zm?password=s3cret", id="query-key-lowercase"),
         pytest.param("postgresql+psycopg://zm@db.example/zm?PassWord=s3cret", id="query-key-mixed-case"),
+        pytest.param("postgresql+psycopg://zm@db.example/zm?sslpassword=s3cret", id="sslpassword-lowercase"),
+        pytest.param("postgresql+psycopg://zm@db.example/zm?SslPassword=s3cret", id="sslpassword-mixed-case"),
         pytest.param("postgresql+psycopg://zm@db.example/zm", id="no-password"),
         pytest.param("postgresql+psycopg://zm@db.example/zm?passfile=/etc/pgpass", id="passfile-is-not-a-password"),
     ],
@@ -93,3 +95,16 @@ def test_a_bad_port_carrying_a_password_is_refused_by_both_for_different_reasons
     database = "postgresql+psycopg://zm:s3cret@db.example:54x2/zm"
     assert _boundary_refuses(database)
     assert _store_refuses(database)
+
+
+def test_a_password_passed_as_sslpassword_is_refused_and_never_echoed() -> None:
+    """The regression this parity test exists for: a ``?sslpassword=`` value is refused, exactly
+    like ``?password=``, and the secret never surfaces in either reader's own refusal message."""
+    database = "postgresql+psycopg://zm@db.example/zm?sslpassword=TOPSECRET"
+    assert _boundary_refuses(database)
+    with pytest.raises(OptionsError) as boundary_caught:
+        parse_service_options(bind_ip="127.0.0.1", database=database, configured={}, **_NOTHING_TYPED)
+    assert "TOPSECRET" not in str(boundary_caught.value)
+    with pytest.raises(StoreError) as store_caught:
+        database_url(database)
+    assert "TOPSECRET" not in str(store_caught.value)
