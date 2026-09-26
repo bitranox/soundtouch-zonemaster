@@ -127,7 +127,7 @@ config.toml                  the header: which layers exist and in what order
 config.d/10-zone.toml        [zone]        what this master is on the network
 config.d/20-files.toml       [files]       the one-time import sources for the channel list,
                                            the switch and the state (see below)
-config.d/25-database.toml    [database]    where the house database is
+config.d/25-database.toml    [database]    where the house database is, and its password
 config.d/30-registry.toml    [registry]    where the speaker list comes from
 config.d/40-membership.toml  [membership]  who may join, and when a box stops counting
 config.d/50-dialling.toml    [dialling]    how a channel number is typed on the preset keys
@@ -181,6 +181,17 @@ and the house database (`[database] url`, a plain path for SQLite or a `postgres
 URL for PostgreSQL). Give them in a config file, in the environment, or on the command line. A
 setting missing from every layer is refused at startup and names itself. A third, the device id,
 falls back to the host's own MAC.
+
+The PostgreSQL password is its own setting, `[database] password`
+(`SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD`), and never part of the URL: a URL carrying one is
+refused, because the URL is shown by `config`, envelopes and logs. On a real machine put it in the
+host file (mode 0600, owned by the service's user) or in a 0600 environment file the systemd unit
+names with `EnvironmentFile=`. There is no command-line option for it, since a command line is
+visible to every user of the machine; `--set database.password=...` overrides it for one run and
+is just as visible, so it suits a test rather than a deployment.
+`config` always shows it masked, with or without `--redact`. Left empty, nothing is passed to the
+driver and the PostgreSQL client finds the password itself in `~/.pgpass`, the file `PGPASSFILE`
+names, or `PGPASSWORD`. A password given for a SQLite database is refused.
 
 The three files under `[files]` (the channel list, the switch and the state) are one-time import
 sources only: on the first start after an upgrade, each is read once into whichever part of the

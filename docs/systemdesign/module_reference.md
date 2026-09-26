@@ -26,6 +26,8 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/domain/calibration.py`  -  The gesture that starts a calibration, and the window it measures
 - `src/soundtouch_zonemaster/domain/state.py`  -  ZoneState: the house's state, what survives a restart
 - `src/soundtouch_zonemaster/domain/switch.py`  -  The switch rule: off only when the switch row says so
+- `src/soundtouch_zonemaster/domain/database_url.py`  -  Whether a database setting carries a password, and how to show one without it
+- `src/soundtouch_zonemaster/domain/secret.py`  -  Secret: a password the records carry, shown as `***` everywhere and read only through `reveal()`
 
 ### Application Layer
 - `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse
@@ -107,7 +109,7 @@ Complete (v0.2.0+, the template rebuild)
 ### Configuration Defaults
 - `adapters/config/defaultconfig.d/10-zone.toml`  -  Zone behaviour (take-in waits, member book-keeping)
 - `adapters/config/defaultconfig.d/20-files.toml`  -  The three file paths (state, channel, switch) the house database imports once
-- `adapters/config/defaultconfig.d/25-database.toml`  -  The house database (`database.url`), SQLite or PostgreSQL
+- `adapters/config/defaultconfig.d/25-database.toml`  -  The house database (`database.url`), SQLite or PostgreSQL, and its password (`database.password`)
 - `adapters/config/defaultconfig.d/30-registry.toml`  -  AfterTouch registry URL
 - `adapters/config/defaultconfig.d/40-membership.toml`  -  Membership windows (wakes, stand-down)
 - `adapters/config/defaultconfig.d/50-dialling.toml`  -  Dialling (digit timeout; the seventh database level is documented here)
@@ -225,24 +227,29 @@ ships empty; a house names its own boxes in its host layer
 
 `invoke_without_command=True`: an argv naming only options holds the zone until SIGINT.
 
-| Option                                  | Description                                                                                                                                                                               |
-|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--bind-ip IP`                          | Address on the speakers' LAN                                                                                                                                                              |
-| `--database PATH or URL`                | The house database: state, channel list and switch, one database (a plain path is SQLite; `postgresql+psycopg://user@host/db` is PostgreSQL, password in `~/.pgpass`, refused in the URL) |
-| `--channel-file PATH`                   | The channel list as a file, from before the database: imported once into an empty database, then renamed `<name>.imported`                                                                |
-| `--switch-file PATH`                    | The switch as a file, from before the database: imported once, then not read                                                                                                              |
-| `--state-file PATH`                     | The state as a file, from before the database: imported once, then set aside                                                                                                              |
-| `--station-url ...` / `--seed-from ...` | REMOVED; seeding comes from presets of the first box switched on                                                                                                                          |
-| `--profile NAME`                        | Configuration profile                                                                                                                                                                     |
-| `--set SECTION.KEY=VAL`                 | Override one setting for this run (repeatable)                                                                                                                                            |
+| Option                                  | Description                                                                                                                                                                              |
+|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--bind-ip IP`                          | Address on the speakers' LAN                                                                                                                                                             |
+| `--database PATH or URL`                | The house database: state, channel list and switch, one database (a plain path is SQLite; `postgresql+psycopg://user@host/db` is PostgreSQL; password in `database.password`, not a URL) |
+| `--channel-file PATH`                   | The channel list as a file, from before the database: imported once into an empty database, then renamed `<name>.imported`                                                               |
+| `--switch-file PATH`                    | The switch as a file, from before the database: imported once, then not read                                                                                                             |
+| `--state-file PATH`                     | The state as a file, from before the database: imported once, then set aside                                                                                                             |
+| `--station-url ...` / `--seed-from ...` | REMOVED; seeding comes from presets of the first box switched on                                                                                                                         |
+| `--profile NAME`                        | Configuration profile                                                                                                                                                                    |
+| `--set SECTION.KEY=VAL`                 | Override one setting for this run (repeatable)                                                                                                                                           |
 
 **Every setting may live in a configuration file**, read through `lib_layered_config` in the
 precedence `defaults -> app -> host -> user -> dotenv -> env`, with the command line above all
-six. A setting given in NO layer is refused by name with exit 2. A database that cannot be opened
+six. A setting given in NO layer is refused by name with exit 2. The PostgreSQL password is the
+setting `database.password` (`SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD`), which has no command-line
+option; `--set database.password=...` is the per-run override. The store hands it to the driver as
+a connect argument; when it is empty, libpq's own `~/.pgpass`, `PGPASSFILE` or `PGPASSWORD` apply.
+A password given for a SQLite database is refused. A database that cannot be opened
 refuses the start; an old file that exists but cannot be parsed refuses the start too, naming the
 file, at the one-time import.
 
 **config**: every value, and the file it came from (`--section`, `--json`, `--redact`).
+`database.password` is always shown masked, with or without `--redact`.
 Note: a calibrated `dial_window_s` is written to the database's `zone` row and beats every config
 layer; `config` does not report that, the run's `--json` envelope does.
 
@@ -281,4 +288,4 @@ Never run two suites at once: the tests bind fixed ports 40002/40003/40005/8090.
 
 ---
 
-**Last Updated:** 2026-09-26 (the house database)
+**Last Updated:** 2026-09-27 (the database password setting)
