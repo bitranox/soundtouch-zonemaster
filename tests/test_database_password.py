@@ -160,3 +160,49 @@ def test_the_service_hands_its_store_the_password(tmp_path: Path) -> None:
     ports = replace(build_production().zone_ports, open_store=open_store)
     ZoneService(options, log=lambda _kind, _text: None, ports=ports)
     assert handed == [Secret(FAKE)]
+
+
+@pytest.mark.parametrize("mode", [["--json"], ["--json-bare"], []], ids=["json", "json-bare", "human"])
+def test_the_service_run_prints_no_password(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path, mode: list[str]
+) -> None:
+    """The run's envelope and everything narrated on the way into it, in every output mode."""
+    monkeypatch.setenv(PASSWORD_ENV, FAKE)
+    options = _run_with(monkeypatch, tmp_path, *mode)
+    captured = capsys.readouterr()
+    assert options.database_password == Secret(FAKE), "the control: the password did arrive"
+    assert FAKE not in captured.out
+    assert FAKE not in captured.err
+
+
+def test_a_misspelled_password_key_is_named_without_its_value(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """A stray key in our own section gets a line; the line is about the KEY, whatever it holds."""
+    _user_config(isolated_config_layers, f'[database]\npasswrod = "{FAKE}"\n')
+    options = _run_with(monkeypatch, tmp_path)
+    captured = capsys.readouterr()
+    assert "passwrod" in captured.out + captured.err, "the control: the stray key was reported"
+    assert options.database_password is None
+    assert FAKE not in captured.out
+    assert FAKE not in captured.err
+
+
+def test_a_refused_password_type_is_reported_without_its_value(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The environment layer reads digits as a number; the refusal the service prints names the
+    setting and the type, and neither stream carries the digits."""
+    digits = "8675309"
+    monkeypatch.setenv(PASSWORD_ENV, digits)
+    seen, run = _capture()
+    monkeypatch.setattr(
+        "sys.argv",
+        ["soundtouch-zonemaster-service", "--json", "--bind-ip", "10.0.0.1", "--database", str(tmp_path / "z.sqlite")],
+    )
+    assert main(run_service=run) == 1
+    captured = capsys.readouterr()
+    assert seen == [], "a refused start runs nothing"
+    assert "database.password" in captured.out
+    assert digits not in captured.out
+    assert digits not in captured.err
