@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -16,7 +21,7 @@ from soundtouch_zonemaster.domain.enums import ChannelKind
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from conftest import PostgresLogin
 
     from soundtouch_zonemaster.application.options import ServiceOptions
 
@@ -256,3 +261,93 @@ def test_a_config_file_that_will_not_parse_is_a_refusal_for_a_store_verb(
     assert rc == 2
     assert envelope["ok"] is False
     assert envelope["error"] == "ConfigInputError"
+
+
+def _installed_service_command() -> str:
+    """The console script the deployed unit runs, from the environment this suite runs in."""
+    found = shutil.which("soundtouch-zonemaster-service", path=str(Path(sys.executable).parent))
+    assert found is not None, "the console script is installed beside this interpreter"
+    return found
+
+
+def _run_installed(argv: list[str], *, url: str, password: str | None, cwd: Path) -> subprocess.CompletedProcess[str]:
+    """The installed command as a child with the password ONLY in the setting's own variable.
+
+    ``PGPASSWORD`` is removed and ``PGPASSFILE`` points at an empty file, so libpq has no password
+    of its own to fall back on; the child starts in a directory with no ``.env`` above it; and the
+    parent's own ``SOUNDTOUCH_ZONEMASTER___*`` variables are dropped, so the two below are all it is
+    told. The value travels in the child's environment mapping and nowhere else.
+    """
+    env = {key: value for key, value in os.environ.items() if key != "PGPASSWORD" and not key.startswith(ENV_PREFIX)}
+    env["PGPASSFILE"] = "/dev/null"
+    env[f"{ENV_PREFIX}DATABASE__URL"] = url
+    if password is not None:
+        env[f"{ENV_PREFIX}DATABASE__PASSWORD"] = password
+    return subprocess.run(  # noqa: S603 - the project's own console script, no shell
+        [_installed_service_command(), *argv],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        cwd=cwd,
+        check=False,
+        timeout=60,
+    )
+
+
+def _shows(done: subprocess.CompletedProcess[str], secret: str) -> bool:
+    """Whether a child printed ``secret`` anywhere. A bool, so a failing assert prints no value."""
+    return secret in done.stdout or secret in done.stderr
+
+
+def test_the_installed_command_opens_postgresql_with_the_password_setting_alone(
+    postgres_login: PostgresLogin, tmp_path: Path
+) -> None:
+    """The production path end to end: the installed command, the environment layer, the store,
+    the driver's connect argument, a real PostgreSQL login."""
+    password = postgres_login.password.reveal()
+    switch = _run_installed(["--json-bare", "switch"], url=postgres_login.url, password=password, cwd=tmp_path)
+    assert switch.returncode == 0, f"exit {switch.returncode}"
+    assert not _shows(switch, password), "the password appears in the command's output"
+    envelope = json.loads(switch.stdout)
+    assert envelope["ok"] is True
+    assert envelope["data"] == {"database": masked(postgres_login.url), "on": True, "changed": False}
+
+    exported = tmp_path / "channels.json"
+    export = _run_installed(
+        ["--json-bare", "channels", "export", "--output", str(exported)],
+        url=postgres_login.url,
+        password=password,
+        cwd=tmp_path,
+    )
+    assert export.returncode == 0, f"exit {export.returncode}"
+    assert not _shows(export, password), "the password appears in the command's output"
+    assert exported.is_file()
+
+
+def test_the_installed_command_without_the_password_setting_cannot_log_in_to_postgresql(
+    postgres_login: PostgresLogin, tmp_path: Path
+) -> None:
+    """The control for the test above: with libpq's own sources gone and no setting, no login -
+    so the one above logged in through the setting and through nothing else."""
+    done = _run_installed(["--json-bare", "switch"], url=postgres_login.url, password=None, cwd=tmp_path)
+    assert done.returncode == 2, f"exit {done.returncode}"
+    envelope = json.loads(done.stdout)
+    assert envelope["ok"] is False
+    assert envelope["error"] == "StoreError"
+    assert "password" in envelope["message"], "refused for the login, not for anything else"
+
+
+def test_a_wrong_password_on_postgresql_is_refused_and_named_nowhere(
+    postgres_login: PostgresLogin, tmp_path: Path
+) -> None:
+    wrong = "WRONG-TOPSECRET"
+    done = _run_installed(["--json-bare", "switch"], url=postgres_login.url, password=wrong, cwd=tmp_path)
+    assert done.returncode == 2, f"exit {done.returncode}"
+    envelope = json.loads(done.stdout)
+    assert envelope["ok"] is False
+    assert envelope["error"] == "StoreError"
+    assert "password" in envelope["message"], "refused for the login, not for anything else"
+    assert not _shows(done, wrong), "the wrong password appears in the refusal"
+    assert not _shows(done, postgres_login.password.reveal()), "the real password appears in the refusal"
