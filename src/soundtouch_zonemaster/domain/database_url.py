@@ -1,8 +1,9 @@
 """Whether a database setting carries a password, and how to show one without it.
 
 A database setting is written into config files, ``--json`` envelopes and logs, so a password
-inside it must never be echoed - libpq reads one from ``~/.pgpass`` (or the file ``PGPASSFILE``
-names) instead. A password can arrive two ways: in a URL's own userinfo, or as one of
+inside it must never be echoed - the password is its own setting, ``database.password``, or libpq
+reads one from ``~/.pgpass`` (or the file ``PGPASSFILE`` names). A password can arrive in a URL two
+ways: in a URL's own userinfo, or as one of
 :data:`PASSWORD_QUERY_KEYS` - a query key some drivers (psycopg among them) pass straight through
 as a connect argument.
 
@@ -24,10 +25,10 @@ Pure and stdlib-only, so it is reachable from the domain layer, which may not im
 A plain path (no ``"://"``) is not a URL at all: the store opens it as a SQLite file and no reader
 takes a password out of it, so neither function here treats one as carrying a password.
 
-**Showing a setting is all or nothing.** :func:`masked` never tries to cut a password out and keep
-the rest of the URL readable: where a password ends depends on how a parser reads the text, and
-every such cut has shown some piece of one. A setting without a password is shown as typed; one
-with a password is shown as its scheme alone.
+**Showing a setting is all or nothing.** :func:`masked` never cuts a password out and keeps the
+rest of the URL readable: where a password ends depends on how a parser reads the text, so a cut
+cannot be proved to remove all of it. A setting without a password is shown as typed; one with a
+password is shown as its scheme alone.
 """
 
 from __future__ import annotations

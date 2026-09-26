@@ -33,7 +33,7 @@ from soundtouch_zonemaster.adapters.files.house_db import database_url
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.outcome import OptionsError
-from soundtouch_zonemaster.domain.database_url import UNREADABLE, carries_a_password, masked
+from soundtouch_zonemaster.domain.database_url import carries_a_password, masked
 
 _ORACLE_KEYS = frozenset({"password", "sslpassword"})
 """Written out rather than imported, so the oracle does not shrink if the domain's set does."""
@@ -247,13 +247,18 @@ def test_a_seeded_fuzz_finds_no_url_the_rule_or_the_mask_gets_wrong() -> None:
 
 def test_masked_is_all_or_nothing_over_the_fuzz() -> None:
     """A setting with no password in it is shown exactly as typed; one with a password shows
-    nothing after its scheme. Over every generated URL, whether SQLAlchemy can parse it or not."""
+    nothing after its scheme, and shows that scheme. Over every generated URL, whether SQLAlchemy
+    can parse it or not. Every generated URL starts with the same readable scheme, so the one
+    right answer for a carrying URL is ``<scheme>://***``: an answer of ``UNREADABLE`` for any of
+    them is the mask giving up on a scheme it can read, and fails here."""
+    expected_mask = f"{PG.partition('://')[0]}://***"
     problems: list[str] = []
     for index in range(5000):
         setting = _generated(index)
+        assert setting.startswith(PG), "the premise: every generated URL has the one readable scheme"
         shown = masked(setting)
-        allowed = (f"{setting.partition('://')[0]}://***", UNREADABLE) if carries_a_password(setting) else (setting,)
-        if shown not in allowed:
+        expected = expected_mask if carries_a_password(setting) else setting
+        if shown != expected:
             problems.append(f"{setting!r} -> {shown!r}")
     assert problems == []
 

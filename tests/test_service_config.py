@@ -359,9 +359,10 @@ def test_config_never_prints_a_password_sqlalchemy_would_read(
     mode: list[str],
     redact: list[str],
 ) -> None:
-    """Shapes a partial mask got wrong while SQLAlchemy reads a password out of each: a query key
-    behind a ``#`` (SQLAlchemy's query runs to the end of the string), a host ``urlsplit`` cannot
-    even split, and a raw ``@`` inside a query value. Every output mode, with and without
+    """Shapes where a mask that cut the password out would have to agree with SQLAlchemy on where
+    it ends, and SQLAlchemy reads a password out of each: a query key behind a ``#`` (SQLAlchemy's
+    query runs to the end of the string), a host ``urlsplit`` cannot even split, and a raw ``@``
+    inside a query value. Every output mode, with and without
     ``--redact``, through the environment layer, which ``--redact``'s own masking does not reach.
     The secrets are named by the row, not by any parser's reading of it."""
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", url)

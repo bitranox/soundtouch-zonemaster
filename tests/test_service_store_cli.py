@@ -172,8 +172,8 @@ def _url_setting_and_its_where(tmp_path: Path) -> tuple[str, str]:
 def test_the_switchs_envelope_names_the_same_database_the_human_line_would(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """The envelope's ``database`` field must be the store's masked ``where``, not the raw
-    setting: the two must never disagree about what a caller is told the database is."""
+    """The envelope carries a ``database`` field equal to the store's ``where`` for the setting
+    given, which is the domain's mask of that setting."""
     setting, where = _url_setting_and_its_where(tmp_path)
     assert _run(monkeypatch, "--json", "--database", setting, "switch") == 0
     assert _envelope(capsys)["data"] == {"database": where, "on": True, "changed": False}
