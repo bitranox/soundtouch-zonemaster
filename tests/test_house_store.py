@@ -397,11 +397,19 @@ def test_close_resets_the_store_even_when_the_underlying_close_raises(house_data
     store.open(exclusive=True)
     house = store._house  # pyright: ignore[reportPrivateUsage]
     assert house is not None
+    # The real lock is displaced by the stub, so close() never releases it; it is released here
+    # instead. On PostgreSQL it is a server session holding the advisory lock, and left alone it
+    # would hold it until the connection is garbage-collected, refusing every later writer.
+    displaced = house._lock  # pyright: ignore[reportPrivateUsage]
+    assert displaced is not None
     house._lock = _ExplodingLock()  # pyright: ignore[reportPrivateUsage]
     house._locked = True  # pyright: ignore[reportPrivateUsage]
-    with pytest.raises(StoreError, match=re.escape(house_database)):
+    try:
+        with pytest.raises(StoreError, match=re.escape(house_database)):
+            store.close()
+        # A store left thinking it is still open would refuse the SAME store's next open() by name
+        # as "already open" - a fresh instance can never see that, so this must reuse `store`.
+        store.open(exclusive=False)
         store.close()
-    # A store left thinking it is still open would refuse the SAME store's next open() by name
-    # as "already open" - a fresh instance can never see that, so this must reuse `store`.
-    store.open(exclusive=False)
-    store.close()
+    finally:
+        displaced.release()
