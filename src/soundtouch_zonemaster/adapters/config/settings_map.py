@@ -41,6 +41,7 @@ SETTINGS: Mapping[str, str] = {
     "files.switch_file": "switch_file",
     "files.state_file": "state_file",
     "database.url": "database",
+    "database.password": "database_password",
     "registry.url": "registry_url",
     "registry.poll_s": "registry_poll_s",
     "membership.consoles_allowed": "consoles_allowed",

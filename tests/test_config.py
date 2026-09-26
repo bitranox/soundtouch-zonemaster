@@ -46,6 +46,7 @@ from soundtouch_zonemaster.adapters.config.settings_map import (
     unknown_settings,
 )
 from soundtouch_zonemaster.application.options import ServiceOptions
+from soundtouch_zonemaster.domain.secret import Secret
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -94,12 +95,12 @@ def _shipped() -> dict[str, Any]:
 def _fields(record: type, prefix: str = "") -> Iterator[tuple[str, dataclasses.Field[Any]]]:
     """Every leaf field of a frozen record, dotted, descending into nested records.
 
-    The annotations are strings (``from __future__ import annotations``) and ``Path`` is imported
-    for typing only, so they are resolved with the name supplied rather than read off the field -
-    which is the difference between knowing ``channel_policy`` is a record and guessing it from
-    whatever its default happens to be.
+    The annotations are strings (``from __future__ import annotations``) and ``Path`` and
+    ``Secret`` are imported for typing only, so they are resolved with the names supplied rather
+    than read off the field - which is the difference between knowing ``channel_policy`` is a
+    record and guessing it from whatever its default happens to be.
     """
-    hints = get_type_hints(record, localns={"Path": Path})
+    hints = get_type_hints(record, localns={"Path": Path, "Secret": Secret})
     for field in dataclasses.fields(record):
         annotation = hints[field.name]
         if dataclasses.is_dataclass(annotation):
@@ -138,9 +139,9 @@ def _is_required(field: dataclasses.Field[Any]) -> bool:
 def _has_nothing_to_show(field: dataclasses.Field[Any]) -> bool:
     """Whether a file can show this field's default at all: no default, or a default of ``None``.
 
-    ``None`` is not a TOML value, so a field that falls back to it - the three old files, now that
-    the database is what a deployment must set - is commented out exactly like a required one, even
-    though a run may still leave it unset.
+    ``None`` is not a TOML value, so a field that falls back to it - the old files, now that the
+    database is what a deployment must set, and the database password - is commented out exactly
+    like a required one, even though a run may still leave it unset.
     """
     return _is_required(field) or _default_of(field) is None
 
@@ -191,9 +192,9 @@ def test_every_value_the_prototype_file_ships_is_that_records_own_default() -> N
 
 def test_the_files_leave_exactly_the_settings_with_no_default_commented_out() -> None:
     """Three settings describe one deployment and have no default at all - bind_ip, device_id and
-    database - because a value here would be a guess about somebody else's machine. Three more, the
-    old files, have a default of ``None``, which is not a TOML value either, so they are shown
-    commented the same way even though a run may leave them unset. Adding a field with nothing
+    database - because a value here would be a guess about somebody else's machine. The old files and
+    the database password have a default of ``None``, which is not a TOML value either, so they are
+    shown commented the same way even though a run may leave them unset. Adding a field with nothing
     printable to show and forgetting the files fails here rather than at a startup weeks later."""
     fields = dict(_fields(ServiceOptions))
     nothing_to_show = {name for name, field in fields.items() if _has_nothing_to_show(field)}

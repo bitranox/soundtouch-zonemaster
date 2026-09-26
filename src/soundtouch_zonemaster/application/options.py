@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ..domain.enums import Encryption, JoinMode
+    from ..domain.secret import Secret
 
 __all__ = [
     "DEFAULT_BASE_URL",
@@ -165,6 +166,11 @@ class ServiceOptions:
     device_id: str
     database: str
     """The house database: a URL, or a plain path meaning a SQLite file (``adapters/files/house_db.py``)."""
+    database_password: Secret | None = None
+    """The PostgreSQL password, handed to the driver as a connect argument and never put in the URL.
+
+    ``None`` passes nothing, so libpq's own ``~/.pgpass``, ``PGPASSFILE`` and ``PGPASSWORD`` still
+    apply. A SQLite database has no password, and the store refuses one given for it."""
     switch_file: Path | None = None
     """The switch as a file, from before the database: imported once, then not read."""
     state_file: Path | None = None

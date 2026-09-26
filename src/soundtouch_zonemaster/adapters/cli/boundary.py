@@ -22,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError, field_validator, model_validator
 
 from ...__init__conf__ import service_command
 from ...application.options import (
@@ -40,6 +40,7 @@ from ...domain.database_url import carries_a_password
 from ...domain.dialling import WINDOW_CEILING_S, WINDOW_DEFAULT_S, WINDOW_FLOOR_S
 from ...domain.longpress import HOLD_THRESHOLD_CEILING_S, HOLD_THRESHOLD_DEFAULT_S, HOLD_THRESHOLD_FLOOR_S
 from ...domain.membership import UNREACHABLE_TIMEOUT_S
+from ...domain.secret import Secret
 from ...domain.switch import POLL_S
 from ..config.loader import ENV_PREFIX
 from ..config.settings_map import config_path_of, env_name_of, service_settings, unknown_settings
@@ -54,6 +55,7 @@ __all__ = [
     "ChannelPolicyInput",
     "ServiceOptionsInput",
     "configured_settings",
+    "database_password_of",
     "merge_service_settings",
     "parse_service_options",
 ]
@@ -90,6 +92,9 @@ class ServiceOptionsInput(BaseModel):
     device_id: str
     database: str
     """The house database: a URL, or a plain path meaning a SQLite file (``adapters/files/house_db.py``)."""
+    database_password: SecretStr | None = None
+    """The PostgreSQL password. pydantic's ``SecretStr`` while it is parsed here, so a validation
+    error or a repr of this model cannot show it; the record receives the domain's ``Secret``."""
     switch_file: Path | None = None
     """The switch as a file, from before the database: imported once, then not read."""
     state_file: Path | None = None
@@ -144,6 +149,11 @@ class ServiceOptionsInput(BaseModel):
             message = "refused: the database URL carries a password; keep it in ~/.pgpass (or PGPASSFILE) instead"
             raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return value
+
+    @field_validator("database_password", mode="before")
+    @classmethod
+    def _password_as_text(cls, value: object) -> str | None:
+        return password_text_or_refuse(value)
 
     @field_validator("dial_window_s")
     @classmethod
@@ -217,6 +227,7 @@ class ServiceOptionsInput(BaseModel):
             bind_ip=self.bind_ip,
             device_id=self.device_id,
             database=self.database,
+            database_password=_secret_of(self.database_password),
             switch_file=self.switch_file,
             state_file=self.state_file,
             channel_file=self.channel_file,
@@ -232,6 +243,43 @@ class ServiceOptionsInput(BaseModel):
             mpd_port=self.mpd_port,
             mpd_rewind_s=self.mpd_rewind_s,
         )
+
+
+def password_text_or_refuse(value: object) -> str | None:
+    """A password setting as text, ``None`` when there is none. Raises :class:`OptionsError`.
+
+    Empty is none: the store then hands the driver no password, and libpq's own ``~/.pgpass``,
+    ``PGPASSFILE`` and ``PGPASSWORD`` apply. A value that is not text is refused rather than turned
+    back into text: the environment layer reads ``0123`` as the number 123 and ``true`` as a
+    boolean, so converting it would hand the driver a password that differs from the one written.
+    The refusal names the setting and the type it arrived as, never the value.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, SecretStr):
+        return value.get_secret_value() or None
+    if isinstance(value, str):
+        return value
+    message = (
+        f"refused: {config_path_of('database_password')} arrived as {type(value).__name__}, not as text; "
+        "quote it in a config file, or use --set with a JSON string"
+    )
+    raise OptionsError(message, exit_code=ExitCode.REFUSED)
+
+
+def _secret_of(value: SecretStr | None) -> Secret | None:
+    """The parsed password as the domain's secret; an empty one is none."""
+    if value is None:
+        return None
+    text = value.get_secret_value()
+    return Secret(text) if text else None
+
+
+def database_password_of(configured: Mapping[str, Any]) -> Secret | None:
+    """The password the configuration layers give, for the store verbs that open the database
+    without building the whole option record. The same rule as the record's own field."""
+    text = password_text_or_refuse(configured.get("database_password"))
+    return Secret(text) if text else None
 
 
 def _database_file(database: str) -> Path | None:

@@ -24,6 +24,7 @@ from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, clear_confi
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ServiceOptions
@@ -718,3 +719,52 @@ def test_a_hold_threshold_outside_its_bounds_is_refused_by_name(
 
     assert main() == 1, "a refusal, like the window's (ExitCode.REFUSED)"
     assert f"the hold threshold must be between 1.0 and 2.0 s, not {threshold}" in capsys.readouterr().err
+
+
+def _password_from_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> list[str]:
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWORD", "TOPSECRET")
+    return []
+
+
+def _password_from_a_user_file(_monkeypatch: pytest.MonkeyPatch, root: Path) -> list[str]:
+    _user_config(root, '[database]\npassword = "TOPSECRET"\n')
+    return []
+
+
+def _password_from_a_set_override(_monkeypatch: pytest.MonkeyPatch, _root: Path) -> list[str]:
+    return ["--set", "database.password=TOPSECRET"]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(_password_from_the_environment, id="env"),
+        pytest.param(_password_from_a_user_file, id="file"),
+        pytest.param(_password_from_a_set_override, id="set"),
+    ],
+)
+@pytest.mark.parametrize("mode", [["--json-bare"], ["--json"], []], ids=["json-bare", "json", "human"])
+@pytest.mark.parametrize("redact", [["--redact"], []], ids=["redact", "no-redact"])
+def test_config_always_masks_the_database_password(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    *,
+    source: Callable[[pytest.MonkeyPatch, Path], list[str]],
+    mode: list[str],
+    redact: list[str],
+) -> None:
+    """The password is a secret from EVERY layer, in every output mode, with or without
+    ``--redact`` - which on its own reaches only a ``.env`` or a private file, and masks by key
+    name only when asked. The key must still be listed: the control that the view read it."""
+    overrides = source(monkeypatch, isolated_config_layers)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["soundtouch-zonemaster-service", *mode, *overrides, "config", "--section", "database", *redact],
+    )
+
+    assert main() == 0
+    captured = capsys.readouterr()
+    assert "database.password" in captured.out, "the control: the setting is listed"
+    assert "TOPSECRET" not in captured.out
+    assert "TOPSECRET" not in captured.err

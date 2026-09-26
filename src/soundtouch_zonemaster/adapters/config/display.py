@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING, Any
 from ...domain.database_url import masked as masked_database_url
 from .errors import ConfigInputError
 from .loader import is_private_file
+from .settings_map import config_path_of
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterator, Mapping, Sequence
 
 __all__ = [
     "flatten",
-    "mask_database_url",
+    "mask_database_settings",
     "mask_values_from_layer",
     "mask_values_from_private_files",
     "where",
@@ -26,6 +27,10 @@ __all__ = [
 
 DATABASE_URL_KEY = "database.url"
 """The one dotted key ``config`` reports whose value can itself be a URL carrying a password."""
+
+DATABASE_PASSWORD_KEY = config_path_of("database_password")
+"""The dotted key whose whole value is a password: never shown, whatever it holds. Read from the
+settings map, so the key masked here is the key the service reads."""
 
 
 def where(origin: Mapping[str, Any] | None) -> str:
@@ -37,23 +42,27 @@ def where(origin: Mapping[str, Any] | None) -> str:
     return f"{layer}: {path}" if path else str(layer)
 
 
-def mask_database_url(values: Sequence[tuple[str, Any]]) -> list[tuple[str, Any]]:
-    """The same pairs, with :data:`DATABASE_URL_KEY`'s value masked wherever it carries a password.
+def mask_database_settings(values: Sequence[tuple[str, Any]], *, mask: str) -> list[tuple[str, Any]]:
+    """The same pairs, with :data:`DATABASE_PASSWORD_KEY`'s value replaced by ``mask`` and
+    :data:`DATABASE_URL_KEY`'s value masked wherever it carries a password.
 
     Unconditional, unlike :func:`mask_values_from_layer` and :func:`mask_values_from_private_files`:
     a database URL can carry a password from ANY layer - a config file, an environment variable, a
     dotenv, or ``--set`` on the command line - not only from a private file or a ``.env``, which
     are the two things ``--redact`` exists to catch. So a URL carrying a password is shown as its
     scheme alone before ``--redact`` is even asked about, in every output mode the ``config`` view
-    has; one without a password is shown as typed.
+    has; one without a password is shown as typed. The password setting is replaced whatever its
+    value and type, empty included, so no reading of it can put any of it on screen.
     """
 
-    def mask(key: str, value: Any) -> Any:
+    def hidden(key: str, value: Any) -> Any:
+        if key == DATABASE_PASSWORD_KEY:
+            return mask
         if key == DATABASE_URL_KEY and isinstance(value, str):
             return masked_database_url(value)
         return value
 
-    return [(key, mask(key, value)) for key, value in values]
+    return [(key, hidden(key, value)) for key, value in values]
 
 
 def mask_values_from_layer(

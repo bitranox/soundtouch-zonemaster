@@ -13,8 +13,8 @@
 # the store's own open that then fails if the directory is missing.
 # postgresql+psycopg://user@host/dbname is a PostgreSQL database, which needs the package
 # installed with its postgres extra; the one-writer lock is then an advisory lock on the server.
-# A URL carrying a password is REFUSED: keep the password in ~/.pgpass (or the file PGPASSFILE
-# names), where the PostgreSQL client finds it and no configuration layer, envelope or log shows it.
+# A URL carrying a password is REFUSED, because the URL is shown by `config`, envelopes and logs:
+# give the password as `password` below, or leave that empty and keep it in ~/.pgpass.
 # When to set: always. It must not live in /tmp. On the deployed unit it sits in
 # /var/lib/zonemaster, which systemd creates through StateDirectory=.
 # Consequence of losing it: the house comes back on its default channel with every box in
@@ -22,3 +22,21 @@
 # switch reads as on. Export the channel list (`channels export`) to keep a copy a person can read.
 #   env: SOUNDTOUCH_ZONEMASTER___DATABASE__URL
 # url = "/var/lib/zonemaster/zonemaster.sqlite"
+
+# The PostgreSQL password, handed to the database driver as a connect argument, never in the URL.
+#
+# Default: none. Effect: when set, the service and its `switch` and `channels` commands connect
+# with it. When empty or not set, nothing is passed and the PostgreSQL client finds the password
+# the way it always does: ~/.pgpass, the file PGPASSFILE names, or PGPASSWORD. A password given for
+# a SQLite database is refused, because SQLite has none and it would otherwise be ignored.
+# Where to put it on a real machine: the host file (/etc/soundtouch-zonemaster/hosts/<host>.toml,
+# mode 0600, owned by the service's user) or the environment variable below in a 0600 environment
+# file the unit names with EnvironmentFile=. Not in a file anybody else can read, and never in the
+# URL. `config` always shows it masked, with or without --redact; no envelope and no log line
+# carries it.
+# Write it as a quoted string. The environment layer reads a value of digits as a number, true or
+# false as a boolean and null as no value at all; a password that arrives as anything but text is
+# refused rather than changed, so give such a password in a file, or with
+# --set database.password='"0123"'.
+#   env: SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD
+# password = "..."
