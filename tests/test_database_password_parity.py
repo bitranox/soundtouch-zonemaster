@@ -11,9 +11,10 @@ refuse, each for its own reason.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
+from nothing_typed import NOTHING_TYPED
 
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.files.house_db import database_url
@@ -22,23 +23,6 @@ from soundtouch_zonemaster.application.outcome import ExitCode, OptionsError
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-NOTHING_TYPED: dict[str, Any] = {
-    # Reused by test_service_cli.py, which imports this by name rather than spelling out the same
-    # thirteen keyword arguments again: pass it as **NOTHING_TYPED wherever only the database or
-    # bind_ip field is under test.
-    "device_id": None,
-    "channel_file": None,
-    "switch_file": None,
-    "state_file": None,
-    "registry_url": None,
-    "allow_console": (),
-    "unreachable_timeout_s": None,
-    "dial_window_s": None,
-    "mpd_host": None,
-    "mpd_port": None,
-    "mpd_rewind_s": None,
-}
 
 
 def _boundary_refuses(database: str) -> bool:

@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import lib_cli_exit_tools
 import pytest
-from test_database_password_parity import NOTHING_TYPED
+from nothing_typed import NOTHING_TYPED
 
 from soundtouch_zonemaster.__init__conf__ import version
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
