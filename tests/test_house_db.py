@@ -9,7 +9,7 @@ import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, func, insert, inspect, select, text, update
+from sqlalchemy import create_engine, event, func, insert, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import QueuePool
@@ -317,4 +317,33 @@ def test_advisory_lock_acquire_closes_the_connection_when_the_query_fails() -> N
         lock.acquire()
     pool = cast("QueuePool", engine.pool)
     assert pool.checkedout() == 0
+    engine.dispose()
+
+
+def test_advisory_lock_release_survives_an_unlock_that_fails_on_a_session_already_gone() -> None:
+    """The PostgreSQL counterpart of a dropped ``flock``: a server restart or a killed session
+    drops the advisory lock without notice, and the unlock statement then fails against a session
+    that no longer holds it. That failure must not replace whatever the caller was already doing
+    to end the run - a clean SIGINT stop, above all - so ``release`` must swallow it and still
+    give the connection back.
+
+    ``pg_try_advisory_lock`` is stood in for on this SQLite engine (a real acquire needs a real
+    PostgreSQL server); ``pg_advisory_unlock`` is deliberately left undefined, so the unlock
+    statement fails with ``OperationalError`` exactly the way it would against a session PostgreSQL
+    has already dropped the lock from.
+    """
+    engine = create_engine("sqlite://", poolclass=QueuePool)
+
+    @event.listens_for(engine, "connect")
+    def _stand_in_for_try_lock(dbapi_connection: object, _record: object) -> None:
+        dbapi_connection.create_function("pg_try_advisory_lock", 1, lambda _key: 1)  # type: ignore[attr-defined]
+
+    lock = AdvisoryLock(engine, where="test")
+    lock.acquire()
+    pool = cast("QueuePool", engine.pool)
+    assert pool.checkedout() == 1, "the lock holds its own connection while acquired"
+
+    lock.release()
+
+    assert pool.checkedout() == 0, "the connection is given back although the unlock itself failed"
     engine.dispose()

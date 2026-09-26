@@ -32,7 +32,7 @@ from __future__ import annotations
 import fcntl
 import os
 import sqlite3
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -219,13 +219,17 @@ class AdvisoryLock:
         self._connection = connection
 
     def release(self) -> None:
+        """Give the lock back. A stop must still close the connection when the server already
+        dropped the session (a restart, a killed session): the unlock statement then fails on a
+        connection that no longer holds anything to unlock, and that failure must not replace
+        whatever the caller was already doing to end the run - a clean SIGINT stop, above all.
+        """
         if self._connection is None:
             return
-        try:
+        with suppress(SQLAlchemyError):
             self._connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _ADVISORY_KEY})
-        finally:
-            self._connection.close()
-            self._connection = None
+        self._connection.close()
+        self._connection = None
 
 
 class HouseDatabase:
@@ -278,10 +282,12 @@ class HouseDatabase:
     def close(self) -> None:
         """Give the lock back, then the connections. Harmless when nothing is open.
 
-        The state is reset and the engine disposed in ``finally``, so a lock that fails to
-        release (a dead PostgreSQL session raising on ``pg_advisory_unlock``) still leaves nothing
-        held open and nothing stuck thinking the lock is still ours - even though the release
-        error itself still reaches the caller.
+        The state is reset and the engine disposed in ``finally``, so a lock whose connection is
+        already gone (a dead PostgreSQL session: a server restart, a killed session) still leaves
+        nothing held open and nothing stuck thinking the lock is still ours.
+        ``AdvisoryLock.release`` itself already swallows a failed ``pg_advisory_unlock`` on such a
+        session, so this ``finally`` is defence for a ``FileLock`` release rather than the usual
+        case for a dead PostgreSQL one.
         """
         try:
             if self._lock is not None and self._locked:
