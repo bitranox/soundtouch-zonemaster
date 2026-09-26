@@ -190,11 +190,13 @@ service does not read those files again, and all three may be absent. The switch
 list is `soundtouch-zonemaster-service channels export|import`.
 
 PostgreSQL support needs the package installed with its `postgres` extra (`pip install
-"soundtouch-zonemaster[postgres]"`); it is built against the same schema as SQLite and covered by
-the unit tests with SQLite, but it is not exercised against a real PostgreSQL server as part of
-this project's own gate (`make test`). The store tests run against PostgreSQL too when
+"soundtouch-zonemaster[postgres]"`); it is built against the same schema as SQLite. CI runs the
+store tests on SQLite only. Locally they also run against PostgreSQL whenever
 `ZONEMASTER_TEST_POSTGRES_URL`, in the environment or in the checkout's `.env`, names a throwaway
-database: every store test drops the house tables in it. See `.env.example`.
+database: every store test drops the house tables in it. That database is shared by every checkout
+that names it, so two machines (or two sessions) must not run the store tests against the same
+database at once. A configured server that cannot be reached stops the run with one error naming
+it. See `.env.example`.
 
 ## Usage
 

@@ -39,13 +39,17 @@ from typing import TYPE_CHECKING
 import pytest
 from lib_layered_config import read_config
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from soundtouch_zonemaster.__init__conf__ import LAYEREDCONF_APP, LAYEREDCONF_SLUG, LAYEREDCONF_VENDOR
 from soundtouch_zonemaster.adapters.config import loader
 from soundtouch_zonemaster.adapters.files.house_schema import METADATA
+from soundtouch_zonemaster.domain.database_url import masked
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from sqlalchemy.engine import Engine
 
 _COVERAGE_BASENAME = ".coverage.soundtouch_zonemaster"
 
@@ -152,9 +156,11 @@ def a_house_that_protects_its_console(isolated_config_layers: Path) -> Path:
 POSTGRES_URL_ENV = "ZONEMASTER_TEST_POSTGRES_URL"
 """A PostgreSQL URL (no password; the store refuses one in the URL itself) to run every store
 test against as well. Checked first, so it still overrides the checkout's own ``.env`` below when
-both are set. Unset and no ``.env`` naming one either, the store tests run on SQLite alone, which
-is what `make test` does. The URL MUST name a THROWAWAY database: every store test drops the house
-tables in it, both before and after."""
+both are set. CI sets neither, so it runs the store tests on SQLite alone; a local run, ``make
+test`` included, also runs them against PostgreSQL whenever the environment or the checkout's
+``.env`` names one. The URL MUST name a THROWAWAY database: every store test drops the house
+tables in it, both before and after. That database is shared by every checkout that names it, so
+two machines or two sessions must not run the store tests against it at the same time."""
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -215,17 +221,59 @@ def _backends() -> list[str]:
     return ["sqlite", "postgresql"] if POSTGRES_URL else ["sqlite"]
 
 
+_POSTGRES_CONNECT_TIMEOUT_S = 5
+"""How long one connection attempt to the test server may take before libpq gives up."""
+
+
+def _postgres_engine(url: str) -> Engine:
+    """An engine for the test server that gives up after a few seconds on an unreachable host
+    instead of waiting out the TCP connect timeout once per test."""
+    return create_engine(url, connect_args={"connect_timeout": _POSTGRES_CONNECT_TIMEOUT_S})
+
+
 def _empty_postgres(url: str) -> None:
     """Drop every house table and Alembic's own, so each test starts from a database never used.
 
     Destructive on purpose: the caller-supplied URL must name a throwaway database, because this
     runs before AND after every test that uses it.
     """
-    engine = create_engine(url)
+    engine = _postgres_engine(url)
     with engine.begin() as connection:
         METADATA.drop_all(connection)
         connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
     engine.dispose()
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Refuse the whole run ONCE when the configured PostgreSQL server cannot be reached.
+
+    Runs last, so after ``-k`` and ``-m`` have deselected what they will: a run that selects no
+    PostgreSQL case never connects. An unreachable configured server is an error rather than a
+    skip - the configuration says those cases should run - and one clear message beats a setup
+    error per test. The message names the database through the domain's mask and the failure by
+    its type only.
+    """
+    if POSTGRES_URL is None or not any(_uses_postgres(item) for item in items):
+        return
+    engine = _postgres_engine(POSTGRES_URL)
+    try:
+        with engine.connect():
+            pass
+    except SQLAlchemyError as exc:
+        message = (
+            f"{masked(POSTGRES_URL)}: the PostgreSQL server the store tests are configured to use "
+            f"({POSTGRES_URL_ENV}) cannot be reached ({type(exc).__name__}); start it, fix the URL, "
+            "or deselect those cases with -k 'not postgresql'"
+        )
+        raise pytest.UsageError(message) from None
+    finally:
+        engine.dispose()
+
+
+def _uses_postgres(item: pytest.Item) -> bool:
+    callspec = getattr(item, "callspec", None)
+    return callspec is not None and callspec.params.get("house_database") == "postgresql"
 
 
 @pytest.fixture(params=_backends())
