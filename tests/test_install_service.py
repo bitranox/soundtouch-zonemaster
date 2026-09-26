@@ -120,6 +120,18 @@ def test_a_failing_install_says_which_command_failed(tmp_path: Path) -> None:
         apply(install, plan(install), run=Recorder(fails="pip install"))
 
 
+def test_an_upgraded_machine_gets_no_new_switch_file(tmp_path: Path) -> None:
+    install = _install(tmp_path)
+    install.state_dir.mkdir()
+    install.database.write_bytes(b"")
+    assert plan(install).create_switch is False
+
+
+def test_a_fresh_machine_still_starts_switched_off(tmp_path: Path) -> None:
+    install = _install(tmp_path)
+    assert plan(install).create_switch is True
+
+
 def test_the_report_is_json_a_caller_can_read(tmp_path: Path) -> None:
     install = _install(tmp_path)
 

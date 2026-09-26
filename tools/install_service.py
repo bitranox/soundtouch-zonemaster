@@ -87,6 +87,11 @@ class Install:
     def switch(self) -> Path:
         return self.state_dir / "zone.switch"
 
+    @property
+    def database(self) -> Path:
+        """Where the service keeps its state once it has run: the switch lives in here then."""
+        return self.state_dir / "zonemaster.sqlite"
+
 
 @dataclass(frozen=True)
 class Steps:
@@ -108,11 +113,13 @@ class Report(BaseModel):
 
 
 def plan(install: Install) -> Steps:
-    """Read the machine and say what is missing. Touches nothing."""
+    """Read the machine and say what is missing. Touches nothing.
+
+    A machine that has the database has its switch there; a new ``zone.switch`` would be unread."""
     return Steps(
         create_venv=not install.python.exists(),
         create_state_dir=not install.state_dir.is_dir(),
-        create_switch=not install.switch.exists(),
+        create_switch=not install.switch.exists() and not install.database.exists(),
     )
 
 
