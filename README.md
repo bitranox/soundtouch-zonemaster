@@ -125,11 +125,14 @@ one file:
 ```
 config.toml                  the header: which layers exist and in what order
 config.d/10-zone.toml        [zone]        what this master is on the network
-config.d/20-files.toml       [files]       the channel list, the switch, the state
+config.d/20-files.toml       [files]       the one-time import sources for the channel list,
+                                           the switch and the state (see below)
+config.d/25-database.toml    [database]    where the house database is
 config.d/30-registry.toml    [registry]    where the speaker list comes from
 config.d/40-membership.toml  [membership]  who may join, and when a box stops counting
 config.d/50-dialling.toml    [dialling]    how a channel number is typed on the preset keys
-config.d/60-switch.toml      [switch]      how quickly the on/off file is noticed
+config.d/60-switch.toml      [switch]      how quickly the switch row in the house database
+                                           is noticed
 config.d/70-observer.toml    [observer]    each speaker's notification channel
 config.d/80-prototype.toml   [prototype]   the prototype master, and the boxes it must never touch
 config.d/90-mpd.toml         [mpd]         the Music Player Daemon beside the service
@@ -173,10 +176,23 @@ The same convention holds the private name list, `tools/public_redactions-rnhome
 of the house, its machines and its device ids. A test in the gate fails if any tracked file holds
 one of them, and skips where the list is absent (see `tools/public_redactions.example.txt`).
 
-Four settings have no default at all, because they describe one deployment: the address to bind,
-and the three files that hold the channel list, the switch and the state. Give them in a config
-file, in the environment, or on the command line. A setting missing from every layer is refused at
-startup and names itself. A fifth, the device id, falls back to the host's own MAC.
+Two settings have no default at all, because they describe one deployment: the address to bind,
+and the house database (`[database] url`, a plain path for SQLite or a `postgresql+psycopg://`
+URL for PostgreSQL). Give them in a config file, in the environment, or on the command line. A
+setting missing from every layer is refused at startup and names itself. A third, the device id,
+falls back to the host's own MAC.
+
+The three files under `[files]` (the channel list, the switch and the state) are one-time import
+sources only: on the first start after an upgrade, each is read once into whichever part of the
+database is still empty and then renamed `<name>.imported`. Once the database holds them, the
+service does not read those files again, and all three may be absent. The switch itself is then
+`soundtouch-zonemaster-service switch on|off` (and `switch` alone reports it), and the channel
+list is `soundtouch-zonemaster-service channels export|import`.
+
+PostgreSQL support needs the package installed with its `postgres` extra (`pip install
+soundtouch-zonemaster[postgres]`); it is built against the same schema as SQLite and covered by
+the unit tests with SQLite, but it is not exercised against a real PostgreSQL server as part of
+this project's own gate.
 
 ## Usage
 

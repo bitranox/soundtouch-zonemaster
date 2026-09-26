@@ -86,7 +86,8 @@ class SwitchReader(Protocol):
 
 
 class HouseStore(Protocol):
-    """The house database: the state, the channel list and the switch, in one file.
+    """The house database: the state, the channel list and the switch, in one database - a SQLite
+    file, or PostgreSQL.
 
     ``open`` comes first and ``close`` last. ``exclusive`` takes the one-writer lock: the service
     and a channel import take it, a switch flip and an export do not. Every method refuses with

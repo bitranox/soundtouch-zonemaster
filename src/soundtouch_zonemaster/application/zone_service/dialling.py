@@ -344,7 +344,7 @@ class Dialling(ZoneReconcile):
                 # one. This compared the station's URL against the channel's until 2026-09-21, and
                 # every MPD channel names the same ``httpd`` output - so it read a move from one
                 # audiobook to the next as the same channel pressed twice and did nothing, while
-                # still writing the new number into the state file. Eleven dials in the flat that
+                # still writing the new number into the house state in the store. Eleven dials in the flat that
                 # night: every MPD-to-MPD one refused, and the only way through was a radio channel
                 # in between.
                 self.log("dial", f"{self._name(device_id)} dialled {number}: already playing it")

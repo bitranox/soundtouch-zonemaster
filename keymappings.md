@@ -9,16 +9,16 @@ matter are listed first, and each section says which of them it depends on.
 
 ## The states that change what a key means
 
-| State               | Values                          | Decided by                                             |
-|---------------------|---------------------------------|--------------------------------------------------------|
-| The switch          | on / off                        | the switch file; off means nobody holds the house      |
-| The house           | playing / quiet                 | whether the zone master is playing a channel right now |
-| The box             | asleep (STANDBY) / awake        | what the box last reported about itself                |
-| The box's place     | a zone slave / outside the zone | whether the master has taken the box in                |
-| Multiroom           | in / out                        | a double-tapped thumb; kept in the state file          |
-| The channel playing | radio / MPD                     | the `kind` of the channel in the channel file          |
-| A calibration       | running / not running           | the calibration gesture, below                         |
-| The gesture         | tap / hold                      | whether the key came back up inside the hold threshold |
+| State               | Values                          | Decided by                                                             |
+|---------------------|---------------------------------|------------------------------------------------------------------------|
+| The switch          | on / off                        | the switch row in the house database; off means nobody holds the house |
+| The house           | playing / quiet                 | whether the zone master is playing a channel right now                 |
+| The box             | asleep (STANDBY) / awake        | what the box last reported about itself                                |
+| The box's place     | a zone slave / outside the zone | whether the master has taken the box in                                |
+| Multiroom           | in / out                        | a double-tapped thumb; kept in the state file                          |
+| The channel playing | radio / MPD                     | the `kind` of the channel in the channel file                          |
+| A calibration       | running / not running           | the calibration gesture, below                                         |
+| The gesture         | tap / hold                      | whether the key came back up inside the hold threshold                 |
 
 Two facts about the hardware sit under every one of them:
 

@@ -31,7 +31,7 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse
 - `src/soundtouch_zonemaster/application/errors.py`  -  PortsBusyError, RegistryError
 - `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy; every default lives on a field
-- `src/soundtouch_zonemaster/application/ports.py`  -  Protocols for adapter functions plus HouseStore (the state, the channel list and the switch in one file) and OpenHouseStore (its opener), bundled as ZoneServicePorts, PrototypePorts and ServiceCommands
+- `src/soundtouch_zonemaster/application/ports.py`  -  Protocols for adapter functions plus HouseStore (the state, the channel list and the switch in one database - a SQLite file, or PostgreSQL) and OpenHouseStore (its opener), bundled as ZoneServicePorts, PrototypePorts and ServiceCommands
 - `src/soundtouch_zonemaster/application/prototype.py`  -  The prototype's run: options in, the run loop it drives
 - `src/soundtouch_zonemaster/application/zone_service/`  -  The service loop as a chain of eight classes, one file each:
   - `constants.py`  -  The constants more than one class in the chain reads

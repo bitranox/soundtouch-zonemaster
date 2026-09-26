@@ -6,7 +6,7 @@ is turned down to zero first, joined, and faded back to the level it was on once
 
 The one failure this feature can cause is a speaker left silently at zero, which reads as broken
 hardware rather than as a service that stopped halfway. That is why the level is written to the
-state file BEFORE the box is muted, why every path out of a join puts it back, why a cancelled
+house state in the store BEFORE the box is muted, why every path out of a join puts it back, why a cancelled
 fade still puts it back in one step, and why a level that could not be read means NOTHING WAS
 DONE rather than a guess.
 """
@@ -78,8 +78,9 @@ class VolumeGuard(SpeakerBook):
         that could not be put back, and this must never leave a speaker somewhere it did not
         choose to be - so it declines to mute rather than risk that.
 
-        The level is written to the state file BEFORE the box is muted. A service that dies in
-        between then still finds it on the next start; one that wrote afterwards would not.
+        The level is written to the house state in the store BEFORE the box is muted. A service
+        that dies in between then still finds it on the next start; one that wrote afterwards
+        would not.
         """
         try:
             level = await self.ports.read_volume(speaker.ip)
@@ -332,7 +333,7 @@ class VolumeGuard(SpeakerBook):
         """Turn up every box this service muted and did not turn up again.
 
         Two callers, and they are the two ways the mute can outlive its join: start-up, where the
-        map came out of the state file and the service may have died mid-join, and the pass, where
+        map came out of the house state in the store and the service may have died mid-join, and the pass, where
         a box stopped answering while it was being faded. In the pass it is the FIRST thing done,
         which is what keeps it below nothing: two paths there give the whole pass up, the switch
         off and a listening port held by somebody else, and under either of them a note nobody
