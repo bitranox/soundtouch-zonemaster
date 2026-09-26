@@ -13,6 +13,7 @@ file rather than by a person, so a caller has to be able to parse what it printe
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.logging.narration import log
 from soundtouch_zonemaster.application.outcome import ExitCode, OptionsError
+from soundtouch_zonemaster.composition import hold_the_zone
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
@@ -47,6 +49,29 @@ def _argv(tmp_path: Path, *extra: str) -> list[str]:
 async def _refuse_to_run(_options: ServiceOptions) -> int:
     """Stands in for the run, and fails loudly if a refusal let one start."""
     raise AssertionError("the service must not start when the options were refused")
+
+
+_REAL_RUN_BOUND_S = 5.0
+"""How long the real service may run before a test that expects a refusal gives up on it.
+
+A bound the subject does not control: if the refusal these tests check for ever regressed, the
+real ``hold_the_zone`` would bind the fixed ports (8090, the notification port, 40005) and hold
+them until the process is killed, hanging ``make test`` rather than failing it. Named so the
+timeout reads as what it is - the refusal did not fire - rather than as an unrelated hang.
+"""
+
+
+async def _hold_the_zone_bounded(options: ServiceOptions) -> int:
+    """The real run, wrapped so a refusal that regresses fails fast and by name instead of hanging.
+
+    Used only by tests that expect ``main`` to refuse the start before this is ever reached; a
+    passing test never waits out the bound, because the refusal happens first and this coroutine
+    is never awaited to completion.
+    """
+    try:
+        return await asyncio.wait_for(hold_the_zone(options), timeout=_REAL_RUN_BOUND_S)
+    except TimeoutError:
+        pytest.fail(f"the real service ran past its {_REAL_RUN_BOUND_S}s bound: the expected refusal did not fire")
 
 
 def test_no_database_anywhere_is_refused_by_name(
@@ -299,7 +324,7 @@ def test_an_old_channel_file_the_import_cannot_read_refuses_the_start_by_name(
     broken.write_text("{not json", encoding="utf-8")
     monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare", "--channel-file", str(broken)))
 
-    assert main() == 2
+    assert main(run_service=_hold_the_zone_bounded) == 2
 
     captured = capsys.readouterr()
     envelope = json.loads(captured.out)
@@ -318,7 +343,7 @@ def test_a_database_another_service_holds_refuses_the_start_as_busy(
     holder.open(exclusive=True)
     try:
         monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare"))
-        assert main() == 1
+        assert main(run_service=_hold_the_zone_bounded) == 1
     finally:
         holder.close()
 
