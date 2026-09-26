@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ServiceOptions
+    from soundtouch_zonemaster.application.ports import RunService
 
 
 def _argv(tmp_path: Path, *extra: str) -> list[str]:
@@ -61,17 +62,42 @@ timeout reads as what it is - the refusal did not fire - rather than as an unrel
 """
 
 
-async def _hold_the_zone_bounded(options: ServiceOptions) -> int:
-    """The real run, wrapped so a refusal that regresses fails fast and by name instead of hanging.
+class _Bound:
+    """Whether the bounded run in :func:`_hold_the_zone_bounded` had to time out.
+
+    ``main`` funnels the run coroutine through ``lib_cli_exit_tools.run_cli``, whose single
+    ``except BaseException`` handler turns ANY exception raised inside it - a ``pytest.fail``
+    included - into an ordinary exit code. So a bound that reports itself by raising can never
+    surface as a test failure; it has to record onto something the test still holds after
+    ``main()`` returns.
+    """
+
+    def __init__(self) -> None:
+        self.timed_out = False
+
+
+_BOUND_FIRED_MESSAGE = f"the real service ran past its {_REAL_RUN_BOUND_S}s bound: the expected refusal did not fire"
+
+
+def _hold_the_zone_bounded(bound: _Bound) -> RunService:
+    """Build a bounded real run that records a timeout onto ``bound`` instead of raising past ``main``.
 
     Used only by tests that expect ``main`` to refuse the start before this is ever reached; a
     passing test never waits out the bound, because the refusal happens first and this coroutine
-    is never awaited to completion.
+    is never awaited to completion. A caller must assert ``not bound.timed_out`` right after
+    ``main()`` returns and before reading its return code or envelope - once the bound has fired,
+    both are meaningless, because ``run_cli`` mapped the timeout to an ordinary exit code rather
+    than letting it fail the test.
     """
-    try:
-        return await asyncio.wait_for(hold_the_zone(options), timeout=_REAL_RUN_BOUND_S)
-    except TimeoutError:
-        pytest.fail(f"the real service ran past its {_REAL_RUN_BOUND_S}s bound: the expected refusal did not fire")
+
+    async def _run(options: ServiceOptions) -> int:
+        try:
+            return await asyncio.wait_for(hold_the_zone(options), timeout=_REAL_RUN_BOUND_S)
+        except TimeoutError:
+            bound.timed_out = True
+            return ExitCode.ERROR
+
+    return _run
 
 
 def test_no_database_anywhere_is_refused_by_name(
@@ -347,7 +373,10 @@ def test_an_old_channel_file_the_import_cannot_read_refuses_the_start_by_name(
     broken.write_text("{not json", encoding="utf-8")
     monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare", "--channel-file", str(broken)))
 
-    assert main(run_service=_hold_the_zone_bounded) == 2
+    bound = _Bound()
+    rc = main(run_service=_hold_the_zone_bounded(bound))
+    assert not bound.timed_out, _BOUND_FIRED_MESSAGE
+    assert rc == 2
 
     captured = capsys.readouterr()
     envelope = json.loads(captured.out)
@@ -364,11 +393,14 @@ def test_a_database_another_service_holds_refuses_the_start_as_busy(
     """One writer: a second service is told the database is held, and the answer is no (exit 1)."""
     holder = SqlHouseStore(str(tmp_path / "zonemaster.sqlite"), log=log)
     holder.open(exclusive=True)
+    bound = _Bound()
     try:
         monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare"))
-        assert main(run_service=_hold_the_zone_bounded) == 1
+        rc = main(run_service=_hold_the_zone_bounded(bound))
     finally:
         holder.close()
+    assert not bound.timed_out, _BOUND_FIRED_MESSAGE
+    assert rc == 1
 
     captured = capsys.readouterr()
     envelope = json.loads(captured.out)
