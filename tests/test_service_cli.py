@@ -95,6 +95,29 @@ def test_a_database_in_a_directory_that_does_not_exist_is_refused(
     assert "is not a directory to keep the house database in" in capsys.readouterr().err
 
 
+def test_a_database_url_in_a_directory_that_does_not_exist_is_not_refused_at_the_boundary() -> None:
+    """The boundary's own directory check names a PLAIN PATH only: a ``sqlite:////...`` URL naming
+    a missing directory is not caught here at all, unlike the equivalent plain path above - it is
+    the store's own ``open()`` that fails on it, later and differently."""
+    database = parse_service_options(
+        bind_ip="127.0.0.1",
+        database="sqlite:////nonexistent-directory/zonemaster.sqlite",
+        configured={},
+        device_id=None,
+        channel_file=None,
+        switch_file=None,
+        state_file=None,
+        registry_url=None,
+        allow_console=(),
+        unreachable_timeout_s=None,
+        dial_window_s=None,
+        mpd_host=None,
+        mpd_port=None,
+        mpd_rewind_s=None,
+    ).database
+    assert database == "sqlite:////nonexistent-directory/zonemaster.sqlite"
+
+
 def test_the_old_files_are_no_longer_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     seen: list[ServiceOptions] = []
 

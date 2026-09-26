@@ -8,10 +8,11 @@
 # The house database, as a plain path or as a URL.
 #
 # Default: none. Effect: a plain path (or sqlite:////absolute/path) is one SQLite file, plus its
-# -wal and -shm files while the service runs and a .lock file beside it; its DIRECTORY has to
-# exist and is checked at startup. postgresql+psycopg://user@host/dbname is a PostgreSQL database,
-# which needs the package installed with its postgres extra; the one-writer lock is then an
-# advisory lock on the server.
+# -wal and -shm files while the service runs and a .lock file beside it. A PLAIN PATH's directory
+# is checked at startup, before anything is opened; a sqlite:////absolute/path URL is not - it is
+# the store's own open that then fails if the directory is missing.
+# postgresql+psycopg://user@host/dbname is a PostgreSQL database, which needs the package
+# installed with its postgres extra; the one-writer lock is then an advisory lock on the server.
 # A URL carrying a password is REFUSED: keep the password in ~/.pgpass (or the file PGPASSFILE
 # names), where the PostgreSQL client finds it and no configuration layer, envelope or log shows it.
 # When to set: always. It must not live in /tmp. On the deployed unit it sits in
