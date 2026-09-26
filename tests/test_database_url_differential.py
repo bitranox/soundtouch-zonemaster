@@ -11,8 +11,9 @@ The oracle compares query keys after stripping whitespace and lowercasing, which
 SQLAlchemy itself: psycopg builds a libpq conninfo string from the keys, and libpq skips the
 whitespace around a keyword, so a key that decodes to ``" password"`` still sets the password.
 
-Every row also carries the fake secrets its text holds, and no display (``masked``) and no
-refusal message may contain any of them - including on rows the oracle cannot parse at all.
+Every row also carries the fake secrets its text holds, and no display (``masked``, the name
+every store message starts with) and no refusal message may contain any of them - including on
+rows the oracle cannot parse at all.
 The ``oracle`` column is asserted too, so a row meant to exercise a password SQLAlchemy reads
 cannot silently stop exercising one.
 """
@@ -29,6 +30,7 @@ from sqlalchemy.exc import ArgumentError
 
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.files.house_db import database_url
+from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.outcome import OptionsError
 from soundtouch_zonemaster.domain.database_url import carries_a_password, masked
@@ -98,6 +100,10 @@ def _sqlalchemy_reads_a_password(setting: str) -> bool:
     return url.password is not None or any(key.strip().lower() in _ORACLE_KEYS for key in url.query)
 
 
+def _quiet(_kind: str, _text: str) -> None:
+    return None
+
+
 def _store_refusal(setting: str) -> str | None:
     try:
         database_url(setting)
@@ -132,6 +138,7 @@ def test_no_display_or_refusal_repeats_a_secret(setting: str, secrets: tuple[str
         "masked": masked(setting),
         "store refusal": _store_refusal(setting) or "",
         "boundary refusal": _boundary_refusal(setting) or "",
+        "store name": SqlHouseStore(setting, log=_quiet).where,
     }
     for where, text in shown.items():
         leaked = [secret for secret in secrets if secret in text]

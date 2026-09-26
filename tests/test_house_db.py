@@ -20,16 +20,21 @@ from soundtouch_zonemaster.adapters.files.house_db import (
     FileLock,
     HouseDatabase,
     database_url,
-    redacted_setting,
 )
 from soundtouch_zonemaster.adapters.files.house_schema import MEMBER, METADATA
+from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
+from soundtouch_zonemaster.domain.database_url import masked
 
 if TYPE_CHECKING:
     import sqlite3
     from pathlib import Path
 
 HEAD = ScriptDirectory(str(MIGRATIONS)).get_current_head()
+
+
+def _quiet(_kind: str, _text: str) -> None:
+    return None
 
 
 def _always_held(_key: int) -> int:
@@ -245,27 +250,24 @@ def test_where_is_the_raw_setting_for_a_plain_path(tmp_path: Path) -> None:
     assert database.where == setting
 
 
-def test_where_is_the_redacted_url_for_a_url_setting() -> None:
-    setting = "postgresql+psycopg://zonemaster@db.example/zonemaster?passfile=/x"
+def test_where_is_the_domain_mask_of_a_url_setting() -> None:
+    """One display rule for a setting, the domain's: typed as it was, only secrets masked."""
+    setting = "postgresql+psycopg://zonemaster@db.example/zonemaster?passfile=/x&options=-c%20x%3Dy"
     database = HouseDatabase(setting)
-    assert database.where == database.url.render_as_string(hide_password=True)
-    assert database.where != setting
+    assert database.where == masked(setting) == setting
 
 
-def test_where_masks_a_password_shaped_query_value_that_render_as_string_alone_would_not() -> None:
-    """The one display rule: ``HouseDatabase.where`` and :func:`redacted_setting` both go through
-    the same masking function rather than a bare ``render_as_string(hide_password=True)``, which
-    hides only the userinfo and leaves a query value verbatim. Read through :func:`redacted_setting`
-    - the public function that shares the masking rule with ``HouseDatabase.where`` - rather than
-    the private ``_redacted`` it wraps, on a setting :func:`database_url` would itself refuse, so
-    this pins the masking rule on its own rather than the refusal that makes it unreachable via the
-    normal construction path."""
-    setting = "postgresql+psycopg://zonemaster@db.example/zonemaster?sslpassword=TOPSECRET"
-    redacted = redacted_setting(setting)
-    assert "TOPSECRET" not in redacted
-    bare = make_url(setting).render_as_string(hide_password=True)
-    assert bare != redacted
-    assert "TOPSECRET" in bare
+def test_every_store_message_names_the_database_without_a_password_sqlalchemy_would_misplace() -> None:
+    """SQLAlchemy ends a userinfo password at its FIRST ``@``, so its own rendering shows the rest
+    of a password holding a raw ``@`` as the host. Every message the store writes before it has a
+    parsed URL - "used before open()" here - names the database through the domain's mask."""
+    store = SqlHouseStore("postgresql+psycopg://zonemaster:TOP@SECRET@db.example/zonemaster", log=_quiet)
+    with pytest.raises(StoreError) as caught:
+        store.load_state()
+    assert "SECRET" not in str(caught.value)
+    assert make_url(store.database).render_as_string(hide_password=True).count("SECRET") == 1, (
+        "the control: SQLAlchemy's own rendering does show the rest of that password"
+    )
 
 
 def test_sqlite_reading_uses_wal_journal_mode_and_full_synchronous(tmp_path: Path) -> None:

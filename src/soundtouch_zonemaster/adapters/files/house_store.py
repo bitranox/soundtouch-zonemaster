@@ -18,10 +18,11 @@ from typing import TYPE_CHECKING
 from sqlalchemy.exc import SQLAlchemyError
 
 from ...application.errors import StoreError
+from ...domain.database_url import masked
 from ...domain.state import ZoneState
 from .channel_file import ChannelFileError, channels_json, load_channels
 from .house_channels import read_channels, write_channels
-from .house_db import HouseDatabase, reason_for, redacted_setting
+from .house_db import HouseDatabase, reason_for
 from .house_state import read_state, write_state
 from .house_switch import DbSwitch, read_switch, write_switch
 from .legacy_import import import_legacy
@@ -42,8 +43,8 @@ class SqlHouseStore:
 
     def __init__(self, database: str, *, log: LogFn) -> None:
         self.database = database
-        self.where = redacted_setting(database)
-        """The database, safe to put in any message: never the raw setting, which can carry a password."""
+        self.where = masked(database)
+        """The database, safe to put in any message: the domain's mask of the setting, which can carry a password."""
         self.log = log
         self._house: HouseDatabase | None = None
         self._exclusive = False

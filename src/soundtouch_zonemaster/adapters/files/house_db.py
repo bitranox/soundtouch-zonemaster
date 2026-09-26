@@ -46,7 +46,7 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError, DBAPIError, NoSuchModuleError, SQLAlchemyError
 
 from ...application.errors import StoreBusyError, StoreError
-from ...domain.database_url import PASSWORD_QUERY_KEYS, carries_a_password, is_a_password_key, masked
+from ...domain.database_url import carries_a_password, is_a_password_key, masked
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -59,14 +59,12 @@ __all__ = [
     "LOCK_SUFFIX",
     "MIGRATIONS",
     "MIN_SQLITE",
-    "PASSWORD_QUERY_KEYS",
     "SUPPORTED",
     "AdvisoryLock",
     "FileLock",
     "HouseDatabase",
     "database_url",
     "reason_for",
-    "redacted_setting",
 ]
 
 LOCK_SUFFIX = ".lock"
@@ -87,7 +85,7 @@ def database_url(setting: str) -> URL:
     A password is refused rather than accepted, because a URL is written into config files,
     ``--json`` envelopes and logs; libpq reads it from ``~/.pgpass`` where none of those reach.
     Which shapes carry one is :func:`~soundtouch_zonemaster.domain.database_url.carries_a_password`'s
-    rule (the URL's own userinfo, or one of :data:`PASSWORD_QUERY_KEYS`); ``passfile`` names a file
+    rule (the URL's own userinfo, or a password query key); ``passfile`` names a file
     rather than a secret and is accepted. That rule reads text, so it is checked together with
     SQLAlchemy's own reading of the URL - its ``password`` and its query keys, which are what the
     driver receives - and either one refuses: the refusal is never looser than the parser that
@@ -103,18 +101,18 @@ def database_url(setting: str) -> URL:
         else:
             message = "the database setting could not be read as a SQLite path"
         raise StoreError(message) from exc
-    shown = _redacted(url)
+    # The domain's mask, never SQLAlchemy's rendering of the URL: SQLAlchemy ends a password at
+    # its first "@" and would render the rest of it as the host.
+    shown = masked(setting)
     if carries_a_password(setting) or _sqlalchemy_reads_a_password(url):
-        # The domain's mask, not SQLAlchemy's rendering: SQLAlchemy ends a password at its first
-        # "@" and would render the rest of it as the host.
-        message = f"{masked(setting)}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
+        message = f"{shown}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
         raise StoreError(message)
     backend = url.get_backend_name()
     if backend not in SUPPORTED:
         message = f"{shown}: {backend} is not supported (only {', '.join(SUPPORTED)})"
         raise StoreError(message)
     if backend == "sqlite" and url.database in (None, "", ":memory:"):
-        message = f"{setting}: an in-memory SQLite database keeps nothing; name a file"
+        message = f"{shown}: an in-memory SQLite database keeps nothing; name a file"
         raise StoreError(message)
     return url
 
@@ -122,36 +120,6 @@ def database_url(setting: str) -> URL:
 def _sqlalchemy_reads_a_password(url: URL) -> bool:
     """Whether the parsed URL hands the driver a password: its userinfo, or a password query key."""
     return url.password is not None or any(is_a_password_key(key) for key in url.query)
-
-
-def _redacted(url: URL) -> str:
-    """The URL, safe to put in a message: userinfo hidden, and any password-shaped query value masked.
-
-    ``render_as_string(hide_password=True)`` alone hides only the userinfo; a query key still comes
-    back verbatim, which is how a password passed as ``?password=...`` or ``?sslpassword=...``
-    would leak. This is the one place that masks a query value, so every other reader of the URL -
-    ``HouseDatabase.where`` included - goes through it rather than repeating the mask.
-    """
-    query = {key: ("***" if key.lower() in PASSWORD_QUERY_KEYS else value) for key, value in url.query.items()}
-    return url.set(query=query).render_as_string(hide_password=True)
-
-
-def redacted_setting(setting: str) -> str:
-    """The setting, safe to name in a message before it is even known to be a valid database.
-
-    ``HouseDatabase.where`` only exists once a setting has already been through
-    :func:`database_url`; a store's own refusals (already open, used before ``open()``, needs the
-    writer lock) can fire before that ever ran, and the raw setting can still be a URL carrying a
-    password. Parsing here is best-effort and never raises: an unparsable setting cannot be echoed
-    either, for the same reason :func:`database_url` never echoes one.
-    """
-    if "://" not in setting:
-        return setting
-    try:
-        url = make_url(setting)
-    except (ArgumentError, ValueError):
-        return "<a database URL that could not be parsed>"
-    return _redacted(url)
 
 
 class _WriterLock(Protocol):
@@ -242,7 +210,8 @@ class HouseDatabase:
 
     def __init__(self, setting: str, *, busy_timeout_s: float = 5.0) -> None:
         self.url = database_url(setting)
-        self.where = setting if "://" not in setting else _redacted(self.url)
+        self.where = masked(setting)
+        """The database, safe to put in any message: the domain's one display rule for a setting."""
         self._busy_timeout_s = busy_timeout_s
         self._engine: Engine | None = None
         self._lock: _WriterLock | None = None
