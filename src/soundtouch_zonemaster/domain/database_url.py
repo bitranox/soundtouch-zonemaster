@@ -48,9 +48,10 @@ _SCHEME = re.compile(r"[\w+]+")
 _KEY_START = re.compile(r"(?:^|[/?;\s])")
 """Where a key can start inside one ``&``-separated part, for :func:`masked`."""
 
-_PIECE_DELIMITERS = re.compile(r"([/?&;\s])")
+_PIECE_DELIMITERS = re.compile(r"[?&;\s]")
 """Where a query key can start. Wider than the ``&`` a query parser splits on, so no key it finds
-can be hidden inside a piece this module reads as one."""
+can be hidden inside a piece this module reads as one. Not ``/``: a key never starts after one, and
+a path such as ``passfile=/run/secrets/password`` would otherwise read as a bare password key."""
 
 
 def carries_a_password(setting: str) -> bool:
@@ -61,9 +62,11 @@ def carries_a_password(setting: str) -> bool:
 
     * **userinfo**: SQLAlchemy reads a password exactly when the first ``:`` comes before any
       ``/`` and an ``@`` follows it anywhere later - the password may itself hold ``/``, ``?``
-      or ``#``. That condition is checked as it stands.
-    * **query**: everything after the first ``?``, fragment included, cut at every ``/``, ``?``,
-      ``&``, ``;`` and whitespace; a piece whose key (up to its first ``=``) decodes to one of
+      or ``#``. That condition is checked as it stands. It also means a raw ``@`` in a query value
+      after a ``:port`` is read as userinfo by SQLAlchemy itself, so such a URL is refused;
+      percent-encode it as ``%40``.
+    * **query**: everything after the first ``?``, fragment included, cut at every ``?``, ``&``,
+      ``;`` and whitespace; a piece whose key (up to its first ``=``) decodes to one of
       :data:`PASSWORD_QUERY_KEYS` counts, with or without a value.
 
     Both are no looser than SQLAlchemy: every key it reads out of a query starts right after a

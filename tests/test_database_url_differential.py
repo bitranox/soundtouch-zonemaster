@@ -145,6 +145,44 @@ def test_no_display_or_refusal_repeats_a_secret(setting: str, secrets: tuple[str
         assert not leaked, f"{where} repeats {leaked}"
 
 
+ACCEPTED = [
+    # Password-free settings the store must open and the boundary must pass: a path segment or a
+    # file named "password" is not a password key.
+    pytest.param(f"{PG}zm@db.example:5432/zm?passfile=/run/secrets/password", id="passfile-docker-secret"),
+    pytest.param(f"{PG}zm@db.example/zm?passfile=/etc/zonemaster/password", id="passfile-named-password"),
+    pytest.param(f"{PG}zm@db.example/zm?passfile=/run/secrets/Password", id="passfile-named-password-mixed-case"),
+    pytest.param(f"{PG}zm@db.example/zm?sslrootcert=/etc/zm/password/ca.crt", id="directory-named-password"),
+    pytest.param(f"{PG}zm@db.example/zm", id="plain-url"),
+    pytest.param("sqlite:////abs/path", id="sqlite-absolute"),
+    pytest.param("sqlite:///house.sqlite", id="sqlite-relative"),
+    pytest.param("sqlite:///C:/zm/house.sqlite", id="sqlite-drive-letter"),
+    pytest.param("sqlite:////srv/password/house.sqlite", id="sqlite-directory-named-password"),
+    pytest.param("sqlite:////srv/zm.sqlite?mode=ro", id="sqlite-query"),
+    pytest.param(f"{PG}user@host:5432/db?sslmode=require&passfile=/x", id="port-and-passfile"),
+    pytest.param(f"{PG}zm@[::1]:5432/zm", id="ipv6-loopback"),
+    pytest.param(f"{PG}zm@[2001:db8::10]/zm", id="ipv6-documentation"),
+    pytest.param(f"{PG}zm@[fe80::1%25eth0]:5432/zm", id="ipv6-zone"),
+    pytest.param(f"{PG}zm@db.example/zm?host=/run/postgresql", id="host-socket-directory"),
+    pytest.param(f"{PG}zm@db.example/zm?host=/var/run/postgresql&port=5433", id="host-socket-directory-and-port"),
+    pytest.param(f"{PG}/zm?host=/run/postgresql", id="no-authority"),
+    pytest.param(f"{PG}zm@db.example/zm?options=-c%20search_path%3Dzm", id="encoded-options"),
+    pytest.param(f"{PG}zm@/zm?host=db1.example&host=db2.example", id="multi-host"),
+    pytest.param(f"{PG}zm%40corp@db.example/zm", id="encoded-at-in-username"),
+    pytest.param("house.sqlite", id="plain-path"),
+]
+
+
+@pytest.mark.parametrize("setting", ACCEPTED)
+def test_a_password_free_setting_is_accepted_everywhere_and_shown_as_typed(setting: str) -> None:
+    """The other direction: stricter than SQLAlchemy is allowed, but not on URLs people write."""
+    assert not _sqlalchemy_reads_a_password(setting), "the row no longer exercises a password-free setting"
+    assert not carries_a_password(setting)
+    assert _store_refusal(setting) is None
+    assert _boundary_refusal(setting) is None
+    assert masked(setting) == setting
+    assert SqlHouseStore(setting, log=_quiet).where == setting
+
+
 @pytest.mark.parametrize(
     "setting",
     [
