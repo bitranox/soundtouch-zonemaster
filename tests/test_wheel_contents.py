@@ -93,3 +93,10 @@ def test_the_sdist_excludes_a_private_file_even_with_no_gitignore_to_hide_it(tmp
 
     assert any(name.endswith(f"{DEFAULTS_DIR}/10-zone.toml") for name in names), "the tracked defaults must ship"
     assert _private(names) == []
+
+
+def test_the_wheel_ships_the_house_database_migrations(tmp_path: Path) -> None:
+    names = _wheel_names(ROOT, tmp_path)
+
+    assert "soundtouch_zonemaster/adapters/files/migrations/env.py" in names
+    assert "soundtouch_zonemaster/adapters/files/migrations/versions/0001_house_baseline.py" in names

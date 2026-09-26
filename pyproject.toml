@@ -241,6 +241,8 @@ forbidden_modules = [
   "lib_cli_exit_tools",
   "rich_click",
   "click",
+  "sqlalchemy",
+  "alembic",
 ]
 
 [[tool.importlinter.contracts]]
@@ -315,6 +317,28 @@ forbidden_modules = [
   "soundtouch_zonemaster.adapters.soundtouch.pb",
   "google",
 ]
+
+[[tool.importlinter.contracts]]
+# The database library is the house store's own vocabulary, the way protobuf is the SoundTouch
+# adapter's. Anywhere else it would mean a second place that knows the database is SQL, and the
+# switch to another backend would stop being one module's business. Indirect imports are allowed
+# because composition and the CLI necessarily reach the store that uses it.
+name = "The database library stays inside the house store"
+type = "forbidden"
+source_modules = [
+  "soundtouch_zonemaster.domain",
+  "soundtouch_zonemaster.application",
+  "soundtouch_zonemaster.adapters.soundtouch",
+  "soundtouch_zonemaster.adapters.aftertouch",
+  "soundtouch_zonemaster.adapters.logging",
+  "soundtouch_zonemaster.adapters.config",
+  "soundtouch_zonemaster.adapters.mpd",
+  "soundtouch_zonemaster.adapters.cli",
+  "soundtouch_zonemaster.composition",
+  "soundtouch_zonemaster.entry",
+]
+forbidden_modules = ["sqlalchemy", "alembic"]
+allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 # The composition root is the one module that names every adapter, so it reaches the SoundTouch

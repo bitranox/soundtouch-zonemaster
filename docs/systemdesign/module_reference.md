@@ -50,12 +50,14 @@ Complete (v0.2.0+, the template rebuild)
   - `state_file.py`  -  The state file, from before the database (read/write ZoneState)
   - `channel_file.py`  -  The channel file, from before the database, refuses to start empty rather than overwrite the list
   - `switch_file.py`  -  The switch file, from before the database, watched rather than read once
-  - `house_db.py`  -  The house database: STRICT SQLite schema, pragmas, the one-writer flock beside the file
+  - `house_db.py`  -  Where the database is (a path or a URL), its engine, the writer lock per backend (`flock` on SQLite, a session advisory lock on PostgreSQL), the schema brought to Alembic's head while that lock is held
+  - `house_schema.py`  -  The tables, as one SQLAlchemy `MetaData` the migrations are held to
+  - `migrations/`  -  Alembic: `env.py` and `versions/` (written by hand; `tests/test_house_db.py` holds them to `house_schema.py`)
   - `house_state.py`  -  The state, as rows: one table per collection field of ZoneState, replaced whole on every write
   - `house_switch.py`  -  The switch, as one row; off only when the row says so; DbSwitch is the service's watch
-  - `house_channels.py`  -  The channel list, as rows, checked by the same rules the channel file is
+  - `house_channels.py`  -  The channel list, as rows ordered by `position` (never `rowid`), checked by the same rules the channel file is
   - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
-  - `house_store.py`  -  SqliteHouseStore: the state, the channel list and the switch, in one file
+  - `house_store.py`  -  SqlHouseStore: the state, the channel list and the switch, in one database
 - `src/soundtouch_zonemaster/adapters/aftertouch/registry.py`  -  Who the speakers are, read from AfterTouch's own device list
 - `src/soundtouch_zonemaster/adapters/soundtouch/`  -  The zone protocol as a master speaks it:
   - `zone_master.py`  -  ZoneMaster: the zone itself - lifecycle, station, slaves, transport book
@@ -151,10 +153,11 @@ Layer boundaries enforced via `import-linter` contracts in `pyproject.toml`:
 - **Clean Architecture layers**: composition -> adapters -> application -> domain
 - **House policies independent**: membership, channellist, dialling, presses, calibration import no one another
 - **Generated protobuf stays inside `adapters.soundtouch`**: `pb` and `google` reach no other module
+- **The database library stays inside the house store**: `sqlalchemy` and `alembic` reach no other module directly (`allow_indirect_imports`, because composition and the CLI reach the store)
 - **The two programs' chains are independent**: the service's zone_service and the prototype's application chain, and the two command modules
 - **Adapter families independent**: soundtouch, aftertouch, files, config, logging, cli import no one another
 
-Run `lint-imports` to verify; the gate must say `10 kept, 0 broken`.
+Run `lint-imports` to verify; the gate must say `11 kept, 0 broken`.
 
 ---
 
@@ -222,16 +225,16 @@ ships empty; a house names its own boxes in its host layer
 
 `invoke_without_command=True`: an argv naming only options holds the zone until SIGINT.
 
-| Option                                  | Description                                                                                                                |
-|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `--bind-ip IP`                          | Address on the speakers' LAN                                                                                               |
-| `--database PATH`                       | The house database: state, channel list and switch, one file                                                               |
-| `--channel-file PATH`                   | The channel list as a file, from before the database: imported once into an empty database, then renamed `<name>.imported` |
-| `--switch-file PATH`                    | The switch as a file, from before the database: imported once, then not read                                               |
-| `--state-file PATH`                     | The state as a file, from before the database: imported once, then set aside                                               |
-| `--station-url ...` / `--seed-from ...` | REMOVED; seeding comes from presets of the first box switched on                                                           |
-| `--profile NAME`                        | Configuration profile                                                                                                      |
-| `--set SECTION.KEY=VAL`                 | Override one setting for this run (repeatable)                                                                             |
+| Option                                  | Description                                                                                                                                                                               |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--bind-ip IP`                          | Address on the speakers' LAN                                                                                                                                                              |
+| `--database PATH or URL`                | The house database: state, channel list and switch, one database (a plain path is SQLite; `postgresql+psycopg://user@host/db` is PostgreSQL, password in `~/.pgpass`, refused in the URL) |
+| `--channel-file PATH`                   | The channel list as a file, from before the database: imported once into an empty database, then renamed `<name>.imported`                                                                |
+| `--switch-file PATH`                    | The switch as a file, from before the database: imported once, then not read                                                                                                              |
+| `--state-file PATH`                     | The state as a file, from before the database: imported once, then set aside                                                                                                              |
+| `--station-url ...` / `--seed-from ...` | REMOVED; seeding comes from presets of the first box switched on                                                                                                                          |
+| `--profile NAME`                        | Configuration profile                                                                                                                                                                     |
+| `--set SECTION.KEY=VAL`                 | Override one setting for this run (repeatable)                                                                                                                                            |
 
 **Every setting may live in a configuration file**, read through `lib_layered_config` in the
 precedence `defaults -> app -> host -> user -> dotenv -> env`, with the command line above all
