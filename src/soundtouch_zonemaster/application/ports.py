@@ -94,6 +94,11 @@ class HouseStore(Protocol):
     ``StoreError`` while the store is not open.
     """
 
+    where: str
+    """The database, safe to print: a plain path as given, or a URL with its password-shaped
+    parts masked. Set once the setting has been read, so it survives ``close()`` and a CLI that
+    names the database in its human output does not need its own copy of the masking rule."""
+
     def open(self, *, exclusive: bool) -> None: ...
 
     def close(self) -> None: ...

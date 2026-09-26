@@ -917,6 +917,8 @@ class FakeStore:
     said "0 channel(s)" would add a line the old code never wrote.
     """
 
+    where = "<fake>"
+
     def open(self, *, exclusive: bool) -> None: ...
 
     def close(self) -> None: ...

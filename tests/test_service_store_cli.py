@@ -122,6 +122,33 @@ def test_an_export_to_a_missing_directory_is_could_not_run_and_names_the_path(
     assert str(output) in str(envelope["message"])
 
 
+def test_the_switchs_human_output_names_the_database(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """A mistyped ``--database`` must be visible in the human line, not only in the JSON envelope."""
+    database = str(tmp_path / "db.sqlite")
+    assert _run(monkeypatch, "--database", database, "switch") == 0
+    assert database in capsys.readouterr().out
+
+
+def test_channels_exports_human_output_names_the_database(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The FINAL line - the answer, as opposed to the narration ``load_channels`` logs on its own
+    way to answering it - must itself name the database, so a mistyped ``--database`` is visible
+    even with narration silenced (``--quiet``, a systemd unit's own log level, and so on)."""
+    database = tmp_path / "db.sqlite"
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    assert _run(monkeypatch, "--json", "--database", str(database), "channels", "import", str(source)) == 0
+    capsys.readouterr()  # discard the import's own (JSON) output, which also names the database
+    exported = tmp_path / "out.json"
+    assert _run(monkeypatch, "--database", str(database), "channels", "export", "--output", str(exported)) == 0
+    last_line = capsys.readouterr().out.splitlines()[-1]
+    assert str(database) in last_line
+    assert str(exported) in last_line
+
+
 def test_no_database_anywhere_is_refused_by_name(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:

@@ -3661,6 +3661,7 @@ class _StoreThatCannotSaveState:
     def __init__(self, real: HouseStore) -> None:
         self._real = real
         self.armed = False
+        self.where = real.where
 
     def open(self, *, exclusive: bool) -> None:
         self._real.open(exclusive=exclusive)

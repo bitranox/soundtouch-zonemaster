@@ -76,12 +76,13 @@ def cli_switch(ctx: click.Context, *, word: str | None) -> None:
     try:
         changed = False if word is None else store.set_switch(on=word == "on")
         report = SwitchReport(database=database_for(shared), on=store.is_on(), changed=changed)
+        where = store.where
     finally:
         store.close()
     if shared.mode.machine:
         write_envelope(Envelope[SwitchReport](ok=True, command=command, data=report), mode=shared.mode)
         return
-    safe_console.echo(f"switch: {'on' if report.on else 'off'}{' (changed)' if report.changed else ''}")
+    safe_console.echo(f"{where}: switch {'on' if report.on else 'off'}{' (changed)' if report.changed else ''}")
 
 
 @click.group("channels", context_settings={"help_option_names": ["-h", "--help"]})
@@ -100,6 +101,7 @@ def cli_channels_export(ctx: click.Context, *, output: str) -> None:
     try:
         text = store.export_channels()
         count = len(store.load_channels().channels)
+        where = store.where
     except StoreError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
@@ -110,7 +112,7 @@ def cli_channels_export(ctx: click.Context, *, output: str) -> None:
     except OSError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
-    _report_channels(shared, command=command, count=count, path=output)
+    _report_channels(shared, command=command, count=count, path=output, where=where)
 
 
 @cli_channels.command("import", context_settings={"help_option_names": ["-h", "--help"]})
@@ -131,9 +133,12 @@ def cli_channels_import(ctx: click.Context, *, path: str) -> None:
     _report_channels(shared, command=command, count=count, path=path)
 
 
-def _report_channels(shared: Shared, *, command: str, count: int, path: str) -> None:
+def _report_channels(shared: Shared, *, command: str, count: int, path: str, where: str | None = None) -> None:
+    """Report an export or an import. ``where`` names the database in the human line, when given -
+    ``channels import`` does not pass it, so its own human output is unchanged."""
     report = ChannelsReport(database=database_for(shared), channels=count, path=path)
     if shared.mode.machine:
         write_envelope(Envelope[ChannelsReport](ok=True, command=command, data=report), mode=shared.mode)
         return
-    safe_console.echo(f"{count} channel(s): {path}")
+    named = f"{where}: " if where is not None else ""
+    safe_console.echo(f"{named}{count} channel(s): {path}")
