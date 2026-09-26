@@ -218,10 +218,13 @@ class AdvisoryLock:
         """
         if self._connection is None:
             return
-        with suppress(SQLAlchemyError):
-            self._connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _ADVISORY_KEY})
-        self._connection.close()
-        self._connection = None
+        connection = self._connection
+        try:
+            with suppress(SQLAlchemyError):
+                connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _ADVISORY_KEY})
+            connection.close()
+        finally:
+            self._connection = None
 
 
 class HouseDatabase:

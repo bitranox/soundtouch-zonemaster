@@ -340,13 +340,13 @@ class Dialling(ZoneReconcile):
                 # awake box pressing the preset it is already listening to restarts the stream and
                 # stumbles every room in the house.
                 #
-                # By NUMBER, and that is the whole rule rather than a tidier spelling of the same
-                # one. This compared the station's URL against the channel's until 2026-09-21, and
-                # every MPD channel names the same ``httpd`` output - so it read a move from one
-                # audiobook to the next as the same channel pressed twice and did nothing, while
-                # still writing the new number into the house state in the store. Eleven dials in the flat that
-                # night: every MPD-to-MPD one refused, and the only way through was a radio channel
-                # in between.
+                # By NUMBER, and that is the whole rule rather than a tidier spelling of the
+                # same one. This compared the station's URL against the channel's until
+                # 2026-09-21, and every MPD channel names the same ``httpd`` output - so it
+                # read a move from one audiobook to the next as the same channel pressed twice
+                # and did nothing, while still writing the new number into the house state in
+                # the store. Eleven dials in the flat that night: every MPD-to-MPD one refused,
+                # and the only way through was a radio channel in between.
                 self.log("dial", f"{self._name(device_id)} dialled {number}: already playing it")
                 return None
             return master

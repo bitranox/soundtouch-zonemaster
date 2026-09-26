@@ -3730,9 +3730,9 @@ async def _running_with_a_store_that_cannot_save_state(
 
 
 async def test_a_store_that_cannot_save_state_does_not_stop_the_dissolve(world: World, tmp_path: Path) -> None:
-    """A StoreError while remembering where MPD was must not abort the stand-down (finding 3): the
-    speakers still hear the zone dissolve, and the failure is logged rather than swallowed or left
-    to leave the house bound to a master that is already gone."""
+    """A StoreError while remembering where MPD was must not abort the stand-down: the speakers
+    still hear the zone dissolve, and the failure is logged rather than swallowed or left to leave
+    the house bound to a master that is already gone."""
     async with _mpd(status_lines=PLAYING_AT_61_5) as fake:
         options = _radio_and_mpd(world, tmp_path, fake)
         logs: list[str] = []

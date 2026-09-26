@@ -26,9 +26,15 @@ from soundtouch_zonemaster.adapters.files.house_schema import MEMBER, METADATA
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
 
 if TYPE_CHECKING:
+    import sqlite3
     from pathlib import Path
 
 HEAD = ScriptDirectory(str(MIGRATIONS)).get_current_head()
+
+
+def _always_held(_key: int) -> int:
+    """Stands in for ``pg_try_advisory_lock`` on a SQLite engine: always grants the lock."""
+    return 1
 
 
 class _ExplodingLock:
@@ -335,8 +341,8 @@ def test_advisory_lock_release_survives_an_unlock_that_fails_on_a_session_alread
     engine = create_engine("sqlite://", poolclass=QueuePool)
 
     @event.listens_for(engine, "connect")
-    def _stand_in_for_try_lock(dbapi_connection: object, _record: object) -> None:
-        dbapi_connection.create_function("pg_try_advisory_lock", 1, lambda _key: 1)  # type: ignore[attr-defined]
+    def _stand_in_for_try_lock(dbapi_connection: sqlite3.Connection, _record: object) -> None:
+        dbapi_connection.create_function("pg_try_advisory_lock", 1, _always_held)
 
     lock = AdvisoryLock(engine, where="test")
     lock.acquire()
@@ -346,4 +352,37 @@ def test_advisory_lock_release_survives_an_unlock_that_fails_on_a_session_alread
     lock.release()
 
     assert pool.checkedout() == 0, "the connection is given back although the unlock itself failed"
+    engine.dispose()
+
+
+def test_advisory_lock_release_forgets_the_connection_even_when_close_itself_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``release`` must reset its own state in a ``finally`` around the close, not only around the
+    unlock statement: a connection whose ``close()`` itself raises (the pool reports the session
+    already gone a different way than the unlock statement does) must still leave the lock ready
+    to ``acquire()`` again, rather than stuck thinking it still holds a connection nothing can
+    reach any more.
+    """
+    engine = create_engine("sqlite://", poolclass=QueuePool)
+
+    @event.listens_for(engine, "connect")
+    def _stand_in_for_try_lock(dbapi_connection: sqlite3.Connection, _record: object) -> None:
+        dbapi_connection.create_function("pg_try_advisory_lock", 1, _always_held)
+
+    lock = AdvisoryLock(engine, where="test")
+    lock.acquire()
+    connection = lock._connection  # pyright: ignore[reportPrivateUsage]
+    assert connection is not None
+
+    def _close_fails() -> None:
+        message = "simulated: the connection could not be closed"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(connection, "close", _close_fails)
+
+    with pytest.raises(RuntimeError):
+        lock.release()
+
+    assert lock._connection is None, "the state is reset even though close() itself raised"  # pyright: ignore[reportPrivateUsage]
     engine.dispose()

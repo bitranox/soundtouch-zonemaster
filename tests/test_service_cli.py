@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import lib_cli_exit_tools
 import pytest
+from test_database_password_parity import NOTHING_TYPED
 
 from soundtouch_zonemaster.__init__conf__ import version
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
@@ -129,17 +130,7 @@ def test_a_database_url_in_a_directory_that_does_not_exist_is_not_refused_at_the
         bind_ip="127.0.0.1",
         database="sqlite:////nonexistent-directory/zonemaster.sqlite",
         configured={},
-        device_id=None,
-        channel_file=None,
-        switch_file=None,
-        state_file=None,
-        registry_url=None,
-        allow_console=(),
-        unreachable_timeout_s=None,
-        dial_window_s=None,
-        mpd_host=None,
-        mpd_port=None,
-        mpd_rewind_s=None,
+        **NOTHING_TYPED,
     ).database
     assert database == "sqlite:////nonexistent-directory/zonemaster.sqlite"
 

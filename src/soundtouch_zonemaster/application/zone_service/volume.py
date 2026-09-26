@@ -6,9 +6,9 @@ is turned down to zero first, joined, and faded back to the level it was on once
 
 The one failure this feature can cause is a speaker left silently at zero, which reads as broken
 hardware rather than as a service that stopped halfway. That is why the level is written to the
-house state in the store BEFORE the box is muted, why every path out of a join puts it back, why a cancelled
-fade still puts it back in one step, and why a level that could not be read means NOTHING WAS
-DONE rather than a guess.
+house state in the store BEFORE the box is muted, why every path out of a join puts it back, why
+a cancelled fade still puts it back in one step, and why a level that could not be read means
+NOTHING WAS DONE rather than a guess.
 """
 
 from __future__ import annotations
@@ -332,13 +332,13 @@ class VolumeGuard(SpeakerBook):
     async def _put_back_any_volume_we_took_away(self) -> None:
         """Turn up every box this service muted and did not turn up again.
 
-        Two callers, and they are the two ways the mute can outlive its join: start-up, where the
-        map came out of the house state in the store and the service may have died mid-join, and the pass, where
-        a box stopped answering while it was being faded. In the pass it is the FIRST thing done,
-        which is what keeps it below nothing: two paths there give the whole pass up, the switch
-        off and a listening port held by somebody else, and under either of them a note nobody
-        cleared meant a speaker at zero until the house came back on. Being first is also what
-        keeps it from fighting a mute THIS pass is about to make.
+        Two callers, and they are the two ways the mute can outlive its join: start-up, where the map
+        came out of the house state in the store and the service may have died mid-join, and the pass,
+        where a box stopped answering while it was being faded. In the pass it is the FIRST thing done,
+        which is what keeps it below nothing: two paths there give the whole pass up, the switch off and
+        a listening port held by somebody else, and under either of them a note nobody cleared meant a
+        speaker at zero until the house came back on. Being first is also what keeps it from fighting a
+        mute THIS pass is about to make.
 
         A fade left running by an EARLIER pass is the other half, and the ordering says nothing
         about that one: what covers it is the ``_fading`` guard below, which lets a box alone while

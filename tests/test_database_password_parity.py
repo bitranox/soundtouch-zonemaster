@@ -23,7 +23,10 @@ from soundtouch_zonemaster.application.outcome import ExitCode, OptionsError
 if TYPE_CHECKING:
     from pathlib import Path
 
-_NOTHING_TYPED: dict[str, Any] = {
+NOTHING_TYPED: dict[str, Any] = {
+    # Reused by test_service_cli.py, which imports this by name rather than spelling out the same
+    # thirteen keyword arguments again: pass it as **NOTHING_TYPED wherever only the database or
+    # bind_ip field is under test.
     "device_id": None,
     "channel_file": None,
     "switch_file": None,
@@ -45,7 +48,7 @@ def _boundary_refuses(database: str) -> bool:
     thing that can make this refuse is the ``database`` field's own validator.
     """
     try:
-        parse_service_options(bind_ip="127.0.0.1", database=database, configured={}, **_NOTHING_TYPED)
+        parse_service_options(bind_ip="127.0.0.1", database=database, configured={}, **NOTHING_TYPED)
     except OptionsError as exc:
         assert exc.exit_code == ExitCode.REFUSED
         return True
@@ -103,7 +106,7 @@ def test_a_password_passed_as_sslpassword_is_refused_and_never_echoed() -> None:
     database = "postgresql+psycopg://zm@db.example/zm?sslpassword=TOPSECRET"
     assert _boundary_refuses(database)
     with pytest.raises(OptionsError) as boundary_caught:
-        parse_service_options(bind_ip="127.0.0.1", database=database, configured={}, **_NOTHING_TYPED)
+        parse_service_options(bind_ip="127.0.0.1", database=database, configured={}, **NOTHING_TYPED)
     assert "TOPSECRET" not in str(boundary_caught.value)
     with pytest.raises(StoreError) as store_caught:
         database_url(database)

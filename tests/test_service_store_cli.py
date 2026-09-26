@@ -149,6 +149,52 @@ def test_channels_exports_human_output_names_the_database(
     assert str(exported) in last_line
 
 
+def _url_where_differs_from_the_raw_setting(tmp_path: Path) -> tuple[str, str]:
+    """A database URL whose redacted ``where`` is not byte-identical to the raw setting, without
+    needing a password (refused before either report is ever built) or a real PostgreSQL server:
+    a query VALUE that is not already percent-encoded is one, once SQLAlchemy renders it back."""
+    path = tmp_path / "db.sqlite"
+    setting = f"sqlite:///{path}?passfile=/etc/pgpass"
+    where = f"sqlite:///{path}?passfile=%2Fetc%2Fpgpass"
+    assert setting != where, "the fixture itself must exercise a real difference"
+    return setting, where
+
+
+def test_the_switchs_envelope_names_the_same_database_the_human_line_would(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The envelope's ``database`` field must be the store's redacted ``where``, not the raw
+    setting: the two must never disagree about what a caller is told the database is."""
+    setting, where = _url_where_differs_from_the_raw_setting(tmp_path)
+    assert _run(monkeypatch, "--json", "--database", setting, "switch") == 0
+    assert _envelope(capsys)["data"] == {"database": where, "on": True, "changed": False}
+
+
+def test_channels_exports_envelope_names_the_same_database_the_human_line_would(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    setting, where = _url_where_differs_from_the_raw_setting(tmp_path)
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    assert _run(monkeypatch, "--json", "--database", setting, "channels", "import", str(source)) == 0
+    capsys.readouterr()
+    exported = tmp_path / "out.json"
+    assert _run(monkeypatch, "--json", "--database", setting, "channels", "export", "--output", str(exported)) == 0
+    assert _envelope(capsys)["data"] == {"database": where, "channels": 1, "path": str(exported)}
+
+
+def test_channels_imports_envelope_names_the_same_database_as_the_switchs_would(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """``channels import`` keeps its own human line unchanged (no database named in it), but its
+    envelope carries the same redacted ``where`` as every other verb's does."""
+    setting, where = _url_where_differs_from_the_raw_setting(tmp_path)
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    assert _run(monkeypatch, "--json", "--database", setting, "channels", "import", str(source)) == 0
+    assert _envelope(capsys)["data"] == {"database": where, "channels": 1, "path": str(source)}
+
+
 def test_no_database_anywhere_is_refused_by_name(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
