@@ -46,7 +46,7 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError, DBAPIError, NoSuchModuleError, SQLAlchemyError
 
 from ...application.errors import StoreBusyError, StoreError
-from ...domain.database_url import PASSWORD_QUERY_KEYS, carries_a_password
+from ...domain.database_url import PASSWORD_QUERY_KEYS, carries_a_password, is_a_password_key, masked
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -88,8 +88,11 @@ def database_url(setting: str) -> URL:
     ``--json`` envelopes and logs; libpq reads it from ``~/.pgpass`` where none of those reach.
     Which shapes carry one is :func:`~soundtouch_zonemaster.domain.database_url.carries_a_password`'s
     rule (the URL's own userinfo, or one of :data:`PASSWORD_QUERY_KEYS`); ``passfile`` names a file
-    rather than a secret and is accepted. A setting that fails to parse is never echoed back: it
-    can be the very thing carrying the password that made it malformed.
+    rather than a secret and is accepted. That rule reads text, so it is checked together with
+    SQLAlchemy's own reading of the URL - its ``password`` and its query keys, which are what the
+    driver receives - and either one refuses: the refusal is never looser than the parser that
+    consumes the URL. A setting that fails to parse is never echoed back: it can be the very thing
+    carrying the password that made it malformed.
     """
     is_url = "://" in setting
     try:
@@ -101,8 +104,10 @@ def database_url(setting: str) -> URL:
             message = "the database setting could not be read as a SQLite path"
         raise StoreError(message) from exc
     shown = _redacted(url)
-    if carries_a_password(setting):
-        message = f"{shown}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
+    if carries_a_password(setting) or _sqlalchemy_reads_a_password(url):
+        # The domain's mask, not SQLAlchemy's rendering: SQLAlchemy ends a password at its first
+        # "@" and would render the rest of it as the host.
+        message = f"{masked(setting)}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
         raise StoreError(message)
     backend = url.get_backend_name()
     if backend not in SUPPORTED:
@@ -112,6 +117,11 @@ def database_url(setting: str) -> URL:
         message = f"{setting}: an in-memory SQLite database keeps nothing; name a file"
         raise StoreError(message)
     return url
+
+
+def _sqlalchemy_reads_a_password(url: URL) -> bool:
+    """Whether the parsed URL hands the driver a password: its userinfo, or a password query key."""
+    return url.password is not None or any(is_a_password_key(key) for key in url.query)
 
 
 def _redacted(url: URL) -> str:

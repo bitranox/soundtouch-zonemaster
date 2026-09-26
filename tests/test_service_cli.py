@@ -438,9 +438,8 @@ def test_a_database_url_carrying_a_password_is_refused_without_repeating_it(data
     """The URL is echoed by envelopes, ``config`` and logs; the password belongs in ``~/.pgpass``
     (or ``PGPASSFILE``) instead, which is what the refusal must point a reader to without ever
     printing the secret itself - in the userinfo, in a ``password`` query key whatever its case,
-    and even on a URL a stricter parser would refuse outright for its bad port: ``urlsplit`` still
-    finds the userinfo on that one, which is why the boundary reads with it rather than with
-    SQLAlchemy's own parser (a reviewer's probe against the SQLAlchemy-backed predecessor)."""
+    and even on a URL SQLAlchemy would refuse outright for its bad port: the domain's rule reads
+    the text, so it still finds the userinfo on that one."""
     with pytest.raises(OptionsError) as caught:
         parse_service_options(
             bind_ip="127.0.0.1",

@@ -1,12 +1,13 @@
 """The boundary's password check and the store's own agree, case by case.
 
-Two independent readers exist for the same rule: the boundary (``adapters/cli/boundary.py``) reads
-a database setting with the stdlib so that ``adapters/cli`` need not import SQLAlchemy, and the
-store (``adapters/files/house_db.py``) reads it with SQLAlchemy's own parser, which it already
-depends on. A rule written twice can drift without either half's own tests noticing, so this feeds
-both the same inputs and requires the same verdict - except on the one input where they may
+Two readers apply the same rule: the boundary (``adapters/cli/boundary.py``) applies the domain's
+text rule alone, so that ``adapters/cli`` need not import SQLAlchemy, and the store
+(``adapters/files/house_db.py``) applies that rule AND SQLAlchemy's own reading of the URL, which
+it already depends on. The wiring can drift without either half's own tests noticing, so this
+feeds both the same inputs and requires the same verdict - except on the one input where they may
 legitimately differ (a URL too malformed for SQLAlchemy to parse at all), where both must still
-refuse, each for its own reason.
+refuse, each for its own reason. ``tests/test_database_url_differential.py`` holds both to
+SQLAlchemy's reading on the adversarial shapes.
 """
 
 from __future__ import annotations
@@ -74,10 +75,10 @@ def test_the_boundary_and_the_store_agree_a_plain_path_carries_no_password(tmp_p
 
 
 def test_a_bad_port_carrying_a_password_is_refused_by_both_for_different_reasons() -> None:
-    """Where the two legitimately differ. The boundary reads with ``urlsplit``, which still finds
-    the userinfo on a URL this malformed, and refuses it as carrying a password; the store's
-    SQLAlchemy parser refuses the same URL outright as unparsable and never gets far enough to see
-    the password. Both refuse - the constraint this test pins is "both", not "for the same reason".
+    """Where the two legitimately differ. The boundary's text rule still finds the userinfo on a
+    URL this malformed, and refuses it as carrying a password; the store's SQLAlchemy parser
+    refuses the same URL outright as unparsable before its password check runs. Both refuse - the
+    constraint this test pins is "both", not "for the same reason".
     """
     database = "postgresql+psycopg://zm:s3cret@db.example:54x2/zm"
     assert _boundary_refuses(database)

@@ -137,7 +137,8 @@ class ServiceOptionsInput(BaseModel):
         The rule - which shapes carry a password, and how to tell - lives in
         ``domain/database_url.py`` rather than here, so this layer (which may not import
         ``adapters/files`` and so cannot share SQLAlchemy's own parser) and the store agree on it
-        without keeping two copies of the key set.
+        without keeping two copies of it. That rule reads the text no more loosely than
+        SQLAlchemy does, which is what lets this layer refuse without the parser.
         """
         if carries_a_password(value):
             message = "refused: the database URL carries a password; keep it in ~/.pgpass (or PGPASSFILE) instead"

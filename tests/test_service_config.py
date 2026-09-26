@@ -333,6 +333,38 @@ def test_config_masks_a_database_url_password_with_redact_too(
     assert "s3cret" not in captured.err
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        pytest.param("postgresql+psycopg://zm@db.example/zm?a=1#&password=TOPSECRET", id="hash-then-query-key"),
+        pytest.param("postgresql+psycopg://zm:TOPSECRET@[bad/zm", id="unbalanced-bracket-host"),
+    ],
+)
+@pytest.mark.parametrize("mode", [["--json-bare"], []], ids=["json", "human"])
+@pytest.mark.parametrize("redact", [["--redact"], []], ids=["redact", "no-redact"])
+def test_config_never_prints_a_password_sqlalchemy_would_read(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    url: str,
+    mode: list[str],
+    redact: list[str],
+) -> None:
+    """Two shapes a ``urlsplit`` reading got wrong while SQLAlchemy reads a password out of both:
+    a query key behind a ``#`` (SQLAlchemy's query runs to the end of the string) and a host
+    ``urlsplit`` cannot even split. Every output mode, with and without ``--redact``, through the
+    environment layer, which ``--redact``'s own masking does not reach."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", url)
+    monkeypatch.setattr(
+        "sys.argv", ["soundtouch-zonemaster-service", *mode, "config", "--section", "database", *redact]
+    )
+
+    assert main() == 0
+    captured = capsys.readouterr()
+    assert "database.url" in captured.out, "the control: the URL is in the output, masked"
+    assert "TOPSECRET" not in captured.out
+    assert "TOPSECRET" not in captured.err
+
+
 def test_config_refuses_a_section_that_is_not_there_rather_than_printing_nothing(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

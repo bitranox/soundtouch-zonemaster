@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from soundtouch_zonemaster.domain.database_url import PASSWORD_QUERY_KEYS, carries_a_password, masked
+from soundtouch_zonemaster.domain.database_url import PASSWORD_QUERY_KEYS, UNREADABLE, carries_a_password, masked
 
 
 @pytest.mark.parametrize(
@@ -65,9 +65,39 @@ def test_masked_does_not_raise_on_a_password_beside_a_port_that_is_not_a_number(
     assert "54x2" in shown, "only the password is masked; the rest of the netloc is unchanged"
 
 
-def test_masked_returns_a_url_unchanged_that_it_cannot_even_split() -> None:
+def test_masked_never_repeats_the_password_of_a_url_with_an_unbalanced_bracket() -> None:
     malformed = "postgresql+psycopg://zm:s3cret@[not-a-valid-host"
-    assert masked(malformed) == malformed
+    assert "s3cret" not in masked(malformed)
+
+
+def test_masked_shows_a_url_whose_scheme_it_cannot_read_as_a_placeholder() -> None:
+    assert masked(" postgresql+psycopg://zm:s3cret@db.example/zm") == UNREADABLE
+
+
+def test_masked_shows_a_fragment_as_a_mask_whatever_it_holds() -> None:
+    assert masked("postgresql+psycopg://zm@db.example/zm?a=1#s3cret") == "postgresql+psycopg://zm@db.example/zm?a=1#***"
+
+
+def test_masked_copies_every_other_value_as_it_was_typed() -> None:
+    """Percent-encoding is kept, so a value reads back exactly as it was written."""
+    setting = "postgresql+psycopg://zm@db.example/zm?options=-c%20x%3Dy&sslmode=require"
+    assert masked(setting) == setting
+
+
+@pytest.mark.parametrize(
+    "setting",
+    [
+        pytest.param("postgresql+psycopg://zm@db.example/zm?password=", id="empty-value"),
+        pytest.param("postgresql+psycopg://zm@db.example/zm?password", id="bare-key"),
+    ],
+)
+def test_masked_leaves_a_password_key_with_no_value_as_it_is(setting: str) -> None:
+    """Nothing to hide, so nothing is masked: ``***`` would claim a secret that is not there."""
+    assert masked(setting) == setting
+
+
+def test_masked_hides_a_password_holding_a_raw_at_sign_up_to_the_last_one() -> None:
+    assert masked("postgresql+psycopg://zm:TOP@SECRET@db.example/zm") == "postgresql+psycopg://zm:***@db.example/zm"
 
 
 def test_password_query_keys_are_lowercase_and_stable() -> None:
