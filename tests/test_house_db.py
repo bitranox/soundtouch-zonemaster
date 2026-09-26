@@ -19,8 +19,8 @@ from soundtouch_zonemaster.adapters.files.house_db import (
     AdvisoryLock,
     FileLock,
     HouseDatabase,
-    _redacted,
     database_url,
+    redacted_setting,
 )
 from soundtouch_zonemaster.adapters.files.house_schema import MEMBER, METADATA
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
@@ -247,18 +247,19 @@ def test_where_is_the_redacted_url_for_a_url_setting() -> None:
 
 
 def test_where_masks_a_password_shaped_query_value_that_render_as_string_alone_would_not() -> None:
-    """The one display rule: ``HouseDatabase.where`` goes through ``_redacted`` rather than a bare
-    ``render_as_string(hide_password=True)``, which hides only the userinfo and leaves a query
-    value verbatim. Built with a URL object directly, bypassing ``database_url``'s own refusal, so
+    """The one display rule: ``HouseDatabase.where`` and :func:`redacted_setting` both go through
+    the same masking function rather than a bare ``render_as_string(hide_password=True)``, which
+    hides only the userinfo and leaves a query value verbatim. Read through :func:`redacted_setting`
+    - the public function that shares the masking rule with ``HouseDatabase.where`` - rather than
+    the private ``_redacted`` it wraps, on a setting :func:`database_url` would itself refuse, so
     this pins the masking rule on its own rather than the refusal that makes it unreachable via the
     normal construction path."""
-    url = make_url("postgresql+psycopg://zonemaster@db.example/zonemaster").set(
-        query={"sslpassword": "TOPSECRET"},
-    )
-    redacted = _redacted(url)
+    setting = "postgresql+psycopg://zonemaster@db.example/zonemaster?sslpassword=TOPSECRET"
+    redacted = redacted_setting(setting)
     assert "TOPSECRET" not in redacted
-    assert url.render_as_string(hide_password=True) != redacted
-    assert "TOPSECRET" in url.render_as_string(hide_password=True)
+    bare = make_url(setting).render_as_string(hide_password=True)
+    assert bare != redacted
+    assert "TOPSECRET" in bare
 
 
 def test_sqlite_reading_uses_wal_journal_mode_and_full_synchronous(tmp_path: Path) -> None:
