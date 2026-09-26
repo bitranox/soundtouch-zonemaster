@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
+from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.enums import ChannelKind
 from soundtouch_zonemaster.entry import service_main as main
 
@@ -149,15 +150,16 @@ def test_channels_exports_human_output_names_the_database(
     assert str(exported) in last_line
 
 
-def _url_where_differs_from_the_raw_setting(tmp_path: Path) -> tuple[str, str]:
-    """A database URL whose masked ``where`` is not byte-identical to the raw setting, without
-    needing a password (refused before either report is ever built) or a real PostgreSQL server:
-    a fragment is one, since the mask shows any fragment as ``#***``. SQLAlchemy reads the
-    fragment as part of the SQLite file name, so the store opens a file of that name."""
-    path = tmp_path / "db.sqlite"
-    setting = f"sqlite:///{path}#note"
-    where = f"sqlite:///{path}#***"
-    assert setting != where, "the fixture itself must exercise a real difference"
+def _url_setting_and_its_where(tmp_path: Path) -> tuple[str, str]:
+    """A database URL and the name every report must give it: the domain's mask of the setting.
+
+    A setting the store opens carries no password (one that does is refused before either report
+    is built), and the mask shows such a setting exactly as typed. So the envelope and the human
+    line can only name the setting itself; a URL rather than a plain path keeps the URL branch of
+    the display rule the one exercised."""
+    setting = f"sqlite:///{tmp_path / 'db.sqlite'}"
+    where = masked(setting)
+    assert where == setting, "a setting the store opens is shown as typed"
     return setting, where
 
 
@@ -166,7 +168,7 @@ def test_the_switchs_envelope_names_the_same_database_the_human_line_would(
 ) -> None:
     """The envelope's ``database`` field must be the store's masked ``where``, not the raw
     setting: the two must never disagree about what a caller is told the database is."""
-    setting, where = _url_where_differs_from_the_raw_setting(tmp_path)
+    setting, where = _url_setting_and_its_where(tmp_path)
     assert _run(monkeypatch, "--json", "--database", setting, "switch") == 0
     assert _envelope(capsys)["data"] == {"database": where, "on": True, "changed": False}
 
@@ -174,7 +176,7 @@ def test_the_switchs_envelope_names_the_same_database_the_human_line_would(
 def test_channels_exports_envelope_names_the_same_database_the_human_line_would(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    setting, where = _url_where_differs_from_the_raw_setting(tmp_path)
+    setting, where = _url_setting_and_its_where(tmp_path)
     source = tmp_path / "edited.json"
     save_channels(source, LIST)
     assert _run(monkeypatch, "--json", "--database", setting, "channels", "import", str(source)) == 0
@@ -189,7 +191,7 @@ def test_channels_imports_envelope_names_the_same_database_as_the_switchs_would(
 ) -> None:
     """``channels import`` keeps its own human line unchanged (no database named in it), but its
     envelope carries the same masked ``where`` as every other verb's does."""
-    setting, where = _url_where_differs_from_the_raw_setting(tmp_path)
+    setting, where = _url_setting_and_its_where(tmp_path)
     source = tmp_path / "edited.json"
     save_channels(source, LIST)
     assert _run(monkeypatch, "--json", "--database", setting, "channels", "import", str(source)) == 0

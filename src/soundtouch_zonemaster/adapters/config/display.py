@@ -43,8 +43,9 @@ def mask_database_url(values: Sequence[tuple[str, Any]]) -> list[tuple[str, Any]
     Unconditional, unlike :func:`mask_values_from_layer` and :func:`mask_values_from_private_files`:
     a database URL can carry a password from ANY layer - a config file, an environment variable, a
     dotenv, or ``--set`` on the command line - not only from a private file or a ``.env``, which
-    are the two things ``--redact`` exists to catch. So this masks the URL's password parts before
-    ``--redact`` is even asked about, in every output mode the ``config`` view has.
+    are the two things ``--redact`` exists to catch. So a URL carrying a password is shown as its
+    scheme alone before ``--redact`` is even asked about, in every output mode the ``config`` view
+    has; one without a password is shown as typed.
     """
 
     def mask(key: str, value: Any) -> Any:

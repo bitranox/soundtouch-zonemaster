@@ -95,8 +95,8 @@ class HouseStore(Protocol):
     """
 
     where: str
-    """The database, safe to print: a plain path as given, or a URL with its password-shaped
-    parts masked. Set once the setting has been read, so it survives ``close()`` and a CLI that
+    """The database, safe to print: the setting as given, or only its scheme when it carries a
+    password. Set once the setting has been read, so it survives ``close()`` and a CLI that
     names the database in its human output does not need its own copy of the masking rule."""
 
     def open(self, *, exclusive: bool) -> None: ...

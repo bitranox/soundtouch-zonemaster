@@ -23,6 +23,11 @@ SQLAlchemy row by row.
 Pure and stdlib-only, so it is reachable from the domain layer, which may not import a framework.
 A plain path (no ``"://"``) is not a URL at all: the store opens it as a SQLite file and no reader
 takes a password out of it, so neither function here treats one as carrying a password.
+
+**Showing a setting is all or nothing.** :func:`masked` never tries to cut a password out and keep
+the rest of the URL readable: where a password ends depends on how a parser reads the text, and
+every such cut has shown some piece of one. A setting without a password is shown as typed; one
+with a password is shown as its scheme alone.
 """
 
 from __future__ import annotations
@@ -40,13 +45,13 @@ around a keyword, so a key that decodes to ``" password"`` still sets the passwo
 """
 
 UNREADABLE = "<unreadable database URL>"
-"""What :func:`masked` shows for a URL whose scheme it cannot read, in place of any of its text."""
+"""What :func:`masked` shows for a URL carrying a password whose scheme it cannot read."""
 
 _SCHEME = re.compile(r"[\w+]+")
 """A scheme SQLAlchemy accepts. Anything else before ``"://"`` means the whole string is unread."""
 
-_KEY_START = re.compile(r"(?:^|[/?;\s])")
-"""Where a key can start inside one ``&``-separated part, for :func:`masked`."""
+_SHOWN_SCHEME = re.compile(r"[A-Za-z0-9+.-]+")
+"""A scheme :func:`masked` may repeat: ASCII letters, digits, ``+``, ``-`` and ``.`` only."""
 
 _PIECE_DELIMITERS = re.compile(r"[?&;\s]")
 """Where a query key can start. Wider than the ``&`` a query parser splits on, so no key it finds
@@ -78,42 +83,24 @@ def carries_a_password(setting: str) -> bool:
     text = _after_the_scheme(setting)
     if text is None:
         text = setting
-    return _userinfo_password_at(text) is not None or _query_names_a_password(text)
+    return _userinfo_carries_a_password(text) or _query_names_a_password(text)
 
 
 def masked(setting: str) -> str:
     """``setting``, safe to print. Never raises and never repeats a password it could hold.
 
-    * A plain path (no ``"://"``) is returned unchanged.
-    * A URL whose scheme SQLAlchemy would not accept is shown as :data:`UNREADABLE`, none of its
-      text copied: there is no reading of it to trust.
-    * When :func:`carries_a_password` finds a userinfo password, everything from the first ``:``
-      to the LAST ``@`` becomes ``:***@``. The last rather than the first: a raw ``@`` inside a
-      password would otherwise show the rest of the password as the host.
-    * A fragment (from the first ``#`` on) is shown as ``#***``, whatever it holds.
-    * Outside the masked password and fragment (the username included), the text is cut at
-      every ``&``, the one separator a query parser splits pairs on, so each part is at least one
-      whole pair's value. Where a key that names a password starts inside a part - at its start,
-      or after a ``/``, ``?``, ``;`` or whitespace - everything after that key's ``=`` up to the
-      next ``&`` becomes ``***``, which is the whole value a parser would read however it cuts
-      the text before it. A key with no value stays as it is, since there is nothing to hide.
-
-    Everything else is copied as it was typed, percent-encoding included, so a value such as
-    ``options=-c%20x%3Dy`` reads back exactly as written.
+    * When :func:`carries_a_password` finds none, the setting is returned exactly as typed. That
+      rule is no looser than the parser the store hands the setting to, so there is nothing in it
+      to hide. A plain path (no ``"://"``) is always this case.
+    * When it finds one, nothing after the scheme is shown: the result is ``<scheme>://***``, or
+      :data:`UNREADABLE` when the scheme is anything but ASCII letters, digits, ``+``, ``-`` and
+      ``.``. Not one character of the text after ``"://"`` is copied, so no reading of where the
+      password ends can put a piece of it on screen.
     """
-    if "://" not in setting:
+    if not carries_a_password(setting):
         return setting
-    rest = _after_the_scheme(setting)
-    if rest is None:
-        return UNREADABLE
-    scheme = setting[: len(setting) - len(rest) - len("://")]
-    colon = _userinfo_password_at(rest)
-    if colon is None:
-        userinfo, after = "", rest
-    else:
-        userinfo, after = f"{_masked_pieces(rest[:colon])}:***@", rest[rest.rindex("@") + 1 :]
-    before_fragment, hash_sign, _fragment = after.partition("#")
-    return f"{scheme}://{userinfo}{_masked_pieces(before_fragment)}{'#***' if hash_sign else ''}"
+    scheme = setting.partition("://")[0]
+    return f"{scheme}://***" if _SHOWN_SCHEME.fullmatch(scheme) else UNREADABLE
 
 
 def _after_the_scheme(setting: str) -> str | None:
@@ -122,8 +109,8 @@ def _after_the_scheme(setting: str) -> str | None:
     return rest if _SCHEME.fullmatch(scheme) else None
 
 
-def _userinfo_password_at(text: str) -> int | None:
-    """Where the userinfo's ``:`` is when SQLAlchemy would read a password there, else ``None``.
+def _userinfo_carries_a_password(text: str) -> bool:
+    """Whether SQLAlchemy would read a userinfo password out of ``text`` (the part after ``"://"``).
 
     Its userinfo pattern is a username of anything but ``:`` and ``/``, then ``:``, then a
     password of anything but ``@``, then ``@``: a password exists exactly when the first ``:``
@@ -131,11 +118,11 @@ def _userinfo_password_at(text: str) -> int | None:
     """
     colon = text.find(":")
     if colon < 0:
-        return None
+        return False
     slash = text.find("/")
     if 0 <= slash < colon:
-        return None
-    return colon if "@" in text[colon + 1 :] else None
+        return False
+    return "@" in text[colon + 1 :]
 
 
 def _query_names_a_password(text: str) -> bool:
@@ -153,20 +140,3 @@ def is_a_password_key(key: str) -> bool:
     widen what counts, never narrow it.
     """
     return unquote_plus(key).strip().lower() in PASSWORD_QUERY_KEYS
-
-
-def _masked_pieces(text: str) -> str:
-    """``text`` with every password-keyed value replaced up to the next ``&``."""
-    return "&".join(_masked_part(part) for part in text.split("&"))
-
-
-def _masked_part(part: str) -> str:
-    """One ``&``-separated part, cut from the first password key that starts in it and has a value."""
-    for match in _KEY_START.finditer(part):
-        start = match.end()
-        equals = part.find("=", start)
-        if equals < 0:
-            return part
-        if is_a_password_key(part[start:equals]) and part[equals + 1 :].strip():
-            return f"{part[: equals + 1]}***"
-    return part

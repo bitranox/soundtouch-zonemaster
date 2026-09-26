@@ -104,8 +104,13 @@ def database_url(setting: str) -> URL:
     # The domain's mask, never SQLAlchemy's rendering of the URL: SQLAlchemy ends a password at
     # its first "@" and would render the rest of it as the host.
     shown = masked(setting)
-    if carries_a_password(setting) or _sqlalchemy_reads_a_password(url):
+    if carries_a_password(setting):
         message = f"{shown}: carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
+        raise StoreError(message)
+    if _sqlalchemy_reads_a_password(url):
+        # A backstop: the domain rule is held no looser than this reading, and when it is not,
+        # the mask shows the setting as typed, so this refusal names no part of it.
+        message = "the database URL carries a password; keep it in ~/.pgpass (or the file PGPASSFILE names) instead"
         raise StoreError(message)
     backend = url.get_backend_name()
     if backend not in SUPPORTED:

@@ -33,7 +33,7 @@ from soundtouch_zonemaster.adapters.files.house_db import database_url
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.outcome import OptionsError
-from soundtouch_zonemaster.domain.database_url import carries_a_password, masked
+from soundtouch_zonemaster.domain.database_url import UNREADABLE, carries_a_password, masked
 
 _ORACLE_KEYS = frozenset({"password", "sslpassword"})
 """Written out rather than imported, so the oracle does not shrink if the domain's set does."""
@@ -53,6 +53,22 @@ ROWS = [
     pytest.param(f"{PG}zm:TOP#SECRET@db.example/zm", ("TOP", "SECRET"), True, id="hash-in-password"),
     pytest.param(f"{PG}zm:TOP%40SECRET@db.example/zm", ("TOP", "SECRET"), True, id="encoded-at-in-password"),
     pytest.param(f"{PG}zm?a:TOPSECRET@db.example/zm", ("TOPSECRET",), True, id="question-mark-in-username"),
+    # A raw "@" inside a query value: SQLAlchemy reads everything up to the LAST "@" as userinfo
+    # when a ":" (here the port's) comes before the first "/", so the tail of the value becomes the
+    # host. The secrets are named by the row, not by that reading.
+    pytest.param(f"{PG}zm@db.example:5432/zm?password=TOP@SECRET", ("TOP", "SECRET"), True, id="raw-at-in-query-value"),
+    pytest.param(
+        f"{PG}zm:pw1@db.example/zm?password=TOP@SECRET",
+        ("pw1", "TOP", "SECRET"),
+        True,
+        id="userinfo-and-raw-at-in-query",
+    ),
+    pytest.param(
+        f"{PG}zm@db.example:5432/zm?sslpassword=TOP@SECRET&sslmode=require",
+        ("TOP", "SECRET"),
+        True,
+        id="raw-at-in-sslpassword-then-more",
+    ),
     pytest.param(f"{PG}zm?x@db.example/zm?password=TOPSECRET", ("TOPSECRET",), True, id="second-question-mark"),
     pytest.param(f"{PG}zm:TOPSECRET@[::1]:5432/zm", ("TOPSECRET",), True, id="ipv6-host"),
     pytest.param(f"{PG}zm@[::1]:5432/zm", (), False, id="ipv6-host-no-password"),
@@ -75,8 +91,10 @@ ROWS = [
     pytest.param(f"{PG}zm@db.example/zm?a=1\npassword=TOPSECRET", ("TOPSECRET",), False, id="newline"),
     pytest.param(f"{PG}zm@db.example/zm?password=", (), False, id="empty-value"),
     pytest.param(f"{PG}zm@db.example/zm?password", (), False, id="bare-key"),
-    pytest.param(f"{PG}zm@db.example/zm?a=1#TOPSECRET", ("TOPSECRET",), False, id="fragment"),
-    pytest.param(f"{PG}zm@db.example/zm#TOPSECRET", ("TOPSECRET",), False, id="fragment-after-database"),
+    # A fragment is part of a query value or of the database name to SQLAlchemy, never a password,
+    # so the rule passes these and the mask shows them as typed: there is no secret in them.
+    pytest.param(f"{PG}zm@db.example/zm?a=1#note", (), False, id="fragment"),
+    pytest.param(f"{PG}zm@db.example/zm#note", (), False, id="fragment-after-database"),
     pytest.param(f" {PG}zm:TOPSECRET@db.example/zm", ("TOPSECRET",), False, id="leading-space-scheme"),
     pytest.param("zm:TOPSECRET@x://db.example/zm", ("TOPSECRET",), False, id="unreadable-scheme"),
     pytest.param("sqlite:///srv/zm.sqlite?password=TOPSECRET", ("TOPSECRET",), True, id="sqlite-query-key"),
@@ -224,6 +242,19 @@ def test_a_seeded_fuzz_finds_no_url_the_rule_or_the_mask_gets_wrong() -> None:
             problems.append(f"looser: {setting!r}")
         shown = masked(setting)
         problems.extend(f"leak: {setting!r}" for marker in re.findall(r"S\d+Z", " ".join(read)) if marker in shown)
+    assert problems == []
+
+
+def test_masked_is_all_or_nothing_over_the_fuzz() -> None:
+    """A setting with no password in it is shown exactly as typed; one with a password shows
+    nothing after its scheme. Over every generated URL, whether SQLAlchemy can parse it or not."""
+    problems: list[str] = []
+    for index in range(5000):
+        setting = _generated(index)
+        shown = masked(setting)
+        allowed = (f"{setting.partition('://')[0]}://***", UNREADABLE) if carries_a_password(setting) else (setting,)
+        if shown not in allowed:
+            problems.append(f"{setting!r} -> {shown!r}")
     assert problems == []
 
 
