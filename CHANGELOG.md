@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.10] 2026-09-27 10:33:50
+
 ### Changed
 
 - A `database.password` that arrives as anything but text (a number, a boolean, a list, a table) is
