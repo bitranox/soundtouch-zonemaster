@@ -4357,11 +4357,17 @@ async def test_a_window_changed_mid_number_waits_until_that_number_is_read(world
 async def test_a_console_taken_off_the_list_leaves_the_zone(world: World, tmp_path: Path) -> None:
     """Allowed only by a stored row, and let go once that row is gone: nothing else changed.
 
-    Nothing else asks for a pass either. The registry poll, which asks for one every time it runs,
-    is pushed out of the way, and the row is removed only once the console's fade is over - every
-    level the fade sets comes back as frames, and each frame asks for a pass too.
+    Nothing else asks for a pass either, so the pass that lets it go is the one the preference
+    asks for. The registry poll, which asks for one every time it runs, is pushed out past the
+    wait. Every level the fade sets comes back as a ``volumeUpdated`` and, 50 ms after the answer,
+    a touch, and each frame asks for a pass - so the row is removed only once the box has sent the
+    last of them and the service has had a moment to read it. Waiting on the last LEVEL alone left
+    the trailing touch in flight: it raced the preference poll, and when it landed second its pass
+    let the console go on the preference's behalf, so the case passed without the take's request.
     """
     options = replace(_options(world, tmp_path), registry_poll_s=30.0)
+    left_within_s = 5.0
+    assert left_within_s < options.registry_poll_s, "the control: the registry poll cannot ask for the pass"
     _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
     logs: list[str] = []
 
@@ -4369,8 +4375,16 @@ async def test_a_console_taken_off_the_list_leaves_the_zone(world: World, tmp_pa
         await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=RADIO))
         await eventually(lambda: CONSOLE_IP in _slaves(service), "the console joined")
         await eventually(lambda: _faded_back(world.console, 30), "and its fade finished")
+        await eventually(lambda: not world.console.answering, "and the box sent the last frame its fade caused")
+        # A frame already sent is read within a loop turn on loopback; this is margin over that
+        # turn, far under the poll that would otherwise ask, so the house is quiet when the row goes.
+        await asyncio.sleep(0.2)
         _unset_preference(options, PreferenceName.CONSOLES)
-        await eventually(lambda: CONSOLE_IP not in _slaves(service), "and left once it was no longer allowed")
+        await eventually(
+            lambda: CONSOLE_IP not in _slaves(service),
+            "and left once it was no longer allowed",
+            timeout=left_within_s,
+        )
 
 
 async def test_a_console_put_on_the_list_while_the_house_runs_is_watched_and_joins_when_it_wakes(

@@ -311,6 +311,17 @@ class FakeSpeaker:
         self._callers: set[asyncio.StreamWriter] = set()
         """Whoever is connected to the HTTP face right now, so switching the box off can drop them."""
 
+    @property
+    def answering(self) -> bool:
+        """Whether a request is still being handled: its answer, or a frame it causes, is still to come.
+
+        ``volumes`` cannot say the box has gone quiet. A level is recorded when the write ARRIVES,
+        and the ``volumeUpdated`` and the touch it causes are sent after the answer - the touch 50 ms
+        after it - so a test that reads the last level as "the fade is over" is still ahead of two
+        frames, and each of them asks the service for a pass.
+        """
+        return bool(self._callers)
+
     async def start(self) -> None:
         self._server = await asyncio.start_server(self._handle, self.host, SPEAKER_PORT)
         if self.notify_port is not None:
