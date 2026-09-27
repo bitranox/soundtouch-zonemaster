@@ -252,7 +252,7 @@ class ServiceState:
         self._set_by: dict[PreferenceName, PreferenceRow] = {}
         """Which preferences a stored row decides, and that row: what the log names as the source."""
         self._preference_rows: tuple[PreferenceRow, ...] = ()
-        """The rows as last read, so an unchanged read costs nothing and says nothing."""
+        """The rows as last taken in, so a poll that finds them unchanged resolves nothing and says nothing."""
         self._rejected_seen: set[tuple[str, str]] = set()
         """(name, text) of every stored row already named as ignored, so it is said once, not every poll."""
 
@@ -315,7 +315,10 @@ class ServiceState:
         self._gesture = Gesture()
         self._dialled = asyncio.Event()
         """Set when a digit lands, so the dialling worker recomputes its deadline rather than
-        sleeping through a number that is still being typed."""
+        sleeping through a number that is still being typed - and when the preferences ask for a
+        window and hold, so a worker that is idle hands them over at once."""
+        self._dial_numbers_wanted: tuple[float, float] | None = None
+        """A window and hold the preferences asked for, held until nobody is dialling or holding a key."""
 
     def _write_down(self, believed: frozenset[str]) -> None:
         """Record who the zone belongs to, so that a restart does not start from nothing.

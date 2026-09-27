@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import itertools
 import json
 import os
 import socket
+import sqlite3
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
@@ -340,6 +342,24 @@ def _flip(options: ServiceOptions, *, on: bool) -> None:
     store = _store_of(options)
     try:
         store.set_switch(on=on)
+    finally:
+        store.close()
+
+
+def _set_preference(options: ServiceOptions, name: PreferenceName, value: PreferenceValue) -> None:
+    """What `prefs set` does, on the database a service may be running on."""
+    store = _store_of(options)
+    try:
+        store.set_preference(name, value, source=PreferenceSource.CLI)
+    finally:
+        store.close()
+
+
+def _unset_preference(options: ServiceOptions, name: PreferenceName) -> None:
+    """What `prefs unset` does."""
+    store = _store_of(options)
+    try:
+        store.unset_preference(name)
     finally:
         store.close()
 
@@ -3664,17 +3684,18 @@ async def test_leaving_an_mpd_channel_writes_down_how_far_into_it_the_house_got(
             await eventually(lambda: positions_of(options) == {"12": AT_61_5}, "the position was written down")
 
 
-class _StoreThatCannotSaveState:
-    """A real store, wrapped so ``save_state`` can be made to fail once armed.
+class _StoreThatCanFail:
+    """A real store, wrapped so ``save_state`` or ``load_preferences`` can be made to fail once armed.
 
-    Everything else goes straight to the real store underneath; only ``save_state`` is
-    intercepted, which is the one call ``_stand_down`` makes through ``_remember_where_mpd_is``
-    before it dissolves the zone.
+    Everything else goes straight to the real store underneath. ``save_state`` is the one call
+    ``_stand_down`` makes through ``_remember_where_mpd_is`` before it dissolves the zone;
+    ``load_preferences`` is what the preference watch reads every switch poll.
     """
 
     def __init__(self, real: HouseStore) -> None:
         self._real = real
-        self.armed = False
+        self.saving_state_fails = False
+        self.reading_preferences_fails = False
         self.where = real.where
 
     def open(self, *, exclusive: bool) -> None:
@@ -3690,7 +3711,7 @@ class _StoreThatCannotSaveState:
         return self._real.load_state()
 
     def save_state(self, state: ZoneState) -> None:
-        if self.armed:
+        if self.saving_state_fails:
             message = "simulated: the house database refused the write"
             raise StoreError(message)
         self._real.save_state(state)
@@ -3717,6 +3738,9 @@ class _StoreThatCannotSaveState:
         return self._real.switch(poll_s=poll_s, ignored_file=ignored_file)
 
     def load_preferences(self) -> tuple[PreferenceRow, ...]:
+        if self.reading_preferences_fails:
+            message = "simulated: the house database could not be read"
+            raise StoreError(message)
         return self._real.load_preferences()
 
     def set_preference(
@@ -3729,16 +3753,16 @@ class _StoreThatCannotSaveState:
 
 
 @asynccontextmanager
-async def _running_with_a_store_that_cannot_save_state(
+async def _running_with_a_store_that_can_fail(
     options: ServiceOptions, logs: list[str]
-) -> AsyncGenerator[tuple[ZoneService, _StoreThatCannotSaveState], None]:
+) -> AsyncGenerator[tuple[ZoneService, _StoreThatCanFail], None]:
     """The real wiring, except the store the service opens is the wrapper above - injected at the
     ``open_store`` port, which is exactly the seam the service already takes a ``HouseStore``
     through, never a monkeypatch of the store's own internals."""
-    created: list[_StoreThatCannotSaveState] = []
+    created: list[_StoreThatCanFail] = []
 
     def _open_store(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
-        store = _StoreThatCannotSaveState(open_house_store(database, password=password, log=log))
+        store = _StoreThatCanFail(open_house_store(database, password=password, log=log))
         created.append(store)
         return store
 
@@ -3762,13 +3786,13 @@ async def test_a_store_that_cannot_save_state_does_not_stop_the_dissolve(world: 
         options = _radio_and_mpd(world, tmp_path, fake)
         logs: list[str] = []
 
-        async with _running_with_a_store_that_cannot_save_state(options, logs) as (service, store):
+        async with _running_with_a_store_that_can_fail(options, logs) as (service, store):
             await _both_wake(world)
             await _press_preset(world.studio, STUDIO_ID, 1)
             await _press_preset(world.studio, STUDIO_ID, 2)
             await eventually(lambda: _playing(service).endswith("?c=12"), "the zone is on the MPD channel")
 
-            store.armed = True
+            store.saving_state_fails = True
             _flip(options, on=False)
 
             await eventually(
@@ -4284,3 +4308,183 @@ async def test_a_console_allowed_in_the_house_database_is_taken_in_when_it_wakes
         )
         await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=RADIO))
         await eventually(lambda: len(joins(world.console)) == 1, "the console was taken into the zone")
+
+
+# --- Live preferences: the house database read again every switch poll --------------------------
+
+
+def _said(logs: list[str], text: str) -> bool:
+    return any(text in line for line in logs)
+
+
+async def test_a_window_set_while_the_house_runs_decides_the_next_number(world: World, tmp_path: Path) -> None:
+    """2.0 s from the options, 0.5 s from the house database a moment later: 1 then 2 a second apart
+    are two numbers now, and 2 is no channel."""
+    options = _dialable_world(world, tmp_path, dial_window_s=2.0)
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await _both_wake(world)
+        _set_preference(options, PreferenceName.WINDOW, 0.5)
+        await eventually(lambda: _said(logs, "the dialling window is 0.5 s, set by cli"), "it took it")
+        await _press_preset(world.studio, STUDIO_ID, 1)
+        await asyncio.sleep(1.0)
+        await _press_preset(world.studio, STUDIO_ID, 2)
+        await eventually(lambda: _said(logs, "dialled 2: no such channel"), "two numbers, not one")
+        assert _playing(service).endswith("?c=1")
+
+
+async def test_a_window_changed_mid_number_waits_until_that_number_is_read(world: World, tmp_path: Path) -> None:
+    """The number somebody is typing is read on the window it began with.
+
+    The change is taken in while the first digit is open - the line saying so is the barrier - and
+    the second digit then lands a second later: inside the 2.0 s the number began with, outside the
+    0.5 s it would have if the dialler had been handed the new window at once.
+    """
+    options = _dialable_world(world, tmp_path, dial_window_s=2.0)
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await _both_wake(world)
+        await _press_preset(world.studio, STUDIO_ID, 1)
+        _set_preference(options, PreferenceName.WINDOW, 0.5)
+        await eventually(lambda: _said(logs, "the dialling window is 0.5 s, set by cli"), "it took it")
+        await asyncio.sleep(1.0)
+        await _press_preset(world.studio, STUDIO_ID, 2)
+        await eventually(lambda: _playing(service).endswith("?c=12"), "still one number, 12")
+
+
+async def test_a_console_taken_off_the_list_leaves_the_zone(world: World, tmp_path: Path) -> None:
+    """Allowed only by a stored row, and let go once that row is gone: nothing else changed.
+
+    Nothing else asks for a pass either. The registry poll, which asks for one every time it runs,
+    is pushed out of the way, and the row is removed only once the console's fade is over - every
+    level the fade sets comes back as frames, and each frame asks for a pass too.
+    """
+    options = replace(_options(world, tmp_path), registry_poll_s=30.0)
+    _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=RADIO))
+        await eventually(lambda: CONSOLE_IP in _slaves(service), "the console joined")
+        await eventually(lambda: _faded_back(world.console, 30), "and its fade finished")
+        _unset_preference(options, PreferenceName.CONSOLES)
+        await eventually(lambda: CONSOLE_IP not in _slaves(service), "and left once it was no longer allowed")
+
+
+async def test_a_console_put_on_the_list_while_the_house_runs_is_watched_and_joins_when_it_wakes(
+    world: World, tmp_path: Path
+) -> None:
+    """The other direction, without a restart: a console nobody allowed at start is not even watched.
+
+    It is watched from the first registry read after the row is set - the registry read is where
+    that is decided - and from then on a wake takes it in like any other box's. The wake is shown
+    from standby: a box first watched in the middle of a run was never asked what it was playing,
+    so a first frame saying "radio" alone would read as a box on its own station (the same for any
+    box the registry adds after the start).
+    """
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await eventually(lambda: _said(logs, f"({HALLWAY_ID}) at {HALLWAY_IP}"), "the start read the registry")
+        assert not _said(logs, f"({CONSOLE_ID}) at {CONSOLE_IP}"), "the control: not watched while not allowed"
+        _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
+        await eventually(lambda: _said(logs, f"({CONSOLE_ID}) at {CONSOLE_IP}"), "watched from the next registry read")
+        await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=SourceName.STANDBY))
+        await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=RADIO))
+        await eventually(lambda: CONSOLE_IP in _slaves(service), "and taken in when it woke")
+
+
+async def test_a_stored_preference_that_is_not_usable_is_named_once_and_ignored(world: World, tmp_path: Path) -> None:
+    """A row nobody can use is said once, and the configured window goes on deciding.
+
+    Another preference is set AFTER it, so the rows the service reads change while the bad one stays
+    - which is the read that would name it a second time. The window is 2.0 s from the options, so
+    1 then 2 a second apart reading as ONE number shows the configured value is what runs, rather
+    than the default (0.8 s) or the floor (0.5 s), either of which splits it.
+    """
+    options = _dialable_world(world, tmp_path, dial_window_s=2.0)
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await _both_wake(world)
+        with contextlib.closing(sqlite3.connect(options.database)) as raw, raw:
+            raw.execute("INSERT INTO preference VALUES ('dialling.window_s', '\"fast\"', 'cli', '')")
+        await eventually(
+            lambda: _said(logs, 'dialling.window_s = "fast" in the house database is ignored'), "it was named"
+        )
+        _set_preference(options, PreferenceName.FADE, 1.0)
+        await eventually(lambda: _said(logs, "a joining box fades in over 1.0 s, set by cli"), "the next row was read")
+        assert sum("is ignored" in line for line in logs) == 1, "once, not on every read"
+
+        await _press_preset(world.studio, STUDIO_ID, 1)
+        await asyncio.sleep(1.0)
+        await _press_preset(world.studio, STUDIO_ID, 2)
+        await eventually(lambda: _playing(service).endswith("?c=12"), "one number, on the configured window")
+        assert not _said(logs, "no such channel")
+
+
+def _gaps_from(box: FakeSpeaker, first: int) -> list[float]:
+    """The time between each volume write from the ``first``-th on and the write after it."""
+    times = box.volumes_at[first:]
+    return [later - earlier for earlier, later in itertools.pairwise(times)]
+
+
+async def test_a_fade_changed_while_a_box_climbs_keeps_its_pace_and_the_next_fade_takes_the_new_one(
+    world: World, tmp_path: Path
+) -> None:
+    """The climb in progress keeps the length it started with; the next join uses the new one.
+
+    2.4 s over eight steps is a write every 0.3 s. The change to 0.0 is taken in while the studio
+    is on its way up - the line saying so is the barrier - and every write the studio receives AFTER
+    that is still 0.3 s from the one before it. The hallway, joining once the change is in, climbs
+    with no pause between its writes at all.
+    """
+    options = _options(world, tmp_path)
+    _set_preference(options, PreferenceName.FADE, 2.4)
+    step_s = 2.4 / 8
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        await world.studio.notify(now_playing_frame(device_id=STUDIO_ID, source=RADIO))
+        await eventually(lambda: any(0 < level < 30 for level in world.studio.volumes), "the studio began to climb")
+        _set_preference(options, PreferenceName.FADE, 0.0)
+        await eventually(lambda: _said(logs, "a joining box fades in over 0.0 s, set by cli"), "it took it")
+        taken_at = len(world.studio.volumes)
+        await eventually(lambda: _faded_back(world.studio, 30), "the studio's climb finished")
+        after = _gaps_from(world.studio, taken_at)
+        assert len(after) >= 3, f"too few writes left to say anything: {world.studio.volumes}"
+        assert min(after) >= step_s * 0.8, f"the climb in progress was re-timed: {after}"
+
+        await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
+        await eventually(lambda: _faded_back(world.hallway, 30), "the hallway's climb finished")
+        climb = _gaps_from(world.hallway, 1)
+        assert len(climb) >= 3, f"the hallway did not climb: {world.hallway.volumes}"
+        assert max(climb) < step_s / 2, f"the next fade kept the old length: {climb}"
+
+
+async def test_a_preference_read_that_fails_keeps_what_is_in_use_and_says_so_once_each_way(
+    world: World, tmp_path: Path
+) -> None:
+    """A database that cannot be read is said once when it starts failing and once when it answers.
+
+    A value set while the reads fail is not taken in until one succeeds - and is then, which is the
+    proof that the watch outlived the failure rather than ending on it.
+    """
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+
+    async with _running_with_a_store_that_can_fail(options, logs) as (_service, store):
+        await eventually(lambda: _said(logs, "member(s) remembered from the last run"), "it started")
+        store.reading_preferences_fails = True
+        await eventually(lambda: _said(logs, "keeping the preferences already in use"), "the failure was said")
+        _set_preference(options, PreferenceName.FADE, 1.0)
+        await asyncio.sleep(options.switch_poll_s * 6)
+        assert sum("keeping the preferences already in use" in line for line in logs) == 1, "once, not every poll"
+        assert not _said(logs, "fades in over 1.0 s"), "nothing was taken from a read that failed"
+
+        store.reading_preferences_fails = False
+        await eventually(lambda: _said(logs, "a joining box fades in over 1.0 s, set by cli"), "taken in on recovery")
+        assert sum("the house database answers again" in line for line in logs) == 1

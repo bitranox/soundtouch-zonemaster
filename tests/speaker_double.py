@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -263,6 +264,11 @@ class FakeSpeaker:
         that whole path inert while every test still passed."""
         self.volumes: list[int] = []
         """Every level this box was set to, in order."""
+        self.volumes_at: list[float] = []
+        """``time.monotonic()`` for each entry above: when the write ARRIVED.
+
+        What a person hears of a fade is its pace as much as its levels, and the levels alone cannot
+        say whether a climb was spread over its length or written in one burst."""
         self.touch_on_volume = True
         """Whether a volume write comes back as a touch, the way it does on a real box.
 
@@ -398,6 +404,7 @@ class FakeSpeaker:
             if asked is not None:
                 self.volume = int(asked.group(1))
                 self.volumes.append(self.volume)
+                self.volumes_at.append(time.monotonic())
         plays = await self._take_the_zone_document(method, path, body)
         # After the box has MOVED and before it answers, so that the order of `volumes` stays the
         # order the requests arrived in however differently two paths are slowed.

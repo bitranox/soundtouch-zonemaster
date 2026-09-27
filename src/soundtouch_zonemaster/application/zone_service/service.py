@@ -1,6 +1,6 @@
 """The service itself: what has to be true before the first event, and the workers after it.
 
-The top of the chain, and the smallest class in it. Holding a house is five workers over the eight
+The top of the chain, and the smallest class in it. Holding a house is six workers over the eight
 classes below, so what is left here is starting them and the order of the start-up - which is not
 arbitrary at any step: the state comes back before any volume is put back and the registry before
 it again, because a level is remembered against a device id and only the registry says where that
@@ -59,6 +59,7 @@ class ZoneService(KeyReading):
             await self._start_up()
             workers = [
                 asyncio.create_task(self._watch_the_switch()),
+                asyncio.create_task(self._watch_the_preferences()),
                 asyncio.create_task(self._poll_the_registry()),
                 asyncio.create_task(self._read_what_the_speakers_say()),
                 asyncio.create_task(self._reconcile_when_asked()),
@@ -95,6 +96,9 @@ class ZoneService(KeyReading):
         # Before the registry is read: which consoles may be watched is one of them, and the
         # registry read is where that is decided.
         self._take_the_preferences(self.store.load_preferences())
+        # At once rather than on the dialling worker's first turn: nobody can be mid-gesture before
+        # the first event is read, and a digit read before that turn would be read on the options.
+        self._settle_the_dial_numbers()
         self.policy.restore(state.members, at=time.time())
         self.log("state", f"{len(state.members)} member(s) remembered from the last run")
         # Before anything reads the registry: an unusable channel list must stop the service here,

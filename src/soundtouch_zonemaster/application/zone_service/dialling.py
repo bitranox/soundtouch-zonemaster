@@ -67,6 +67,9 @@ class Dialling(PreferenceBook):
             await self._tell_the_house_a_calibration_began()
             deadline = self._earliest_deadline()
             if deadline is None:
+                # Nobody is mid-gesture, which is the one moment the dialler and the hold rule may
+                # be handed a changed window or hold.
+                self._settle_the_dial_numbers()
                 # Nothing is being dialled: sleep until a digit lands, which costs nothing.
                 await self._dialled.wait()
                 self._dialled.clear()
@@ -234,6 +237,21 @@ class Dialling(PreferenceBook):
             if when is not None
         ]
         return min(pending) if pending else None
+
+    def _settle_the_dial_numbers(self) -> None:
+        """Hand the dialler and the hold rule their new numbers, but never while somebody is mid-gesture.
+
+        The dialler reads its window at every deadline check, so a window changed while a number
+        is being typed would move that number's deadline under the person typing it. Nothing is
+        pending exactly when the deadlines the dialling loop waits for are all absent, and the loop
+        calls this each time it goes idle - which is why a preference taken in wakes it.
+        """
+        if self._dial_numbers_wanted is None or self._earliest_deadline() is not None:
+            return
+        window_s, hold_s = self._dial_numbers_wanted
+        self._dial_numbers_wanted = None
+        self._the_window_is_now(window_s)
+        self._the_hold_is_now(hold_s)
 
     def _stepping(self, device_id: str) -> bool:
         """Whether a step key on that box is still down and may yet become a hold."""

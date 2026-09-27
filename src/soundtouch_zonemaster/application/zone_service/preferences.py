@@ -7,13 +7,21 @@ writes what it measured as preferences, which this class then takes in.
 Rewind, fade and consoles are not dialling, which is why this is a class of its own rather than
 part of the one that reads numbers: the window and the hold are two of five, and the rule that
 decides between a stored row and the configuration is the same for all of them.
+
+The house database is read again every switch poll, on a worker of its own, so a value set while
+the service runs is taken in without a restart. Each one lands at its natural point: the consoles
+at the next pass (one first allowed is watched from the next registry read, which is where that is
+decided), a fade at the next join, and a window or hold once nobody is dialling or holding a key -
+which is the dialling worker's to decide, so this only wakes it.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, cast
 
 from ...domain.preferences import PreferenceName, PreferenceSource, PreferenceValue, resolved, value_of
+from ..errors import StoreError
 from .zone import ZoneReconcile
 
 if TYPE_CHECKING:
@@ -55,11 +63,42 @@ _SAID: Mapping[PreferenceName, Callable[[PreferenceValue], str]] = {
 class PreferenceBook(ZoneReconcile):
     """Which preferences the service is using, who decided each one, and what has been said about them."""
 
+    async def _watch_the_preferences(self) -> None:
+        """Read the preferences again every switch poll, and take in whatever changed.
+
+        Its own loop rather than part of the switch's, so a preference read that fails can never
+        stop the switch, which is the one thing that must keep working. A failing read keeps the
+        last good set, said once when it starts failing and once when it recovers.
+        """
+        failing = False
+        while True:
+            await asyncio.sleep(self.options.switch_poll_s)
+            try:
+                rows = self.store.load_preferences()
+            except StoreError as exc:
+                if not failing:
+                    self.log("prefs", f"{exc}; keeping the preferences already in use")
+                    failing = True
+                continue
+            if failing:
+                self.log("prefs", "the house database answers again")
+                failing = False
+            if rows != self._preference_rows:
+                self._take_the_preferences(rows)
+
     def _take_the_preferences(self, rows: tuple[PreferenceRow, ...]) -> None:
         """Lay the stored preferences over the options, apply them, and say each one that changed.
 
-        Called at start and after a calibration. A line is written only for a value or a source
-        that changed, so a start with nothing stored says nothing, as it always did.
+        Called at start, after a calibration, and by the watch whenever the rows it reads differ
+        from the ones last taken in. A line is written only for a value or a source that changed,
+        so a start with nothing stored says nothing, as it always did.
+
+        The window and the hold are not handed over here but asked for: the dialling worker hands
+        them over once nobody is mid-gesture, so a number being typed finishes on the window it
+        began with. The rewind and the fade are read where they are used, and a fade reads its
+        length once, when it starts. A console taken off the list is let go at the next pass, and
+        stays watched until the next restart, because the speaker book never forgets a box; one put
+        on the list is watched from the next registry read.
         """
         resolution = resolved(self.options.preferences, rows)
         for row, why in resolution.rejected:
@@ -71,8 +110,11 @@ class PreferenceBook(ZoneReconcile):
         self._preferences = resolution.preferences
         self._set_by = dict(resolution.set_by)
         self.policy.consoles_allowed = frozenset(self._preferences.consoles_allowed)
-        self._the_window_is_now(self._preferences.window_s)
-        self._the_hold_is_now(self._preferences.hold_threshold_s)
+        self._dial_numbers_wanted = (self._preferences.window_s, self._preferences.hold_threshold_s)
+        # Wakes the dialling worker, which is where the two are handed over once nobody is pressing.
+        self._dialled.set()
+        # A console allowed or no longer allowed changes who belongs, and the pass is what acts on that.
+        self._wanted.set()
         for name in PreferenceName:
             moved = value_of(before, name) != value_of(self._preferences, name)
             if moved or before_set_by.get(name) != self._set_by.get(name):
