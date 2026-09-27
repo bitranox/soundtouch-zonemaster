@@ -175,6 +175,10 @@ class ServiceOptionsInput(BaseModel):
     @field_validator(_CREDENTIAL_FIELD, mode="before")
     @classmethod
     def _password_as_text(cls, value: object) -> str | None:
+        """The text ``SecretStr`` accepts. From the command line the value has already passed
+        :func:`configured_settings`; this keeps the same refusal, in the same words, for a caller
+        that hands :func:`parse_service_options` a mapping of its own, which pydantic would
+        otherwise refuse by the record field's name in its own words."""
         return password_text_or_refuse(value)
 
     @field_validator("dial_window_s")
@@ -312,23 +316,30 @@ def password_text_or_refuse(value: object) -> str | None:
     raise OptionsError(message, exit_code=ExitCode.ERROR)
 
 
-def _refuse_a_password_that_arrived_as_no_value(configured: Mapping[str, Any]) -> None:
-    """Refuse (exit 2) a password setting that is PRESENT but holds no value at all.
+def _refuse_a_malformed_password(configured: Mapping[str, Any]) -> None:
+    """Refuse (exit 2) a password setting that is present but is not a password: no value, or not text.
 
     The environment layer reads ``null`` and ``none``, in any case, as no value, and ``--set``
     reads the JSON ``null`` the same way. Passed on, that would mean "no password" while somebody
     plainly wrote one, and ``config`` would still list the setting as coming from the environment.
     A setting that is absent, or empty text, stays "no password": only the mapping can tell
     absent from present-but-nothing, which is why this reads the mapping rather than the value.
-    The refusal names the setting, never what was written.
+    Anything else that is not text is refused by :func:`password_text_or_refuse`, the one rule for
+    what a usable password is. Both refusals name the setting, never what was written.
+
+    This runs on the configuration as it was read, before any typed ``--database`` decides whether
+    the password is used (:func:`scoped_to_the_configured_database`), so a malformed password is
+    refused whatever database the command opens.
     """
-    if _CREDENTIAL_FIELD not in configured or configured[_CREDENTIAL_FIELD] is not None:
+    if _CREDENTIAL_FIELD not in configured:
         return
-    message = (
-        f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as no value, which is not the same as no password; "
-        "unset the variable (or drop the --set) for no password, or give the password in a config file"
-    )
-    raise OptionsError(message, exit_code=ExitCode.ERROR)
+    if configured[_CREDENTIAL_FIELD] is None:
+        message = (
+            f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as no value, which is not the same as no password; "
+            "unset the variable (or drop the --set) for no password, or give the password in a config file"
+        )
+        raise OptionsError(message, exit_code=ExitCode.ERROR)
+    password_text_or_refuse(configured[_CREDENTIAL_FIELD])
 
 
 def _secret_of(value: SecretStr | None) -> Secret | None:
@@ -349,10 +360,9 @@ def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: s
     libpq's own ``~/.pgpass``, ``PGPASSFILE`` and ``PGPASSWORD`` still apply to it. One line says
     so, naming the setting and neither the password nor the typed database.
 
-    The two malformed passwords are not treated alike here. One that arrived as no value is refused
-    before this runs (:func:`configured_settings`), so it refuses even beside a typed database that
-    would not use it; one that arrived as anything but text is refused only where it is read, so
-    beside a typed other database it is left out like any other, with the same line.
+    Only a well-formed password is ever left out here. One that arrived as no value or as anything
+    but text is refused before this runs (:func:`configured_settings`), so it refuses even beside a
+    typed database that would not use it.
 
     The service run and the store verbs both call this, so the two cannot come to disagree about
     which database a configured password is for.
@@ -371,7 +381,9 @@ def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: s
 
 def database_password_of(configured: Mapping[str, Any]) -> Secret | None:
     """The password the configuration layers give, for the store verbs that open the database
-    without building the whole option record. The same rule as the record's own field."""
+    without building the whole option record: text as the secret, empty as none. The same rule as
+    the record's own field; on the mapping :func:`configured_settings` returns it can no longer
+    refuse, because that has already refused a password that is not text."""
     text = password_text_or_refuse(configured.get(_CREDENTIAL_FIELD))
     return Secret(text) if text else None
 
@@ -493,11 +505,12 @@ def configured_settings(config: Config) -> dict[str, Any]:
     says nothing is the kind of thing somebody debugs for an hour.
 
     Both the service run and the store verbs read the configuration through here, which is what
-    makes it the one place a password that arrived as no value is refused for both.
+    makes it the one place a malformed password - no value, or not text - is refused for both,
+    whatever database the command then opens.
     """
     for stray in unknown_settings(config):
         section, _, key = stray.partition(".")
         log("config", f"ignored: [{section}] has no setting called {key!r}")
     found = service_settings(config)
-    _refuse_a_password_that_arrived_as_no_value(found)
+    _refuse_a_malformed_password(found)
     return found

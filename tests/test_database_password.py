@@ -17,10 +17,13 @@ from nothing_typed import NOTHING_TYPED
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.config import loader
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
+from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.application.options import ServiceOptions
 from soundtouch_zonemaster.application.outcome import ExitCode, OptionsError
 from soundtouch_zonemaster.application.zone_service import ZoneService
 from soundtouch_zonemaster.composition import build_production, open_house_store
+from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
+from soundtouch_zonemaster.domain.enums import ChannelKind
 from soundtouch_zonemaster.domain.secret import Secret
 from soundtouch_zonemaster.entry import service_main as main
 
@@ -32,6 +35,8 @@ if TYPE_CHECKING:
 
 FAKE = "TOPSECRET"
 PASSWORD_ENV = f"{ENV_PREFIX}DATABASE__PASSWORD"
+LIST = ChannelList(channels=(Channel(number="1", name="One", kind=ChannelKind.RADIO, url="http://radio.example/1"),))
+"""A valid channel list, for the import's source file."""
 
 
 def _capture() -> tuple[list[ServiceOptions], RunService]:
@@ -568,3 +573,79 @@ def test_a_database_url_that_arrived_as_no_value_is_refused_as_no_database_at_al
     assert "no value anywhere for database" in refused
     assert "database.url" in refused
     assert "--database" in refused
+
+
+FAKE_IN_A_SHAPE = "fake-pw-1"
+"""The fake a list or table password carries, so a test can see that neither stream echoes it."""
+
+NOT_TEXT_PASSWORDS = [
+    pytest.param(DIGITS, [], "int", DIGITS, id="env-digits-read-as-a-number"),
+    pytest.param("true", [], "bool", None, id="env-true-read-as-a-boolean"),
+    pytest.param(f'["{FAKE_IN_A_SHAPE}"]', [], "list", FAKE_IN_A_SHAPE, id="env-json-array-read-as-a-list"),
+    pytest.param(f'{{"a": "{FAKE_IN_A_SHAPE}"}}', [], "dict", FAKE_IN_A_SHAPE, id="env-json-object-read-as-a-table"),
+    pytest.param(None, ["--set", f"database.password={DIGITS}"], "int", DIGITS, id="set-json-number"),
+    pytest.param(None, ["--set", "database.password=false"], "bool", None, id="set-json-boolean"),
+    pytest.param(
+        None, ["--set", f'database.password=["{FAKE_IN_A_SHAPE}"]'], "list", FAKE_IN_A_SHAPE, id="set-json-array"
+    ),
+    pytest.param(
+        None,
+        ["--set", f'database.password={{"a": "{FAKE_IN_A_SHAPE}"}}'],
+        "dict",
+        FAKE_IN_A_SHAPE,
+        id="set-json-object",
+    ),
+]
+"""Every shape the environment layer and ``--set`` turn a password into that is not text (measured
+through the real loader), with the type the refusal names and the value it must not echo. A
+boolean's value is a word the envelope itself carries (``false``), so it is not searched for."""
+
+BESIDE_A_TYPED_OTHER_DATABASE = [
+    pytest.param(["--bind-ip", "10.0.0.1", "--database", "{sqlite}"], id="start"),
+    pytest.param(["--database", "{sqlite}", "switch"], id="switch"),
+    pytest.param(["--database", "{sqlite}", "channels", "export", "--output", "{out}"], id="export"),
+    pytest.param(["--database", "{sqlite}", "channels", "import", "{source}"], id="import"),
+]
+"""Every command that opens the database, each with a typed SQLite file that is NOT the configured
+url - the one place a configured password is not used, and so the place a type check made only
+where the password is used would never run."""
+
+
+@pytest.mark.parametrize("command", BESIDE_A_TYPED_OTHER_DATABASE)
+@pytest.mark.parametrize(("environment", "setting", "arrived_as", "value"), NOT_TEXT_PASSWORDS)
+def test_a_password_that_is_not_text_refuses_even_beside_a_typed_database_that_would_not_use_it(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    command: list[str],
+    environment: str | None,
+    setting: list[str],
+    arrived_as: str,
+    value: str | None,
+) -> None:
+    """A malformed password is a mistake in the configuration whatever this command opens: the
+    start and every store verb refuse it (exit 2) by the setting's name and the type it arrived as,
+    run nothing, open nothing, and echo the value in neither stream - exactly as a password that
+    arrived as no value is refused. The import's source file is a valid list, so an import refused
+    for its file could not pass for one refused for the password."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", CONFIGURED_URL)
+    if environment is not None:
+        monkeypatch.setenv(PASSWORD_ENV, environment)
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    typed = [part.format(sqlite=tmp_path / "copy.sqlite", out=tmp_path / "out.json", source=source) for part in command]
+    seen, run = _capture()
+    handed, open_store = _recording_opener(tmp_path)
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *setting, *typed])
+    assert main(run_service=run, open_store=open_store) == 2
+    streams = capsys.readouterr()
+    assert seen == [], "a refused start runs nothing"
+    assert handed == [], "nothing was opened"
+    envelope = json.loads(streams.out)
+    assert envelope["ok"] is False
+    assert f"database.password arrived as {arrived_as}, not as text" in envelope["message"]
+    assert NOT_USED not in streams.err, "refused, not quietly left out"
+    if value is not None:
+        assert value not in streams.out
+        assert value not in streams.err

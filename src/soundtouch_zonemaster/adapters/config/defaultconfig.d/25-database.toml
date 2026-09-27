@@ -36,9 +36,8 @@
 # a SQLite database is refused, because SQLite has none and it would otherwise be ignored.
 # It goes only with the database configured here: a --database typed on the command line that is
 # not exactly this url is opened without it (the PostgreSQL client's own sources still apply), and
-# one line says so. A password that arrived as no value (below) refuses even then, although that
-# --database would not use it; one that arrived as anything but text is left out with that line
-# instead of refused.
+# one line says so. A password that arrived as no value or as anything but text (below) refuses
+# even then, although that --database would not use it.
 # Where to put it on a real machine: the host file (/etc/soundtouch-zonemaster/hosts/<host>.toml,
 # mode 0600, owned by the service's user) or the environment variable below in a 0600 environment
 # file the unit names with EnvironmentFile=. Not in a file anybody else can read, and never in the

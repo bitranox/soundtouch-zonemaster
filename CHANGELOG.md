@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- A `database.password` that arrives as anything but text (a number, a boolean, a list, a table) is
+  now refused (exit 2) even beside a typed `--database` that would not use it, as a password that
+  arrives as no value already was. It used to be left out there with the "not used" line.
+
 ## [0.4.9] 2026-09-27 09:54:21
 
 ### Added
