@@ -42,6 +42,7 @@ __all__ = [
     "Resolution",
     "Stored",
     "checked",
+    "plain_value",
     "resolved",
     "stored",
     "value_of",
@@ -212,6 +213,15 @@ def resolved(base: HousePreferences, rows: Iterable[PreferenceRow]) -> Resolutio
 def value_of(preferences: HousePreferences, name: PreferenceName) -> PreferenceValue:
     """One preference's value off the record, by name."""
     return cast("PreferenceValue", getattr(preferences, _FIELD[name]))
+
+
+def plain_value(value: PreferenceValue) -> float | list[str]:
+    """A preference's value as JSON holds it: a tuple becomes the list it was read as.
+
+    Here rather than beside either command that prints one, so ``prefs`` and ``config`` print a
+    stored console list the same way from one copy of this conversion.
+    """
+    return list(value) if isinstance(value, tuple) else value
 
 
 def _number(name: PreferenceName, value: object) -> float:

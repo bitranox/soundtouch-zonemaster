@@ -53,6 +53,8 @@ if TYPE_CHECKING:
 
     from lib_layered_config import Config
 
+    from ...domain.logfn import LogFn
+
 __all__ = [
     "ChannelPolicyInput",
     "ServiceOptionsInput",
@@ -357,7 +359,9 @@ def _secret_of(value: SecretStr | None) -> Secret | None:
     return Secret(text) if text else None
 
 
-def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: str | None) -> dict[str, Any]:
+def scoped_to_the_configured_database(
+    configured: Mapping[str, Any], *, typed: str | None, narrate: LogFn = log
+) -> dict[str, Any]:
     """The settings, less the configured password when a typed database is not the configured one.
 
     The password in the configuration belongs to the database in the configuration. It goes along
@@ -372,13 +376,14 @@ def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: s
     typed database that would not use it.
 
     The service run and the store verbs both call this, so the two cannot come to disagree about
-    which database a configured password is for.
+    which database a configured password is for. ``narrate`` is where that line goes: ``config``
+    passes one that says nothing, because it prints every setting already and its STDOUT is the view.
     """
     scoped = dict(configured)
     if typed is None or typed == configured.get(_DATABASE_FIELD) or scoped.get(_CREDENTIAL_FIELD) in (None, ""):
         return scoped
     del scoped[_CREDENTIAL_FIELD]
-    log(
+    narrate(
         "config",
         f"the configured {config_path_of(_CREDENTIAL_FIELD)} was not used: the typed --database is not the "
         f"configured {config_path_of(_DATABASE_FIELD)}",
@@ -504,12 +509,13 @@ def no_value_anywhere(missing: Sequence[str]) -> OptionsError:
     return OptionsError(message, exit_code=ExitCode.ERROR)
 
 
-def configured_settings(config: Config) -> dict[str, Any]:
+def configured_settings(config: Config, *, narrate: LogFn = log) -> dict[str, Any]:
     """What the config files said, with a line for anything in our sections that is not a setting.
 
     The record ignores an unknown key either way, which is the right behaviour for a house - a
     stray key must not stop the speakers working - but a misspelled setting that does nothing and
-    says nothing is the kind of thing somebody debugs for an hour.
+    says nothing is the kind of thing somebody debugs for an hour. ``config`` is the exception: it
+    prints the stray key itself, as a key, so it passes a ``narrate`` that says nothing.
 
     Both the service run and the store verbs read the configuration through here, which is what
     makes it the one place a malformed password - no value, or not text - is refused for both,
@@ -517,7 +523,7 @@ def configured_settings(config: Config) -> dict[str, Any]:
     """
     for stray in unknown_settings(config):
         section, _, key = stray.partition(".")
-        log("config", f"ignored: [{section}] has no setting called {key!r}")
+        narrate("config", f"ignored: [{section}] has no setting called {key!r}")
     found = service_settings(config)
     _refuse_a_malformed_password(found)
     return found

@@ -24,6 +24,7 @@ from ....domain.preferences import (
     PreferenceRow,
     PreferenceSource,
     checked,
+    plain_value,
     resolved,
     value_of,
 )
@@ -37,10 +38,10 @@ from ..typed_click import argument
 from .store_cmd import open_store_or_exit
 
 if TYPE_CHECKING:
-    from ....domain.preferences import HousePreferences, PreferenceValue
+    from ....domain.preferences import HousePreferences
     from ..context import Shared
 
-__all__ = ["IgnoredRow", "PrefChange", "PreferenceView", "PrefsReport", "cli_prefs", "plain_value"]
+__all__ = ["IgnoredRow", "PrefChange", "PreferenceView", "PrefsReport", "cli_prefs"]
 
 CONFIGURATION = "configuration"
 """The source a preference has when no stored row decides it."""
@@ -80,15 +81,6 @@ class PrefChange(BaseModel):
     before: PreferenceView
     after: PreferenceView
     note: str
-
-
-def plain_value(value: PreferenceValue) -> Any:
-    """A preference's value as JSON can hold it: a tuple becomes the list it was read as.
-
-    Shared with ``config`` (``adapters/cli/service/config_cmd.py``), so the two commands print a
-    stored console list the same way rather than keeping two copies of this one conversion.
-    """
-    return list(value) if isinstance(value, tuple) else value
 
 
 def _view(name: PreferenceName, layered: HousePreferences, rows: tuple[PreferenceRow, ...]) -> PreferenceView:

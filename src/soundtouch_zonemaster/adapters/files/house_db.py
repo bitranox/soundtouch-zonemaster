@@ -48,7 +48,7 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError, DBAPIError, NoSuchModuleError, SQLAlchemyError
 
-from ...application.errors import StoreBusyError, StoreError
+from ...application.errors import StoreBusyError, StoreError, StoreMissingError
 from ...domain.database_url import carries_a_password, is_a_password_key, masked
 
 if TYPE_CHECKING:
@@ -239,7 +239,7 @@ class HouseDatabase:
         self._lock: _WriterLock | None = None
         self._locked = False
 
-    def open(self, *, exclusive: bool) -> None:
+    def open(self, *, exclusive: bool, create: bool = True) -> None:
         """Connect, take the writer lock when asked, and bring the schema to head. Nothing is held on a refusal.
 
         Building the engine is inside its own guard: an unknown dialect+driver combination raises
@@ -249,7 +249,14 @@ class HouseDatabase:
         is caught only around that step: a broken Alembic migration module is a programming error,
         not a missing driver, and must reach ``report_crash`` with its traceback rather than being
         folded into the same refusal.
+
+        Without ``create``, a SQLite file that is not there is refused as missing BEFORE anything
+        connects, because the first connection is what creates it. A PostgreSQL server never
+        creates a database on connect, so there it changes nothing.
         """
+        if not create and self.url.get_backend_name() == "sqlite" and not Path(str(self.url.database)).exists():
+            message = f"{self.where}: does not exist"
+            raise StoreMissingError(message)
         try:
             self._engine = self._build_engine()
         except (SQLAlchemyError, ImportError) as exc:

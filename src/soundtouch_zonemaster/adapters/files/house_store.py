@@ -56,17 +56,18 @@ class SqlHouseStore:
         self._house: HouseDatabase | None = None
         self._exclusive = False
 
-    def open(self, *, exclusive: bool) -> None:
+    def open(self, *, exclusive: bool, create: bool = True) -> None:
         """Connect, taking the writer lock first when asked. Nothing is left held on a refusal.
 
         Refuses by name when the store is already open, rather than silently replacing the
         connection it holds: every method after it would quietly talk to a different one.
+        ``create=False`` refuses a SQLite file that is not there (:class:`StoreMissingError`).
         """
         if self._house is not None:
             message = f"{self.where}: the house store is already open"
             raise StoreError(message)
         house = HouseDatabase(self.database, password=self._password)
-        house.open(exclusive=exclusive)
+        house.open(exclusive=exclusive, create=create)
         self._house = house
         self._exclusive = exclusive
 

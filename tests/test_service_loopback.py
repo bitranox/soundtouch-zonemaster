@@ -3705,8 +3705,8 @@ class _StoreThatCanFail:
         self.reading_preferences_fails = False
         self.where = real.where
 
-    def open(self, *, exclusive: bool) -> None:
-        self._real.open(exclusive=exclusive)
+    def open(self, *, exclusive: bool, create: bool = True) -> None:
+        self._real.open(exclusive=exclusive, create=create)
 
     def close(self) -> None:
         self._real.close()

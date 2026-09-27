@@ -2,14 +2,20 @@
 
 Only the shaping. Which of the two output modes a command prints, and the envelope it prints in,
 belong to the command; what is here is the part that would otherwise be written twice.
+
+The house database is not a config layer and does not become one here: a preference stored there
+(``prefs``) is laid over the merged view afterwards, by :func:`overlay_preferences`, so the loader
+and ``config-deploy`` never learn it exists.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Any
 
 from ...domain.database_url import masked as masked_database_url
+from ...domain.preferences import PreferenceName, plain_value, stored
 from .errors import ConfigInputError
 from .loader import is_private_file
 from .settings_map import config_path_of
@@ -17,13 +23,31 @@ from .settings_map import config_path_of
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterator, Mapping, Sequence
 
+    from ...domain.preferences import PreferenceRow, Stored
+
 __all__ = [
+    "DATABASE_LAYER",
+    "IGNORED_ROW",
     "flatten",
+    "line_beneath",
+    "mask_database_preferences",
     "mask_database_settings",
     "mask_values_from_layer",
     "mask_values_from_private_files",
+    "overlay_preferences",
+    "shows_a_preference",
     "where",
 ]
+
+DATABASE_LAYER = "database"
+"""The origin a value has when a row in the house database, not a config layer, decides it (``prefs``)."""
+
+IGNORED_ROW = "ignored_database_row"
+"""The provenance entry for a stored row the preference rule refused, kept beside the origin that
+stays in force: the row is shown, never dropped, so the person who wrote it finds out why."""
+
+_PREFERENCES = frozenset(str(name) for name in PreferenceName)
+"""The dotted keys a stored row can decide: the preference names, which are their config paths."""
 
 DATABASE_URL_KEY = config_path_of("database")
 """The one dotted key ``config`` reports whose value can itself be a URL carrying a password."""
@@ -37,12 +61,121 @@ _DATABASE_SECTION = DATABASE_PASSWORD_KEY.partition(".")[0]
 
 
 def where(origin: Mapping[str, Any] | None) -> str:
-    """A value's origin as one readable phrase; a value with none is one nothing claimed."""
+    """A value's origin as one readable phrase; a value with none is one nothing claimed.
+
+    A stored row is named by who set it and when, which is what a person reaching for
+    ``prefs unset`` needs; the file value it overrides is :func:`line_beneath`'s.
+    """
     if origin is None:
         return "unknown"
-    path = origin.get("path")
     layer = origin.get("layer", "unknown")
+    if layer == DATABASE_LAYER:
+        return f"{DATABASE_LAYER} ({origin.get('source')}, {origin.get('changed_at') or 'time not recorded'})"
+    path = origin.get("path")
     return f"{layer}: {path}" if path else str(layer)
+
+
+def line_beneath(key: str, origin: Mapping[str, Any] | None) -> str | None:
+    """The line printed under a value, when the house database has something to say about it.
+
+    Either the file value a stored row overrides - on its own line, so somebody who edited the file
+    and saw nothing change reads why in the same view - or a stored row that was refused, with the
+    text it holds and the reason, while the value above it stays the file's.
+    """
+    if origin is None:
+        return None
+    if origin.get("layer") == DATABASE_LAYER:
+        overridden: Mapping[str, Any] = origin["overrides"]
+        return f"#   overridden: {key} = {json.dumps(overridden['value'])}    # {where(overridden['origin'])}"
+    ignored: Mapping[str, Any] | None = origin.get(IGNORED_ROW)
+    if ignored is None:
+        return None
+    return f"#   ignored in the house database: {key} = {ignored['text']} ({ignored['why']})"
+
+
+def shows_a_preference(values: Sequence[tuple[str, Any]]) -> bool:
+    """Whether a view holds any key a stored row could decide - the only reason to open the database."""
+    return any(key in _PREFERENCES for key, _ in values)
+
+
+def overlay_preferences(
+    values: Sequence[tuple[str, Any]],
+    provenance: Mapping[str, Mapping[str, Any] | None],
+    rows: tuple[PreferenceRow, ...],
+) -> tuple[list[tuple[str, Any]], dict[str, Mapping[str, Any] | None]]:
+    """The same pairs, with every preference a usable stored row decides shown as that row's value.
+
+    A row wins over every layer while it is set (``domain/preferences.py``), so the view shows it
+    as the value, with the layer :data:`DATABASE_LAYER`, and keeps the file value it replaces under
+    ``overrides``. A row the rule refuses decides nothing: the file value and its origin stay, and
+    the row is added beside them under :data:`IGNORED_ROW` with its raw text and the reason. A row
+    under a name that is no preference at all has no key here to belong to, and ``prefs`` lists it.
+
+    Judged by :func:`~soundtouch_zonemaster.domain.preferences.stored`, the one rule the running
+    service applies too, so the view cannot show a row as deciding that the service ignores. The
+    provenance mapping handed in is not changed; every origin written here is a new one.
+    """
+    usable, rejected = stored(rows)
+    decided = {str(name): held for name, held in usable.items()}
+    refused = {row.name: (row, why) for row, why in rejected if row.name in _PREFERENCES}
+    origins: dict[str, Mapping[str, Any] | None] = dict(provenance)
+    shown: list[tuple[str, Any]] = []
+    for key, value in values:
+        held = decided.get(key)
+        if held is not None:
+            origins[key] = _decided_by(held, overriding=value, origin=provenance.get(key))
+            shown.append((key, plain_value(held.value)))
+            continue
+        if key in refused:
+            row, why = refused[key]
+            origins[key] = _with_ignored_row(provenance.get(key), row=row, why=why)
+        shown.append((key, value))
+    return shown, origins
+
+
+def _decided_by(held: Stored, *, overriding: Any, origin: Mapping[str, Any] | None) -> dict[str, Any]:
+    return {
+        "layer": DATABASE_LAYER,
+        "path": None,
+        "source": held.row.source,
+        "changed_at": held.row.changed_at,
+        "overrides": {"value": overriding, "origin": origin},
+    }
+
+
+def _with_ignored_row(origin: Mapping[str, Any] | None, *, row: PreferenceRow, why: str) -> dict[str, Any]:
+    kept: dict[str, Any] = {} if origin is None else dict(origin)
+    kept[IGNORED_ROW] = {"text": row.text, "source": row.source, "changed_at": row.changed_at, "why": why}
+    return kept
+
+
+def mask_database_preferences(
+    values: Sequence[tuple[str, Any]],
+    provenance: Mapping[str, Mapping[str, Any] | None],
+    *,
+    mask: str,
+) -> tuple[list[tuple[str, Any]], dict[str, Mapping[str, Any] | None]]:
+    """The view with everything the house database said replaced by ``mask``, for ``--redact``.
+
+    What the database holds is per-machine in the way a ``.env`` is, so none of it is shown: a
+    value a row decides, the file value it overrides (which can itself have come from a ``.env``),
+    and a refused row's text together with the reason, because the reason quotes the value. New
+    origins are built for the ones masked; the mapping handed in is not changed.
+    """
+    shown = mask_values_from_layer(values, provenance, layer=DATABASE_LAYER, mask=mask)
+    return shown, {key: _masked_origin(origin, mask=mask) for key, origin in provenance.items()}
+
+
+def _masked_origin(origin: Mapping[str, Any] | None, *, mask: str) -> Mapping[str, Any] | None:
+    if origin is None:
+        return None
+    if origin.get("layer") == DATABASE_LAYER:
+        overridden: Mapping[str, Any] = origin["overrides"]
+        return {**origin, "overrides": {**overridden, "value": mask}}
+    ignored: Mapping[str, Any] | None = origin.get(IGNORED_ROW)
+    if ignored is None:
+        return origin
+    return {**origin, IGNORED_ROW: {**ignored, "text": mask, "why": mask}}
 
 
 def mask_database_settings(values: Sequence[tuple[str, Any]], *, mask: str) -> list[tuple[str, Any]]:

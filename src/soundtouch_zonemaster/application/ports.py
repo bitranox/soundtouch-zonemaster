@@ -94,6 +94,10 @@ class HouseStore(Protocol):
     ``open`` comes first and ``close`` last. ``exclusive`` takes the one-writer lock: the service
     and a channel import take it, a switch flip, an export and a preference change do not. Every
     method refuses with ``StoreError`` while the store is not open.
+
+    ``create=False`` refuses a SQLite file that is not there with ``StoreMissingError`` instead of
+    creating it, for a caller that only reads (``config``). A PostgreSQL server never creates a
+    database on connect, so there it changes nothing.
     """
 
     where: str
@@ -101,7 +105,7 @@ class HouseStore(Protocol):
     password. Set once the setting has been read, so it survives ``close()`` and a CLI that
     names the database in its human output does not need its own copy of the masking rule."""
 
-    def open(self, *, exclusive: bool) -> None: ...
+    def open(self, *, exclusive: bool, create: bool = True) -> None: ...
 
     def close(self) -> None: ...
 

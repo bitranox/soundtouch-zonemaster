@@ -31,7 +31,7 @@ from soundtouch_zonemaster.adapters.files.house_db import (
 )
 from soundtouch_zonemaster.adapters.files.house_schema import MEMBER, METADATA
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
-from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
+from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError, StoreMissingError
 from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.secret import Secret
 
@@ -129,6 +129,32 @@ def test_a_directory_that_does_not_exist_is_refused_by_name(tmp_path: Path) -> N
     database = tmp_path / "missing" / "house.sqlite"
     with pytest.raises(StoreError, match=str(database)):
         _opened(str(database))
+
+
+@pytest.mark.parametrize("spelled", ["path", "url"])
+def test_a_database_asked_not_to_be_created_is_refused_as_missing_and_nothing_is_written(
+    tmp_path: Path, spelled: str
+) -> None:
+    """``create=False`` is for a caller that only reads - ``config`` - and must not leave an empty
+    database behind at a mistyped path. Both spellings of a SQLite file are checked: the URL form
+    reaches the same file through SQLAlchemy's own parse, not through the plain-path branch."""
+    missing = tmp_path / "house.sqlite"
+    setting = str(missing) if spelled == "path" else f"sqlite:///{missing}"
+    store = SqlHouseStore(setting, log=_quiet)
+    with pytest.raises(StoreMissingError, match=f"{re.escape(setting)}: does not exist"):
+        store.open(exclusive=False, create=False)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_database_asked_not_to_be_created_opens_when_it_is_there(house_database: str) -> None:
+    """The control: ``create=False`` refuses a missing file, not an existing one."""
+    _opened(house_database).close()
+    store = SqlHouseStore(house_database, log=_quiet)
+    store.open(exclusive=False, create=False)
+    try:
+        assert store.load_preferences() == ()
+    finally:
+        store.close()
 
 
 def test_a_failed_write_leaves_nothing_behind(house_database: str) -> None:

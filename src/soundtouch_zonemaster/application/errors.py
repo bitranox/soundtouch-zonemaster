@@ -23,6 +23,7 @@ __all__ = [
     "RegistryError",
     "StoreBusyError",
     "StoreError",
+    "StoreMissingError",
 ]
 
 
@@ -83,4 +84,13 @@ class StoreBusyError(StoreError):
 
     Its own type because it is the one refusal that is not a fault: stopping the service is the
     whole fix, and a caller has to be able to say that rather than "could not open".
+    """
+
+
+class StoreMissingError(StoreError):
+    """The house database is not there, and the caller asked for it not to be created.
+
+    Its own type because for a caller that only reads - ``config`` - it is not a fault but an
+    answer: nothing is stored in a database that does not exist. Opening would have created an
+    empty one at whatever path was typed, which is the last thing a view should leave behind.
     """

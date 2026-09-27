@@ -1172,3 +1172,225 @@ def test_a_stored_preference_beats_every_layer_it_could_have_come_from(
 
     assert getattr(seen[0], given.field) == given.arrives_as[layer], f"the control: the {layer} value arrived"
     assert any(given.said in line for line in heard), heard
+
+
+# --- `config` names the live source: a preference stored in the house database ----------------
+
+
+def _stored(tmp_path: Path, name: PreferenceName, value: PreferenceValue) -> str:
+    """A house database holding one stored preference, as ``prefs set`` would leave it.
+
+    Written through the store rather than ``prefs set``, which checks the value first: a value out
+    of bounds is how a test gets the row a person edited by hand, and the store takes it as given.
+    """
+    database = str(tmp_path / "db.sqlite")
+    store = SqlHouseStore(database, log=lambda _kind, _text: None)
+    store.open(exclusive=False)
+    try:
+        store.set_preference(name, value, source=PreferenceSource.CLI)
+    finally:
+        store.close()
+    return database
+
+
+def _config_output(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str) -> str:
+    """What the service wrote to STDOUT for ``argv``, requiring the exit code a working view has."""
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv])
+    assert main() == 0
+    return capsys.readouterr().out
+
+
+def _line_and_the_one_beneath(out: str, key: str) -> tuple[str, str]:
+    """The line naming ``key`` and the line printed after it."""
+    lines = [*out.splitlines(), ""]
+    at = next(index for index, line in enumerate(lines) if line.startswith(f"{key} = "))
+    return lines[at], lines[at + 1]
+
+
+def test_config_shows_a_stored_preference_over_the_file_value_it_replaces(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    database = _stored(tmp_path, PreferenceName.WINDOW, 0.7)
+    out = _config_output(monkeypatch, capsys, "--json-bare", "--database", database, "config", "--section", "dialling")
+
+    data = json.loads(out)["data"]
+    assert data["config"]["dialling.window_s"] == 0.7
+    origin = data["provenance"]["dialling.window_s"]
+    assert (origin["layer"], origin["source"], origin["overrides"]["value"]) == ("database", "cli", 0.8)
+    assert origin["changed_at"], "the time the row was set is part of who decided it"
+    assert origin["overrides"]["origin"]["path"].endswith("defaultconfig.d/50-dialling.toml")
+    assert data["provenance"]["dialling.hold_threshold_s"]["layer"] == "defaults", "a key no row holds is left alone"
+    assert data["database_note"] is None
+
+
+def test_a_stored_console_list_is_shown_as_the_list_it_was_typed_as(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The record holds the list as a tuple; the view prints what ``prefs`` prints for it."""
+    database = _stored(tmp_path, PreferenceName.CONSOLES, ("AABBCC0000A5",))
+    out = _config_output(monkeypatch, capsys, "--database", database, "config", "--section", "membership")
+
+    line, _ = _line_and_the_one_beneath(out, "membership.consoles_allowed")
+    assert line.startswith('membership.consoles_allowed = ["AABBCC0000A5"]    # database (cli, '), line
+
+
+def test_the_human_view_says_the_database_decides_and_names_the_file_value_beneath_it(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The design's shape: the row as the value, and the file value it overrides on its own line
+    beneath it, so somebody who edited the file and saw nothing change is told why in one view."""
+    database = _stored(tmp_path, PreferenceName.WINDOW, 0.7)
+    out = _config_output(monkeypatch, capsys, "--database", database, "config", "--section", "dialling")
+
+    line, beneath = _line_and_the_one_beneath(out, "dialling.window_s")
+    assert line.startswith("dialling.window_s = 0.7    # database (cli, "), line
+    assert beneath.startswith("#   overridden: dialling.window_s = 0.8    # defaults: "), beneath
+    assert beneath.endswith("defaultconfig.d/50-dialling.toml"), beneath
+
+
+def test_a_stored_row_the_rule_refuses_is_shown_ignored_with_its_raw_text(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """A row out of bounds (edited by hand, or written by a newer version) does not decide the
+    value - the file does - and it is shown, not dropped, so ``prefs unset`` can be reached for."""
+    database = _stored(tmp_path, PreferenceName.WINDOW, 9.0)
+    argv = ("--database", database, "config", "--section", "dialling")
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", *argv))["data"]
+    human = _config_output(monkeypatch, capsys, *argv)
+
+    assert data["config"]["dialling.window_s"] == 0.8, "the file value stays the value in force"
+    origin = data["provenance"]["dialling.window_s"]
+    assert origin["layer"] == "defaults"
+    ignored = origin["ignored_database_row"]
+    assert (ignored["text"], ignored["source"]) == ("9.0", "cli")
+    assert ignored["why"] == "refused: the dialling window must be between 0.5 and 2.0 s, not 9.0"
+    line, beneath = _line_and_the_one_beneath(human, "dialling.window_s")
+    assert line.startswith("dialling.window_s = 0.8    # defaults: "), line
+    assert beneath == (
+        "#   ignored in the house database: dialling.window_s = 9.0 "
+        "(refused: the dialling window must be between 0.5 and 2.0 s, not 9.0)"
+    )
+
+
+def test_a_database_that_does_not_exist_holds_no_preference_and_is_not_created(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """``config`` is a view: a mistyped ``--database`` must not leave a new, empty database
+    behind (OPEN-WORK rank 201 is that defect in ``switch``)."""
+    missing = tmp_path / "db.sqlite"
+    argv = ("--database", str(missing), "config", "--section", "dialling")
+    human = _config_output(monkeypatch, capsys, *argv)
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", *argv))["data"]
+
+    said = f"no preference is stored: the house database {missing} does not exist"
+    assert f"# {said}" in human.splitlines(), human
+    assert "dialling.window_s = 0.8    # defaults: " in human
+    assert data["database_note"] == said
+    assert [path.name for path in tmp_path.iterdir() if path.name.startswith("db.sqlite")] == []
+
+
+def test_a_database_that_cannot_be_read_costs_config_one_line_and_nothing_else(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """Everything else is printed exactly as without the database, and the exit code is the same.
+
+    The whole view is compared, so the run is moved away from the checkout: its ``.env`` is a layer
+    ``config`` would print, and a failing comparison would print it again."""
+    monkeypatch.chdir(tmp_path)
+    unreadable = tmp_path / "db.sqlite"
+    unreadable.write_bytes(b"this is not a database, it is a sentence " * 100)
+    without = _config_output(monkeypatch, capsys, "config").splitlines()
+    named = _config_output(monkeypatch, capsys, "--database", str(unreadable), "config").splitlines()
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", "--database", str(unreadable), "config"))
+
+    notes = [line for line in named if line.startswith("# the house database was not read (")]
+    assert len(notes) == 1, named
+    assert notes[0].endswith("); a preference set there is not shown"), notes[0]
+    assert [line for line in named if line not in notes] == without
+    assert data["ok"] is True
+    assert data["data"]["database_note"].startswith("the house database was not read (")
+
+
+def test_config_of_a_section_holding_no_preference_never_opens_the_database(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The store is opened only for a view that shows a preference, so ``config --section database``
+    stays a read of the files - and never dials a PostgreSQL server somebody configured.
+
+    The database here cannot be read, so opening it would say so: the control shows it does."""
+    unreadable = tmp_path / "db.sqlite"
+    unreadable.write_bytes(b"this is not a database, it is a sentence " * 100)
+    argv = ("--json-bare", "--database", str(unreadable), "config", "--section")
+    control = json.loads(_config_output(monkeypatch, capsys, *argv, "dialling"))["data"]
+    assert control["database_note"] is not None, "the control: a view with a preference in it opens the database"
+
+    for section in ("zone", "database", "switch"):
+        data = json.loads(_config_output(monkeypatch, capsys, *argv, section))["data"]
+        assert data["database_note"] is None, section
+        human = _config_output(monkeypatch, capsys, *argv[1:], section)
+        assert "house database" not in human, section
+
+
+def test_naming_a_database_adds_nothing_but_the_preference_lines_to_what_config_prints(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """Choosing the database reads the config layers the way the store verbs do, and that read
+    narrates - a misspelled setting, a configured password not sent to a typed database - on
+    STDOUT in the human mode. ``config`` already shows every key, so none of it belongs here.
+
+    The control is ``switch``, the store verb that makes the same choice and says both lines."""
+    empty = str(tmp_path / "db.sqlite")
+    store = SqlHouseStore(empty, log=lambda _kind, _text: None)
+    store.open(exclusive=False)
+    store.close()
+    body = f'[database]\nurl = "{tmp_path}/other.sqlite"\npassword = "example-password"\n[dialling]\nwindwo_s = 1.0\n'
+    _user_config(isolated_config_layers, body)
+    control = _config_output(monkeypatch, capsys, "--database", empty, "switch")
+    assert "has no setting called 'windwo_s'" in control, control
+    assert "was not used" in control, control
+
+    out = _config_output(monkeypatch, capsys, "--database", empty, "config", "--section", "dialling")
+    assert all(line.startswith("dialling.") for line in out.splitlines()), out
+    assert "dialling.windwo_s = 1.0" in out, "the stray key is still shown, as a key"
+
+
+def test_config_with_no_database_named_anywhere_says_nothing_about_one(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path
+) -> None:
+    out = _config_output(monkeypatch, capsys, "config", "--section", "dialling")
+    assert "house database" not in out
+    assert "overridden" not in out
+
+
+def test_redact_masks_a_value_the_database_holds_and_the_value_it_overrides(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """What the house database holds is per-machine, like a ``.env``: ``--redact`` shows none of it."""
+    database = _stored(tmp_path, PreferenceName.WINDOW, 0.7)
+    argv = ("--database", database, "config", "--redact", "--section", "dialling")
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", *argv))["data"]
+    human = _config_output(monkeypatch, capsys, *argv)
+
+    assert data["config"]["dialling.window_s"] == REDACTED_PLACEHOLDER
+    assert data["provenance"]["dialling.window_s"]["overrides"]["value"] == REDACTED_PLACEHOLDER
+    line, beneath = _line_and_the_one_beneath(human, "dialling.window_s")
+    assert "0.7" not in line, line
+    assert beneath.startswith("#   overridden: "), beneath
+    assert "0.8" not in beneath, beneath
+
+
+def test_redact_masks_the_raw_text_of_a_row_the_rule_refused(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The reason quotes the value too (``not -7.5``), so it is masked with the text it explains."""
+    database = _stored(tmp_path, PreferenceName.REWIND, -7.5)
+    argv = ("--database", database, "config", "--redact", "--section", "mpd")
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", *argv))["data"]
+    human = _config_output(monkeypatch, capsys, *argv)
+
+    ignored = data["provenance"]["mpd.rewind_s"]["ignored_database_row"]
+    assert ignored["text"] == REDACTED_PLACEHOLDER
+    assert "7.5" not in json.dumps(data)
+    _, beneath = _line_and_the_one_beneath(human, "mpd.rewind_s")
+    assert beneath.startswith("#   ignored in the house database: mpd.rewind_s = "), beneath
+    assert "7.5" not in human
