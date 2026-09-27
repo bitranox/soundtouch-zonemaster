@@ -8,6 +8,7 @@ is what the master has to survive before a single byte reaches a speaker.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import Self
 
@@ -40,6 +41,8 @@ class _Server:
             )
             await writer.drain()
             writer.close()
+            with contextlib.suppress(OSError):
+                await writer.wait_closed()
 
         self._srv = await asyncio.start_server(handle, "127.0.0.1", 0)
         port = self._srv.sockets[0].getsockname()[1]

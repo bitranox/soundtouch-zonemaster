@@ -12,6 +12,7 @@ things a test has to be able to do to it while it is running.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from pathlib import Path
 
@@ -80,6 +81,8 @@ class FakeRegistry:
         finally:
             self._callers.discard(writer)
             writer.close()
+            with contextlib.suppress(OSError):
+                await writer.wait_closed()
 
     async def _answer_one(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         head = await reader.readuntil(b"\r\n\r\n")

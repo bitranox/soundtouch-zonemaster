@@ -16,6 +16,7 @@ master is bound to a second loopback address, and the file is skipped where the 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import socket
@@ -73,6 +74,8 @@ async def _station_server(payload: bytes) -> tuple[asyncio.AbstractServer, str]:
         await writer.drain()
         await reader.read()
         writer.close()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
 
     server = await asyncio.start_server(handle, SPEAKER, 0)
     port = server.sockets[0].getsockname()[1]

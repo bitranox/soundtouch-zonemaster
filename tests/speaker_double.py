@@ -19,6 +19,7 @@ avoids, and the substitution keeps every other attribute exactly as the speaker 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import time
 from pathlib import Path
@@ -391,6 +392,8 @@ class FakeSpeaker:
         finally:
             self._callers.discard(writer)
             writer.close()
+            with contextlib.suppress(OSError):
+                await writer.wait_closed()
 
     async def _answer_one(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         head = await reader.readuntil(b"\r\n\r\n")

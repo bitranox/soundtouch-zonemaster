@@ -180,6 +180,8 @@ async def _station(
         with contextlib.suppress(OSError):
             await reader.read()
         writer.close()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
 
     server = await asyncio.start_server(handle, MASTER, 0)
     return server, f"http://{MASTER}:{server.sockets[0].getsockname()[1]}/live"
@@ -1364,6 +1366,8 @@ async def test_a_key_a_member_forwards_is_read_as_the_box_that_pressed_it(world:
         writer.write(f"POST /slaveMsg HTTP/1.1\r\nHost: x\r\nContent-Length: {len(body)}\r\n\r\n{body}".encode())
         assert b"<status>/slaveMsg</status>" in await asyncio.wait_for(reader.read(), 5.0)
         writer.close()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
 
         await eventually(
             lambda: any(line.startswith("key") and "Bose Studio" in line for line in logs),
@@ -1723,6 +1727,8 @@ async def _forward_key(from_ip: str, key: str, state: str) -> None:
     writer.write(f"POST /slaveMsg HTTP/1.1\r\nHost: x\r\nContent-Length: {len(body)}\r\n\r\n{body}".encode())
     assert b"<status>/slaveMsg</status>" in await asyncio.wait_for(reader.read(), 5.0)
     writer.close()
+    with contextlib.suppress(OSError):
+        await writer.wait_closed()
 
 
 async def _tap_key(from_ip: str, key: str) -> None:

@@ -19,6 +19,7 @@ that swallows what it must not is invisible until the day it matters.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 from typing import TYPE_CHECKING
 
@@ -77,6 +78,8 @@ async def _station_server(payload: bytes) -> tuple[asyncio.AbstractServer, str]:
         writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: audio/mpeg\r\n\r\n" + payload)
         await writer.drain()
         writer.close()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
 
     server = await asyncio.start_server(handle, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]

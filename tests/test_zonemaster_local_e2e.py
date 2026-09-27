@@ -63,6 +63,8 @@ async def _station_server(payload: bytes, first_byte_delay: float = 0.0) -> tupl
         with contextlib.suppress(OSError):
             await reader.read()
         writer.close()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
 
     srv = await asyncio.start_server(handle, BIND, 0)
     port = srv.sockets[0].getsockname()[1]
@@ -76,6 +78,8 @@ async def _headers_then_silence(reader: asyncio.StreamReader, writer: asyncio.St
     await writer.drain()
     await asyncio.sleep(30)
     writer.close()
+    with contextlib.suppress(OSError):
+        await writer.wait_closed()
 
 
 @pytest.fixture

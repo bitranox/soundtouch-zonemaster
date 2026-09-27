@@ -315,6 +315,8 @@ async def _not_an_mpd() -> tuple[asyncio.AbstractServer, int]:
         writer.write(b"220 smtp ready\n")
         await writer.drain()
         writer.close()
+        with contextlib.suppress(OSError):
+            await writer.wait_closed()
 
     server = await asyncio.start_server(greet, HOST, 0)
     return server, int(server.sockets[0].getsockname()[1])
