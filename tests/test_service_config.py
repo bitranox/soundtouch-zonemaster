@@ -771,26 +771,52 @@ def test_config_always_masks_the_database_password(
     assert "TOPSECRET" not in captured.err
 
 
-def _stray_key_in_a_user_file(spelling: str) -> Callable[[pytest.MonkeyPatch, Path], str]:
-    def write(_monkeypatch: pytest.MonkeyPatch, root: Path) -> str:
+def _stray_key_in_a_user_file(spelling: str) -> Callable[[pytest.MonkeyPatch, Path], tuple[str, list[str]]]:
+    def write(_monkeypatch: pytest.MonkeyPatch, root: Path) -> tuple[str, list[str]]:
         _user_config(root, f'[database]\n{spelling} = "TOPSECRET"\n')
-        return spelling
+        return spelling, []
 
     return write
 
 
-def _stray_key_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> str:
+def _stray_key_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> tuple[str, list[str]]:
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWROD", "TOPSECRET")
-    return "passwrod"
+    return "passwrod", []
 
 
-def _password_as_a_table_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> str:
+def _password_as_a_table_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> tuple[str, list[str]]:
     """The environment layer reads a value opening with ``{`` as a JSON object, so the password
     setting itself becomes a table whose leaves are keys the exact-key mask never names. What is
     listed is ``database.password.inner``, or ``database.password`` whole where ``--redact``'s own
     by-name mask got there first; the control reads the prefix both share."""
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWORD", '{"inner": "TOPSECRET"}')
-    return "password"
+    return "password", []
+
+
+URL_WITH_A_PASSWORD = "postgresql+psycopg://zm:TOPSECRET@db.example/zm"
+"""A database URL carrying a password: masked whole when it is text, by the url's own rule."""
+
+
+def _url_as_an_array_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> tuple[str, list[str]]:
+    """The environment layer reads a value opening with ``[`` as a JSON array, so the url setting
+    arrives as a list: a leaf the url rule, which reads text, would pass through unread."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", f'["{URL_WITH_A_PASSWORD}"]')
+    return "url", []
+
+
+def _url_as_a_table_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> tuple[str, list[str]]:
+    """A value opening with ``{`` makes the url setting a table; its leaf is ``database.url.inner``."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", f'{{"inner": "{URL_WITH_A_PASSWORD}"}}')
+    return "url", []
+
+
+def _url_as_an_array_in_a_user_file(_monkeypatch: pytest.MonkeyPatch, root: Path) -> tuple[str, list[str]]:
+    _user_config(root, f'[database]\nurl = ["{URL_WITH_A_PASSWORD}"]\n')
+    return "url", []
+
+
+def _url_as_an_array_in_a_set_override(_monkeypatch: pytest.MonkeyPatch, _root: Path) -> tuple[str, list[str]]:
+    return "url", ["--set", f'database.url=["{URL_WITH_A_PASSWORD}"]']
 
 
 @pytest.mark.parametrize(
@@ -800,6 +826,10 @@ def _password_as_a_table_in_the_environment(monkeypatch: pytest.MonkeyPatch, _ro
         pytest.param(_stray_key_in_a_user_file("Password"), id="file-mixed-case"),
         pytest.param(_stray_key_in_the_environment, id="env-misspelled"),
         pytest.param(_password_as_a_table_in_the_environment, id="env-table"),
+        pytest.param(_url_as_an_array_in_the_environment, id="env-url-array"),
+        pytest.param(_url_as_a_table_in_the_environment, id="env-url-table"),
+        pytest.param(_url_as_an_array_in_a_user_file, id="file-url-array"),
+        pytest.param(_url_as_an_array_in_a_set_override, id="set-url-array"),
     ],
 )
 @pytest.mark.parametrize("mode", [["--json-bare"], ["--json"], []], ids=["json-bare", "json", "human"])
@@ -809,21 +839,24 @@ def test_config_masks_every_database_key_but_the_url(
     capsys: pytest.CaptureFixture[str],
     isolated_config_layers: Path,
     *,
-    source: Callable[[pytest.MonkeyPatch, Path], str],
+    source: Callable[[pytest.MonkeyPatch, Path], tuple[str, list[str]]],
     mode: list[str],
     redact: list[str],
 ) -> None:
     """A key under ``[database]`` that is not a setting is almost certainly a password somebody
     misspelled, so its value is masked like the password's own, in every output mode and with or
-    without ``--redact``. The key itself is still listed: the control that the view read it."""
-    key = source(monkeypatch, isolated_config_layers)
+    without ``--redact``. The url keeps its own rule only while it is text: a url that arrived as
+    a list or a table is not a URL, and is masked whole rather than printed as it came. The key
+    itself is still listed: the control that the view read it."""
+    key, overrides = source(monkeypatch, isolated_config_layers)
     monkeypatch.setattr(
-        "sys.argv", ["soundtouch-zonemaster-service", *mode, "config", "--section", "database", *redact]
+        "sys.argv",
+        ["soundtouch-zonemaster-service", *mode, *overrides, "config", "--section", "database", *redact],
     )
 
     assert main() == 0
     captured = capsys.readouterr()
-    assert f"database.{key}" in captured.out, "the control: the stray key is listed"
+    assert f"database.{key}" in captured.out, "the control: the key is listed"
     assert "TOPSECRET" not in captured.out
     assert "TOPSECRET" not in captured.err
 

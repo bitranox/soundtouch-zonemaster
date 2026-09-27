@@ -61,11 +61,17 @@ def mask_database_settings(values: Sequence[tuple[str, Any]], *, mask: str) -> l
     case. The section holds two settings, so a third key there is almost certainly the password
     under a name nobody spelled right (``passwrod``, ``Password``), or the password setting read
     as a table, whose leaves carry names of their own. The exact key would miss every one of them.
+
+    The url's own rule reads text, so it holds only while the url IS text. The environment layer
+    reads a value opening with ``[`` as a JSON array (``--set`` and a TOML array do the same), and
+    a URL carrying a password inside a list would otherwise be shown as it came; a url that is not
+    text is not a URL, so it is masked whole. One that arrived as a table is walked into leaves
+    under ``database.url.``, which the section rule already masks.
     """
 
     def hidden(key: str, value: Any) -> Any:
         if key == DATABASE_URL_KEY:
-            return masked_database_url(value) if isinstance(value, str) else value
+            return masked_database_url(value) if isinstance(value, str) else mask
         section, dot, _ = key.partition(".")
         if dot and section.lower() == _DATABASE_SECTION:
             return mask
