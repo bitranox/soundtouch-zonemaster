@@ -18,7 +18,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import QueuePool
 
-from soundtouch_zonemaster.adapters.config.settings_map import config_path_of
+from soundtouch_zonemaster.adapters.config.settings_map import SETTINGS
 from soundtouch_zonemaster.adapters.files import house_db
 from soundtouch_zonemaster.adapters.files.house_db import (
     MIGRATIONS,
@@ -522,10 +522,12 @@ def _database_settings_named_in(source: str) -> list[str]:
     ]
 
 
-def test_every_password_setting_the_store_names_is_the_one_the_settings_map_reads() -> None:
-    """``adapters/files`` may not import the config adapter, so the store spells the setting out in
-    its refusals and its docstring. Each such spelling is read from the module's own text, so one
-    added later is held to the settings map without this test being edited."""
+def test_every_database_setting_the_store_names_is_one_the_settings_map_reads() -> None:
+    """``adapters/files`` may not import the config adapter, so the store spells the settings out in
+    its refusals and its docstring. Each such spelling is read from the module's own text and held
+    to the config paths the settings map actually reads, so a misspelling fails while a correct
+    mention of another setting of the section (``database.url``) passes, and one added later is
+    covered without this test being edited."""
     named = _database_settings_named_in(Path(house_db.__file__).read_text(encoding="utf-8"))
-    assert named, "the control: the store names the setting somewhere"
-    assert set(named) == {config_path_of("database_password")}
+    assert named, "the control: the store names a setting somewhere"
+    assert set(named) <= set(SETTINGS), f"not a setting the service reads: {sorted(set(named) - set(SETTINGS))}"
