@@ -35,13 +35,14 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy; every default lives on a field
 - `src/soundtouch_zonemaster/application/ports.py`  -  Protocols for adapter functions plus HouseStore (the state, the channel list and the switch in one database - a SQLite file, or PostgreSQL) and OpenHouseStore (its opener), bundled as ZoneServicePorts, PrototypePorts and ServiceCommands
 - `src/soundtouch_zonemaster/application/prototype.py`  -  The prototype's run: options in, the run loop it drives
-- `src/soundtouch_zonemaster/application/zone_service/`  -  The service loop as a chain of eight classes, one file each:
+- `src/soundtouch_zonemaster/application/zone_service/`  -  The service loop as a chain of nine classes, one file each:
   - `constants.py`  -  The constants more than one class in the chain reads
   - `state.py`  -  ServiceState (the pass state)
   - `channels.py`  -  ChannelBook (sources, the ring, the fetch loops)
   - `speakers.py`  -  SpeakerBook (records, observers, the speaker transport book)
   - `volume.py`  -  VolumeGuard (the fade-in guard around a join)
   - `zone.py`  -  ZoneReconcile (take in, let go, put back what the zone left behind)
+  - `preferences.py`  -  PreferenceBook (the stored preferences laid over the options, and what the log says of them)
   - `dialling.py`  -  Dialling (digit buffers, the wait ladder, the calibrated window)
   - `keys.py`  -  KeyReading (presses, long presses, calibrations)
   - `service.py`  -  ZoneService (the pass itself: poll, observe, reconcile, guard the switch)

@@ -1,6 +1,6 @@
 """The service itself: what has to be true before the first event, and the workers after it.
 
-The top of the chain, and the smallest class in it. Holding a house is five workers over the seven
+The top of the chain, and the smallest class in it. Holding a house is five workers over the eight
 classes below, so what is left here is starting them and the order of the start-up - which is not
 arbitrary at any step: the state comes back before any volume is put back and the registry before
 it again, because a level is remembered against a device id and only the registry says where that

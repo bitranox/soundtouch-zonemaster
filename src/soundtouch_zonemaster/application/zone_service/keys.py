@@ -1,6 +1,6 @@
 """The one event stream, read in one place: a frame a box sent, or a key a member forwarded.
 
-Seventh in the chain, and the only class allowed to be slow at nothing. A pass can sit ten seconds
+Eighth in the chain, and the only class allowed to be slow at nothing. A pass can sit ten seconds
 inside a station's first bytes, and an event read only afterwards is a decision made on a house
 that has since changed its mind - so everything here writes something down and asks for a pass,
 and nothing here talks to a speaker.

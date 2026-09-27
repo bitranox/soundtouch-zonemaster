@@ -1,12 +1,13 @@
 """What one running service is: every field it holds, and the store it writes them to.
 
-The bottom of the chain. ``ZoneService`` was one class of sixty-one methods, and it is eight
+The bottom of the chain. ``ZoneService`` was one class of sixty-one methods, and it is nine
 classes now, each extending the one before it - so this is where the constructor lives, together
-with the one helper it calls, because between them they create every field the seven above read.
+with the one helper it calls, because between them they create every field the eight above read.
 
 The chain's rule is that a method may call only methods of its own class or of an earlier one, so
 reading it from here upwards is reading it in dependency order: the state, the channel list, the
-speakers, the volumes, the zone, the dialling, the keys, and the run that starts them.
+speakers, the volumes, the zone, the preferences, the dialling, the keys, and the run that starts
+them.
 
 The one thing here that is not a field is the saved STATE, which is written from a single place
 on purpose: membership changes and a dialled channel both land in it, and a writer per caller
@@ -244,7 +245,7 @@ class ServiceState:
 
         One group because they are one subject: what the service runs on, which stored rows decided
         it, and what has already been said about them. The rows are laid over at start
-        (``Dialling._take_the_preferences``), which is also where each one is first said.
+        (``PreferenceBook._take_the_preferences``), which is also where each one is first said.
         """
         self._preferences = options.preferences
         """The five preferences the service is using: the options, with the house database's rows laid over them."""
