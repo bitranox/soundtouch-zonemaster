@@ -345,6 +345,11 @@ def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: s
     libpq's own ``~/.pgpass``, ``PGPASSFILE`` and ``PGPASSWORD`` still apply to it. One line says
     so, naming the setting and neither the password nor the typed database.
 
+    The two malformed passwords are not treated alike here. One that arrived as no value is refused
+    before this runs (:func:`configured_settings`), so it refuses even beside a typed database that
+    would not use it; one that arrived as anything but text is refused only where it is read, so
+    beside a typed other database it is left out like any other, with the same line.
+
     The service run and the store verbs both call this, so the two cannot come to disagree about
     which database a configured password is for.
     """
