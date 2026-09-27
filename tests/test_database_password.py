@@ -277,6 +277,9 @@ def _refuses_a_password_that_arrived_as_no_value(envelope: dict[str, object], sp
     assert envelope["ok"] is False
     assert "database.password" in message
     assert "no value" in message
+    assert "unset the variable (or drop the --set) for no password, or give the password in a config file" in message, (
+        "the two ways out, as alternatives"
+    )
     assert spelling not in message, "the value is not echoed"
 
 

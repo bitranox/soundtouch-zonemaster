@@ -314,7 +314,7 @@ def _refuse_a_password_that_arrived_as_no_value(configured: Mapping[str, Any]) -
         return
     message = (
         f"refused: {config_path_of(field)} arrived as no value, which is not the same as no password; "
-        "for no password unset the variable (or drop the --set), and give a password in a config file"
+        "unset the variable (or drop the --set) for no password, or give the password in a config file"
     )
     raise OptionsError(message, exit_code=ExitCode.ERROR)
 
