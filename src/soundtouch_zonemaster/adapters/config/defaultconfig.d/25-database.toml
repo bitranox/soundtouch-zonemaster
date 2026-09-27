@@ -35,8 +35,10 @@
 # URL. `config` always shows it masked, with or without --redact; no envelope and no log line
 # carries it.
 # Write it as a quoted string. The environment layer reads a value of digits as a number, true or
-# false as a boolean and null as no value at all; a password that arrives as anything but text is
-# refused rather than changed, so give such a password in a file, or with
-# --set database.password='"0123"'.
+# false as a boolean, and null or none (in any case) as no value; a password that arrives as
+# anything but text is refused rather than changed, so give such a password in a file, or with
+# --set database.password='"0123"'. A password that arrives as no value (that environment spelling,
+# or --set database.password=null) refuses the start too, rather than quietly meaning no password:
+# for no password leave the variable unset or empty.
 #   env: SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD
 # password = "..."

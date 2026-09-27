@@ -271,6 +271,26 @@ def password_text_or_refuse(value: object) -> str | None:
     raise OptionsError(message, exit_code=ExitCode.REFUSED)
 
 
+def _refuse_a_password_that_arrived_as_no_value(configured: Mapping[str, Any]) -> None:
+    """Refuse (exit 2) a password setting that is PRESENT but holds no value at all.
+
+    The environment layer reads ``null`` and ``none``, in any case, as no value, and ``--set``
+    reads the JSON ``null`` the same way. Passed on, that would mean "no password" while somebody
+    plainly wrote one, and ``config`` would still list the setting as coming from the environment.
+    A setting that is absent, or empty text, stays "no password": only the mapping can tell
+    absent from present-but-nothing, which is why this reads the mapping rather than the value.
+    The refusal names the setting, never what was written.
+    """
+    field = "database_password"
+    if field not in configured or configured[field] is not None:
+        return
+    message = (
+        f"refused: {config_path_of(field)} arrived as no value, which is not the same as no password; "
+        "for no password unset the variable (or drop the --set), and give a password in a config file"
+    )
+    raise OptionsError(message, exit_code=ExitCode.ERROR)
+
+
 def _secret_of(value: SecretStr | None) -> Secret | None:
     """The parsed password as the domain's secret; an empty one is none."""
     if value is None:
@@ -377,8 +397,13 @@ def configured_settings(config: Config) -> dict[str, Any]:
     The record ignores an unknown key either way, which is the right behaviour for a house - a
     stray key must not stop the speakers working - but a misspelled setting that does nothing and
     says nothing is the kind of thing somebody debugs for an hour.
+
+    Both the service run and the store verbs read the configuration through here, which is what
+    makes it the one place a password that arrived as no value is refused for both.
     """
     for stray in unknown_settings(config):
         section, _, key = stray.partition(".")
         log("config", f"ignored: [{section}] has no setting called {key!r}")
-    return service_settings(config)
+    found = service_settings(config)
+    _refuse_a_password_that_arrived_as_no_value(found)
+    return found

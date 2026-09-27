@@ -7,6 +7,7 @@ so what is asserted is the whole way from a file, a variable or a ``--set`` into
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -225,3 +226,83 @@ def test_a_refused_password_type_is_reported_without_its_value(
     assert "database.password" in captured.out
     assert digits not in captured.out
     assert digits not in captured.err
+
+
+NO_VALUE_SPELLINGS = ["null", "NULL", "Null", "none", "None", "NONE"]
+"""Every spelling the environment layer turns into no value at all: it lowercases the text and
+compares it with ``null`` and ``none`` (measured on lib_layered_config's env adapter). A ``.env``
+reads every one of them as text, and ``--set`` reads only the JSON ``null`` that way."""
+
+
+def _refused_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
+) -> dict[str, object]:
+    """One service start expected to be refused before anything runs; its envelope."""
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *argv])
+    assert main(run_service=run) == 2
+    assert seen == [], "a refused start runs nothing"
+    return json.loads(capsys.readouterr().out)
+
+
+def _refuses_a_password_that_arrived_as_no_value(envelope: dict[str, object], spelling: str) -> None:
+    message = str(envelope["message"])
+    assert envelope["ok"] is False
+    assert "database.password" in message
+    assert "no value" in message
+    assert spelling not in message, "the value is not echoed"
+
+
+@pytest.mark.parametrize("spelling", NO_VALUE_SPELLINGS)
+def test_a_password_the_environment_read_as_no_value_refuses_the_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path, spelling: str
+) -> None:
+    """``PASSWORD=none`` must not quietly mean "no password": somebody wrote a value, and the
+    service would otherwise run as if they had written nothing."""
+    monkeypatch.setenv(PASSWORD_ENV, spelling)
+    envelope = _refused_start(monkeypatch, capsys, "--bind-ip", "10.0.0.1", "--database", str(tmp_path / "z.sqlite"))
+    _refuses_a_password_that_arrived_as_no_value(envelope, spelling)
+
+
+def test_a_password_set_to_json_null_refuses_the_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    envelope = _refused_start(
+        monkeypatch,
+        capsys,
+        "--set",
+        "database.password=null",
+        "--bind-ip",
+        "10.0.0.1",
+        "--database",
+        str(tmp_path / "z.sqlite"),
+    )
+    _refuses_a_password_that_arrived_as_no_value(envelope, "null")
+
+
+@pytest.mark.parametrize("verb", [["switch"], ["channels", "export", "--output", "{out}"]], ids=["switch", "export"])
+@pytest.mark.parametrize("spelling", ["null", "None"])
+def test_a_password_read_as_no_value_refuses_the_store_verbs(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    verb: list[str],
+    spelling: str,
+) -> None:
+    """The store verbs read the password through the same boundary as the run, so they refuse it
+    the same way, and open nothing."""
+    database = tmp_path / "z.sqlite"
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(database))
+    monkeypatch.setenv(PASSWORD_ENV, spelling)
+    argv = [part.format(out=tmp_path / "out.json") for part in verb]
+    envelope = _refused_start(monkeypatch, capsys, *argv)
+    _refuses_a_password_that_arrived_as_no_value(envelope, spelling)
+    assert not database.exists(), "nothing was opened"
+
+
+def test_an_empty_password_in_the_environment_is_no_password(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Empty text is not no value: it reaches the boundary as ``""`` and means "no password", so
+    libpq's own ``~/.pgpass``, ``PGPASSFILE`` and ``PGPASSWORD`` still apply."""
+    monkeypatch.setenv(PASSWORD_ENV, "")
+    assert _run_with(monkeypatch, tmp_path).database_password is None
