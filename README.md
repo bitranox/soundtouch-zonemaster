@@ -189,13 +189,15 @@ host file (mode 0600, owned by the service's user) or in a 0600 environment file
 names with `EnvironmentFile=`. There is no command-line option for it, since a command line is
 visible to every user of the machine; `--set database.password=...` overrides it for one run and
 is just as visible, so it suits a test rather than a deployment.
-`config` always shows it masked, with or without `--redact`. Left empty, nothing is passed to the
-driver and the PostgreSQL client finds the password itself in `~/.pgpass`, the file `PGPASSFILE`
-names, or `PGPASSWORD`. A password given for a SQLite database is refused. The configured password
-goes only with the configured database: a `--database` typed on the command line that is not exactly
-`[database] url` is opened without it (the PostgreSQL client's own sources still apply), and one
-line says so, so a SQLite copy or another server can be named for one command without that
-server's password following it there.
+`config` always shows it masked, with or without `--redact`, and every other key under `[database]`
+but `url` too, since a stray key there is most likely the password misspelled. Left empty, nothing
+is passed to the driver and the PostgreSQL client finds the password itself in `~/.pgpass`, the
+file `PGPASSFILE` names, or `PGPASSWORD`. A password given for a SQLite database is refused.
+
+The configured password goes only with the configured database: a `--database` typed on the command
+line that is not exactly `[database] url` is opened without it (the PostgreSQL client's own sources
+still apply), and one line says so. A SQLite copy or another server can then be named for one
+command without the configured server's password following it there.
 
 The three files under `[files]` (the channel list, the switch and the state) are one-time import
 sources only: on the first start after an upgrade, each is read once into whichever part of the

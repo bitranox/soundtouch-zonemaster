@@ -252,7 +252,8 @@ refuses the start; an old file that exists but cannot be parsed refuses the star
 file, at the one-time import.
 
 **config**: every value, and the file it came from (`--section`, `--json`, `--redact`).
-`database.password` is always shown masked, with or without `--redact`.
+`database.password` is always shown masked, with or without `--redact`, and so is every other key
+under `[database]` but `url` (a stray key there is most likely the password misspelled).
 Note: a calibrated `dial_window_s` is written to the database's `zone` row and beats every config
 layer; `config` does not report that, the run's `--json` envelope does.
 
