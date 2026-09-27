@@ -33,8 +33,10 @@ __all__ = [
     "FADE_CEILING_S",
     "FADE_DEFAULT_S",
     "FADE_FLOOR_S",
+    "SHOWN_LIMIT",
     "HousePreferences",
     "PreferenceName",
+    "PreferenceNotJsonError",
     "PreferenceRefusedError",
     "PreferenceRow",
     "PreferenceSource",
@@ -42,8 +44,11 @@ __all__ = [
     "Resolution",
     "Stored",
     "checked",
+    "decoded",
     "plain_value",
+    "quoted",
     "resolved",
+    "shown",
     "stored",
     "value_of",
 ]
@@ -82,6 +87,10 @@ class PreferenceSource(StrEnum):
     CALIBRATION = "calibration"
     CLI = "cli"
     APP = "app"
+
+
+class PreferenceNotJsonError(ValueError):
+    """Text the JSON decoder could not turn into a value, whatever it raised to say so."""
 
 
 class PreferenceRefusedError(ValueError):
@@ -171,6 +180,23 @@ def checked(name: PreferenceName, value: object) -> PreferenceValue:
     return number
 
 
+def decoded(text: str) -> object:
+    """``text`` read as JSON, or :class:`PreferenceNotJsonError`.
+
+    ``json.loads`` says "this is not JSON" three ways, not one: ``JSONDecodeError`` for a syntax
+    error, a plain ``ValueError`` for an integer literal past Python's 4300-digit conversion limit,
+    and ``RecursionError`` for nesting deeper than the interpreter's stack. The first alone is what
+    a caller would think to catch, and the other two then raised through ``stored`` - which
+    promises never to - and through ``prefs set``. Collected here, so every reader of a stored or
+    typed value refuses all three the same way.
+    """
+    try:
+        return json.loads(text)
+    except (ValueError, RecursionError) as exc:
+        message = f"not JSON: {shown(text)}"
+        raise PreferenceNotJsonError(message) from exc
+
+
 def stored(
     rows: Iterable[PreferenceRow],
 ) -> tuple[dict[PreferenceName, Stored], tuple[tuple[PreferenceRow, str], ...]]:
@@ -185,13 +211,15 @@ def stored(
         try:
             name = PreferenceName(row.name)
         except ValueError:
-            rejected.append((row, f"{row.name!r} is not a preference"))
+            rejected.append((row, f"{quoted(row.name)} is not a preference"))
             continue
         try:
-            value = checked(name, json.loads(row.text))
-        except json.JSONDecodeError:
+            text = decoded(row.text)
+        except PreferenceNotJsonError:
             rejected.append((row, "not JSON"))
             continue
+        try:
+            value = checked(name, text)
         except PreferenceRefusedError as exc:
             rejected.append((row, str(exc)))
             continue
@@ -208,6 +236,28 @@ def resolved(base: HousePreferences, rows: Iterable[PreferenceRow]) -> Resolutio
         set_by={name: held.row for name, held in usable.items()},
         rejected=rejected,
     )
+
+
+SHOWN_LIMIT = 80
+"""How much of a raw value a message or a line quotes before cutting it short.
+
+A stored row is whatever somebody typed into the database, so its text can be a megabyte or span
+lines; quoted whole, one such row floods the journal or a terminal. Eighty characters is enough to
+recognise a value by, and the JSON outputs keep the text whole for anyone who needs all of it."""
+
+
+def shown(text: str) -> str:
+    """At most :data:`SHOWN_LIMIT` characters of ``text``, escaped onto one line, marked when cut.
+
+    For a raw value quoted in a line a person reads. ``repr`` is what escapes a newline or a control
+    character; its quotes are dropped so a short value reads exactly as it is stored.
+    """
+    return repr(text[:SHOWN_LIMIT])[1:-1] + ("..." if len(text) > SHOWN_LIMIT else "")
+
+
+def quoted(text: str) -> str:
+    """``text`` quoted as ``repr`` quotes it, cut short as :func:`shown` cuts it."""
+    return repr(text[:SHOWN_LIMIT]) + ("..." if len(text) > SHOWN_LIMIT else "")
 
 
 def value_of(preferences: HousePreferences, name: PreferenceName) -> PreferenceValue:
@@ -235,11 +285,19 @@ def _number(name: PreferenceName, value: object) -> float:
     audiobook would restart from the beginning on every resume. One check here closes that for
     the whole shape: no numeric preference can ever hold a value nothing finite can be measured
     against.
+
+    An integer too large for a float is refused here too: JSON has no size limit on a number, so a
+    hand-edited ``1`` followed by 400 zeros decodes to an ``int`` and ``float()`` raises
+    ``OverflowError`` on it. The message does not repeat the digits.
     """
     if isinstance(value, bool) or not isinstance(value, int | float):
         message = f"refused: {name} must be a number, not {type(value).__name__}"
         raise PreferenceRefusedError(message)
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        message = f"refused: {name} is too large to be a number of seconds"
+        raise PreferenceRefusedError(message) from None
     if not math.isfinite(number):
         message = f"refused: {name} must be finite, not {number}"
         raise PreferenceRefusedError(message)
@@ -254,7 +312,10 @@ def _device_ids(name: PreferenceName, value: object) -> tuple[str, ...]:
     ids: list[str] = []
     for item in cast("list[object] | tuple[object, ...]", value):
         if not isinstance(item, str) or not DEVICE_ID.fullmatch(item):
-            message = f"refused: {name} holds {item!r}, which is not a device id (12 hex digits)"
+            # Only a string is quoted: anything else decoded from a stored row (a nested list, say)
+            # can be megabytes, and repr() would build all of it before any cut.
+            said = quoted(item) if isinstance(item, str) else f"something of type {type(item).__name__}"
+            message = f"refused: {name} holds {said}, which is not a device id (12 upper-case hex digits)"
             raise PreferenceRefusedError(message)
         ids.append(item)
     return tuple(ids)

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import sqlite3
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -36,6 +38,26 @@ def _stored(database: str) -> list[tuple[str, str]]:
         return [(row.name, row.text) for row in store.load_preferences()]
     finally:
         store.close()
+
+
+HUGE_INTEGER = "1" + "0" * 400
+"""JSON for an integer no float can hold: ``float()`` raises OverflowError on it."""
+
+TOO_MANY_DIGITS = "1" * 5000
+"""An integer literal past Python's 4300-digit conversion limit: ``json.loads`` raises ValueError."""
+
+
+def _stored_by_hand(database: str, name: str, text: str) -> None:
+    """A row written straight into the table, as somebody editing the database by hand leaves it.
+
+    The store is opened first so the table exists at the current schema; the row then bypasses
+    every check, which ``prefs set`` and the store's own writes would apply.
+    """
+    store = SqlHouseStore(database, log=lambda _k, _t: None)
+    store.open(exclusive=False)
+    store.close()
+    with contextlib.closing(sqlite3.connect(database)) as raw, raw:
+        raw.execute("INSERT INTO preference VALUES (?, ?, 'cli', '')", (name, text))
 
 
 def test_prefs_lists_all_five_from_the_configuration_on_a_new_database(
@@ -95,6 +117,12 @@ def test_a_list_is_written_as_json(
         (("set", "zone.bind_ip", '"1.2.3.4"'), 2, "refused: zone.bind_ip is not a preference; set it in a config file"),
         (("set", "dialling.speed", "1"), 2, "refused: no preference called 'dialling.speed'"),
         (("set", "dialling.window_s", "fast"), 2, "refused: 'fast' is not JSON"),
+        (
+            ("set", "dialling.window_s", HUGE_INTEGER),
+            1,
+            "refused: dialling.window_s is too large to be a number of seconds",
+        ),
+        (("set", "dialling.window_s", TOO_MANY_DIGITS), 2, f"refused: '{'1' * 80}'... is not JSON"),
         (("unset", "dialling.speed"), 2, "refused: no preference called 'dialling.speed'"),
     ],
 )
@@ -113,6 +141,7 @@ def test_a_refused_change_writes_nothing_and_says_why(
     envelope = _envelope(capsys)
     assert envelope["ok"] is False
     assert str(envelope["message"]).startswith(message)
+    assert len(str(envelope["message"])) < 300, "a refusal quotes a typed value cut short, never whole"
     assert not (tmp_path / "db.sqlite").exists() or _stored(database) == []
 
 
@@ -139,3 +168,58 @@ def test_the_human_listing_names_each_source(
     out = capsys.readouterr().out
     assert "dialling.window_s = 0.7    # database: cli, " in out
     assert "volume.fade_s = 0.8    # configuration" in out
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "why"),
+    [
+        ("dialling.window_s", "9.0", "refused: the dialling window must be between 0.5 and 2.0 s, not 9.0"),
+        ("mpd.rewind_s", HUGE_INTEGER, "refused: mpd.rewind_s is too large to be a number of seconds"),
+        ("volume.fade_s", TOO_MANY_DIGITS, "not JSON"),
+    ],
+    ids=["out-of-bounds", "overflows-a-float", "past-the-digit-limit"],
+)
+def test_a_row_nobody_can_use_is_listed_ignored_with_its_raw_text_and_unset_clears_it(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    name: str,
+    text: str,
+    why: str,
+) -> None:
+    """A hand-edited row does not decide its preference, is named with what it holds, and the way
+    out - ``prefs unset`` - works on it. The two numbers no float or decoder can take once raised
+    out of all three commands, leaving the row stuck in the database with no verb to reach it."""
+    database = str(tmp_path / "db.sqlite")
+    _stored_by_hand(database, name, text)
+
+    assert _run(monkeypatch, "--json", "--database", database, "prefs") == 0
+    data = _envelope(capsys)["data"]
+    assert isinstance(data, dict)
+    assert data["ignored"] == [{"name": name, "text": text, "why": why}], "the JSON keeps the raw text whole"
+    preferences = cast("list[dict[str, Any]]", data["preferences"])
+    assert next(p for p in preferences if p["name"] == name)["source"] == "configuration"
+
+    assert _run(monkeypatch, "--database", database, "prefs") == 0
+    lines = capsys.readouterr().out.splitlines()
+    shown = text if len(text) <= 80 else text[:80] + "..."
+    assert f"# ignored: {name} = {shown} ({why})" in lines, lines
+
+    assert _run(monkeypatch, "--json", "--database", database, "prefs", "unset", name) == 0
+    change = _envelope(capsys)["data"]
+    assert isinstance(change, dict)
+    assert change["after"]["source"] == "configuration"
+    assert _stored(database) == [], "the row is gone"
+
+
+def test_the_human_listing_keeps_a_multi_line_row_on_one_line(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """A row spanning lines is printed with the line break escaped, so it cannot pass for a second
+    line of the listing."""
+    database = str(tmp_path / "db.sqlite")
+    _stored_by_hand(database, "mpd.rewind_s", "1\n2")
+    assert _run(monkeypatch, "--database", database, "prefs") == 0
+    assert "# ignored: mpd.rewind_s = 1\\n2 (not JSON)" in capsys.readouterr().out.splitlines()

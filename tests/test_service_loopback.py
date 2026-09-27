@@ -4485,6 +4485,27 @@ async def test_a_stored_preference_that_is_not_usable_is_named_once_and_ignored(
         assert not _said(logs, "no such channel")
 
 
+async def test_a_stored_number_nothing_can_read_costs_one_value_and_not_the_house(world: World, tmp_path: Path) -> None:
+    """Two rows the rule once let raise: a 401-digit integer no float can hold, there at the start,
+    and a 5000-digit literal the JSON decoder refuses, written while the service runs. Each is named
+    once, cut short in the log, and the service goes on: a preference set afterwards is still taken
+    in, which is the watch that ``OverflowError`` or ``ValueError`` out of it would have ended."""
+    options = _options(world, tmp_path)
+    _set_preference(options, PreferenceName.REWIND, 10**400)
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        at_start = f"mpd.rewind_s = 1{'0' * 79}... in the house database is ignored (refused: mpd.rewind_s is too"
+        await eventually(lambda: _said(logs, at_start), "the row there at the start was named")
+        with contextlib.closing(sqlite3.connect(options.database)) as raw, raw:
+            raw.execute("INSERT INTO preference VALUES ('dialling.hold_threshold_s', ?, 'cli', '')", ("1" * 5000,))
+        mid_run = f"dialling.hold_threshold_s = {'1' * 80}... in the house database is ignored (not JSON)"
+        await eventually(lambda: _said(logs, mid_run), "the row written mid-run was named")
+        _set_preference(options, PreferenceName.FADE, 1.0)
+        await eventually(lambda: _said(logs, "a joining box fades in over 1.0 s, set by cli"), "the watch goes on")
+        assert all(len(line) < 300 for line in logs if "is ignored" in line), "a row is quoted cut short"
+
+
 def _gaps_from(box: FakeSpeaker, first: int) -> list[float]:
     """The time between each volume write from the ``first``-th on and the write after it."""
     times = box.volumes_at[first:]

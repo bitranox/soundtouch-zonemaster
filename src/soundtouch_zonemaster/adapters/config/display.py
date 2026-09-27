@@ -15,7 +15,7 @@ from pathlib import PurePath
 from typing import TYPE_CHECKING, Any
 
 from ...domain.database_url import masked as masked_database_url
-from ...domain.preferences import PreferenceName, plain_value, stored
+from ...domain.preferences import PreferenceName, plain_value, shown, stored
 from .errors import ConfigInputError
 from .loader import is_private_file
 from .settings_map import config_path_of
@@ -90,7 +90,8 @@ def line_beneath(key: str, origin: Mapping[str, Any] | None) -> str | None:
     ignored: Mapping[str, Any] | None = origin.get(IGNORED_ROW)
     if ignored is None:
         return None
-    return f"#   ignored in the house database: {key} = {ignored['text']} ({ignored['why']})"
+    # Cut and escaped for the terminal only: the JSON view keeps the raw text whole.
+    return f"#   ignored in the house database: {key} = {shown(str(ignored['text']))} ({ignored['why']})"
 
 
 def shows_a_preference(values: Sequence[tuple[str, Any]]) -> bool:

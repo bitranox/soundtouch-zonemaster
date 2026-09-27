@@ -21,7 +21,7 @@ import asyncio
 from typing import TYPE_CHECKING, cast
 
 from ...domain.logfn import ERROR_KIND
-from ...domain.preferences import PreferenceName, PreferenceSource, PreferenceValue, resolved, value_of
+from ...domain.preferences import PreferenceName, PreferenceSource, PreferenceValue, resolved, shown, value_of
 from ..errors import StoreError
 from .zone import ZoneReconcile
 
@@ -108,7 +108,10 @@ class PreferenceBook(ZoneReconcile):
         for row, why in resolution.rejected:
             if (row.name, row.text) not in self._rejected_seen:
                 self._rejected_seen.add((row.name, row.text))
-                self.log("prefs", f"{row.name} = {row.text} in the house database is ignored ({why})")
+                # Cut and escaped: a row is whatever somebody typed into the database, and one
+                # spanning megabytes or lines would otherwise land in the journal whole.
+                said = f"{shown(row.name)} = {shown(row.text)}"
+                self.log("prefs", f"{said} in the house database is ignored ({why})")
         before, before_set_by = self._preferences, self._set_by
         self._preference_rows = rows
         self._preferences = resolution.preferences

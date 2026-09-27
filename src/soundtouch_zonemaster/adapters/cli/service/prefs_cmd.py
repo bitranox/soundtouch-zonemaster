@@ -20,12 +20,16 @@ from ....application.errors import StoreError
 from ....application.outcome import ExitCode, OptionsError
 from ....domain.preferences import (
     PreferenceName,
+    PreferenceNotJsonError,
     PreferenceRefusedError,
     PreferenceRow,
     PreferenceSource,
     checked,
+    decoded,
     plain_value,
+    quoted,
     resolved,
+    shown,
     value_of,
 )
 from ...config.errors import ConfigInputError
@@ -120,7 +124,7 @@ def _name_or_refuse(ctx: click.Context, shared: Shared, *, command: str, name: s
             ctx,
             shared,
             command=command,
-            message=f"refused: no preference called {name!r}; the preferences are: {known}",
+            message=f"refused: no preference called {quoted(name)}; the preferences are: {known}",
             code=ExitCode.ERROR,
         )
 
@@ -171,7 +175,8 @@ def cli_prefs(ctx: click.Context) -> None:
         )
         safe_console.echo(f"{view.name} = {json.dumps(view.value)}    # {origin}")
     for row in report.ignored:
-        safe_console.echo(f"# ignored: {row.name} = {row.text} ({row.why})")
+        # Cut and escaped for the terminal only: the JSON above keeps the raw text whole.
+        safe_console.echo(f"# ignored: {shown(row.name)} = {shown(row.text)} ({row.why})")
 
 
 @cli_prefs.command("set", context_settings={"help_option_names": ["-h", "--help"]})
@@ -184,17 +189,19 @@ def cli_prefs_set(ctx: click.Context, *, name: str, value: str) -> None:
     command = f"{service_command} prefs set"
     preference = _name_or_refuse(ctx, shared, command=command, name=name)
     try:
-        decoded: object = json.loads(value)
-    except json.JSONDecodeError:
+        typed = decoded(value)
+    except PreferenceNotJsonError:
         _refuse(
             ctx,
             shared,
             command=command,
-            message=f"refused: {value!r} is not JSON; a number is written as it is, a list as '[\"AABBCC000012\"]'",
+            message=(
+                f"refused: {quoted(value)} is not JSON; a number is written as it is, a list as '[\"AABBCC000012\"]'"
+            ),
             code=ExitCode.ERROR,
         )
     try:
-        checked_value = checked(preference, decoded)
+        checked_value = checked(preference, typed)
     except PreferenceRefusedError as exc:
         _refuse(ctx, shared, command=command, message=str(exc), code=ExitCode.REFUSED)
     layered = _layered_or_exit(ctx, shared, command=command)

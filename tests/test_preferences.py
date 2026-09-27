@@ -15,6 +15,7 @@ from soundtouch_zonemaster.domain.preferences import (
     Stored,
     checked,
     resolved,
+    shown,
     stored,
     value_of,
 )
@@ -49,7 +50,8 @@ def test_the_five_names_are_the_config_paths() -> None:
         (
             PreferenceName.CONSOLES,
             ["AABBCC00001"],
-            "refused: membership.consoles_allowed holds 'AABBCC00001', which is not a device id (12 hex digits)",
+            "refused: membership.consoles_allowed holds 'AABBCC00001', "
+            "which is not a device id (12 upper-case hex digits)",
         ),
     ],
 )
@@ -150,3 +152,81 @@ def test_a_row_that_cannot_be_used_is_skipped_and_the_base_applies(row: Preferen
 
 def test_value_of_reads_each_name_off_the_record() -> None:
     assert [value_of(BASE, name) for name in PreferenceName] == [0.8, 1.0, 20.0, 0.8, ()]
+
+
+HUGE_INTEGER = "1" + "0" * 400
+"""JSON a decoder reads as an integer no float can hold: ``float()`` raises OverflowError on it."""
+
+TOO_MANY_DIGITS = "1" * 5000
+"""An integer literal past Python's 4300-digit conversion limit: ``json.loads`` raises a plain ValueError."""
+
+TOO_DEEP = "[" * 100_000
+"""Nesting deep enough that the decoder raises RecursionError rather than JSONDecodeError."""
+
+
+@pytest.mark.parametrize(
+    ("name", "text", "why"),
+    [
+        (PreferenceName.REWIND, HUGE_INTEGER, "refused: mpd.rewind_s is too large to be a number of seconds"),
+        (PreferenceName.WINDOW, TOO_MANY_DIGITS, "not JSON"),
+        (PreferenceName.FADE, TOO_DEEP, "not JSON"),
+        (
+            PreferenceName.CONSOLES,
+            "[" + ",".join(["[1]"] * 100_000) + "]",
+            "refused: membership.consoles_allowed holds something of type list, "
+            "which is not a device id (12 upper-case hex digits)",
+        ),
+    ],
+    ids=["overflows-a-float", "past-the-digit-limit", "nested-too-deep", "a-list-where-an-id-goes"],
+)
+def test_a_row_the_decoder_or_float_cannot_take_is_rejected_not_raised(
+    name: PreferenceName, text: str, why: str
+) -> None:
+    """A hand-edited row must cost one value and a line, never the service: each of these three
+    raised straight through ``stored`` (OverflowError, ValueError, RecursionError), which the
+    service's watch does not catch and ``prefs unset`` - the way out - died on too."""
+    row = _row(str(name), text)
+    resolution = resolved(BASE, (row,))
+    assert resolution.preferences == BASE
+    assert resolution.rejected == ((row, why),)
+
+
+def test_an_integer_too_large_for_a_float_is_refused_without_echoing_it() -> None:
+    """The refusal a ``prefs set`` or a config file gets, and it does not repeat 400 digits back."""
+    with pytest.raises(PreferenceRefusedError) as refused:
+        checked(PreferenceName.WINDOW, 10**400)
+    assert str(refused.value) == "refused: dialling.window_s is too large to be a number of seconds"
+
+
+def test_a_console_id_is_named_as_upper_case_and_a_long_one_is_cut_short() -> None:
+    """The rule is twelve UPPER-CASE hex digits, and the message says so, so somebody holding a
+    lower-case id from an old config sees why it is refused. An enormous item is cut, not echoed."""
+    with pytest.raises(PreferenceRefusedError) as lower:
+        checked(PreferenceName.CONSOLES, ["aabbcc000012"])
+    assert str(lower.value) == (
+        "refused: membership.consoles_allowed holds 'aabbcc000012', which is not a device id (12 upper-case hex digits)"
+    )
+    with pytest.raises(PreferenceRefusedError) as long:
+        checked(PreferenceName.CONSOLES, ["A" * 1_000_000])
+    assert len(str(long.value)) < 200
+    assert f"'{'A' * 80}'..." in str(long.value)
+
+
+def test_a_row_under_an_enormous_name_is_rejected_with_the_name_cut_short() -> None:
+    row = _row("x" * 1_000_000, "1.0")
+    _, rejected = stored((row,))
+    assert rejected == ((row, f"'{'x' * 80}'... is not a preference"),)
+
+
+@pytest.mark.parametrize(
+    ("text", "said"),
+    [
+        ("9.0", "9.0"),
+        ('"fast"', '"fast"'),
+        ("line one\nline two", "line one\\nline two"),
+        ("7" * 81, "7" * 80 + "..."),
+    ],
+    ids=["short", "quoted-json", "multi-line", "over-the-limit"],
+)
+def test_shown_keeps_a_raw_value_on_one_line_and_bounded(text: str, said: str) -> None:
+    assert shown(text) == said

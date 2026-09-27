@@ -1275,6 +1275,29 @@ def test_a_stored_row_the_rule_refuses_is_shown_ignored_with_its_raw_text(
     )
 
 
+def test_a_stored_number_no_float_can_hold_is_shown_ignored_and_cut_short(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """A row holding a 401-digit integer once raised OverflowError out of ``config`` with no envelope.
+    It is a row the rule refuses like any other: the file value stays, the JSON keeps the raw text
+    whole, and the human line quotes it cut short rather than printing every digit."""
+    huge = 10**400
+    database = _stored(tmp_path, PreferenceName.REWIND, huge)
+    argv = ("--database", database, "config", "--section", "mpd")
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", *argv))["data"]
+    human = _config_output(monkeypatch, capsys, *argv)
+
+    assert data["provenance"]["mpd.rewind_s"]["layer"] == "defaults"
+    ignored = data["provenance"]["mpd.rewind_s"]["ignored_database_row"]
+    assert ignored["text"] == str(huge)
+    assert ignored["why"] == "refused: mpd.rewind_s is too large to be a number of seconds"
+    _, beneath = _line_and_the_one_beneath(human, "mpd.rewind_s")
+    assert beneath == (
+        f"#   ignored in the house database: mpd.rewind_s = {str(huge)[:80]}... "
+        "(refused: mpd.rewind_s is too large to be a number of seconds)"
+    )
+
+
 def test_a_database_that_does_not_exist_holds_no_preference_and_is_not_created(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
