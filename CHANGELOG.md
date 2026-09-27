@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] 2026-09-28 01:25:05
+
 ### Added
 
 - New commands: `soundtouch-zonemaster-service prefs`, `prefs set NAME VALUE`, `prefs unset NAME`
