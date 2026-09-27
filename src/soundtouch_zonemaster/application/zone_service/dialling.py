@@ -245,6 +245,13 @@ class Dialling(PreferenceBook):
         is being typed would move that number's deadline under the person typing it. Nothing is
         pending exactly when the deadlines the dialling loop waits for are all absent, and the loop
         calls this each time it goes idle - which is why a preference taken in wakes it.
+
+        Its callers call it only when nothing is pending: the dialling loop from its idle branch,
+        and the start-up before any worker runs. The deadline check below cannot fire under either
+        of them, and removing it changes no test for that reason. It is kept as the invariant
+        written where the hand-over happens, so that a caller added later - one called on every
+        turn, say - is refused mid-gesture here rather than moving a deadline under somebody's
+        thumb.
         """
         if self._dial_numbers_wanted is None or self._earliest_deadline() is not None:
             return
