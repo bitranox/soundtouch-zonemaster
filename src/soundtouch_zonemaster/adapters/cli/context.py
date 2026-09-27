@@ -11,7 +11,7 @@ the same three things, so it builds one of these too rather than growing its own
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, ConfigDict
 
@@ -19,6 +19,7 @@ from ..config.loader import get_config
 from ..config.overrides import apply_set_overrides
 from ..logging.narration import log
 from .boundary import (
+    configured_database_text,
     configured_settings,
     database_password_of,
     database_setting_of,
@@ -39,6 +40,7 @@ __all__ = [
     "Shared",
     "config_for",
     "database_for",
+    "named_database",
     "remember_store_opener",
     "shared_of",
     "store_opener_of",
@@ -91,19 +93,40 @@ class DatabaseChoice:
     password: Secret | None
 
 
-def database_for(shared: Shared, *, narrate: LogFn = log) -> DatabaseChoice:
+def database_for(shared: Shared) -> DatabaseChoice:
     """The database this invocation means - typed, else configured, else refused by name (exit 2) -
     and the password the configuration layers give for it (``database.password``; there is no
     command-line option for it, since argv is visible to every user of the machine). That password
     goes only with the configured database: see
     :func:`~.boundary.scoped_to_the_configured_database`, which the service run shares.
 
-    Reading the layers for this narrates (a stray key, a password left out); ``narrate`` is where
-    those lines go, so ``config``, whose STDOUT is the view itself, can keep them out of it."""
-    configured = scoped_to_the_configured_database(
-        configured_settings(config_for(shared).config, narrate=narrate), typed=shared.database, narrate=narrate
-    )
+    An EMPTY configured setting is handed on as it is, and the store refuses it by name: a verb
+    that is about to write must not answer as if no database had been meant."""
+    configured = _scoped_settings(shared, narrate=log)
     password = database_password_of(configured)
     if shared.database is not None:
         return DatabaseChoice(setting=shared.database, password=password)
     return DatabaseChoice(setting=database_setting_of(configured), password=password)
+
+
+def named_database(shared: Shared, *, narrate: LogFn) -> DatabaseChoice | None:
+    """The database this invocation names, or ``None`` when nothing names one: no ``--database``
+    typed, and ``database.url`` unset or empty in every layer. For a reader (``config``) whose
+    answer to "no database" is "nothing stored" rather than a refusal; an empty setting is one
+    nobody filled in, so it names nothing here. The same choice and password rule as
+    :func:`database_for`.
+
+    Reading the layers for this narrates (a stray key, a password left out); ``narrate`` is where
+    those lines go, so ``config``, whose STDOUT is the view itself, can keep them out of it."""
+    configured = _scoped_settings(shared, narrate=narrate)
+    setting = shared.database if shared.database is not None else configured_database_text(configured)
+    if not setting:
+        return None
+    return DatabaseChoice(setting=setting, password=database_password_of(configured))
+
+
+def _scoped_settings(shared: Shared, *, narrate: LogFn) -> dict[str, Any]:
+    """The configured settings, less a password that belongs to another database than the typed one."""
+    return scoped_to_the_configured_database(
+        configured_settings(config_for(shared).config, narrate=narrate), typed=shared.database, narrate=narrate
+    )

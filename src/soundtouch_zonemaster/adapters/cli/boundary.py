@@ -58,6 +58,7 @@ if TYPE_CHECKING:
 __all__ = [
     "ChannelPolicyInput",
     "ServiceOptionsInput",
+    "configured_database_text",
     "configured_settings",
     "database_password_of",
     "database_setting_of",
@@ -404,10 +405,16 @@ def database_setting_of(configured: Mapping[str, Any]) -> str:
     """The database the configuration layers give, for the store verbs that open it without
     building the whole option record: text, or refused (exit 2) as not text or as given nowhere,
     by the same two rules the record's own field follows."""
-    setting = database_text_or_refuse(configured.get(_DATABASE_FIELD))
+    setting = configured_database_text(configured)
     if setting is None:
         raise no_value_anywhere([_DATABASE_FIELD])
     return setting
+
+
+def configured_database_text(configured: Mapping[str, Any]) -> str | None:
+    """The database the configuration layers give, as text, or ``None`` when no layer gives one.
+    Refused (exit 2) only when it arrived as something that is not text."""
+    return database_text_or_refuse(configured.get(_DATABASE_FIELD))
 
 
 def _database_file(database: str) -> Path | None:

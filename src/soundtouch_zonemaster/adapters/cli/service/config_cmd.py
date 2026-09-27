@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from ....__init__conf__ import service_command
 from ....application.errors import StoreError, StoreMissingError
 from ....application.outcome import ExitCode, OptionsError
+from ....domain.database_url import masked as masked_database_url
 from ...config.display import (
     flatten,
     line_beneath,
@@ -29,15 +30,15 @@ from ...config.display import (
     where,
 )
 from ...config.errors import ConfigInputError
-from ...config.settings_map import CONFIGURABLE_NAMES, config_path_of
-from ..context import config_for, database_for, shared_of, store_opener_of
+from ...config.settings_map import CONFIGURABLE_NAMES
+from ...logging.narration import log_on_stderr
+from ..context import config_for, named_database, shared_of, store_opener_of
 from ..envelope import Envelope, report_failure, write_envelope
 from ..typed_click import option
 
 if TYPE_CHECKING:
     from ....application.ports import HouseStore
     from ....domain.preferences import PreferenceRow
-    from ...config.overrides import Merged
     from ..context import Shared
 
 __all__ = ["ConfigReport", "cli_config"]
@@ -50,8 +51,9 @@ class ConfigReport(BaseModel):
     config: dict[str, Any]
     provenance: dict[str, Any]
     database_note: str | None = None
-    """Why no stored preference is shown although a house database is named: it does not exist, or
-    it could not be read. ``None`` when there is nothing to say, including when none is named."""
+    """What went wrong with a house database that is named: it does not exist, could not be read,
+    or was read but not closed. ``None`` when there is nothing to say, including when none is named.
+    With ``--redact`` it names neither the database nor an error that would quote it."""
 
 
 _SET_BY_HAND: dict[str, Any] = {"layer": "--set", "path": None}
@@ -59,11 +61,13 @@ _SET_BY_HAND: dict[str, Any] = {"layer": "--set", "path": None}
 
 
 def _say_nothing(_kind: str, _text: str) -> None:
-    """The narrator ``config`` hands the database choice and the store.
+    """The narrator ``config`` hands the database choice.
 
     Choosing the database reads the layers the way the store verbs do, and that read narrates a
     stray key and a configured password left out - on STDOUT in the human mode, which here is the
-    view itself. ``config`` shows every key already, so a line about one is only noise in it.
+    view itself. ``config`` shows every key already, so a line about one is only noise in it. The
+    store gets :func:`~...logging.narration.log_on_stderr` instead: what it says about its own
+    work is news, and belongs where it is heard without landing in the view.
     """
 
 
@@ -103,7 +107,7 @@ def cli_config(ctx: click.Context, *, only: str | None, redact: bool) -> None:
     values = mask_database_settings(values, mask=REDACTED_PLACEHOLDER)
     database_note: str | None = None
     if shows_a_preference(values):
-        rows, database_note = _house_rows(ctx, shared, merged)
+        rows, database_note = _house_rows(ctx, shared, redact=redact)
         values, provenance = overlay_preferences(values, provenance, rows)
     if redact:
         # The library masks by key NAME, which leaves a harmless-looking one like `e2e_host` in
@@ -139,44 +143,58 @@ def cli_config(ctx: click.Context, *, only: str | None, redact: bool) -> None:
         sys.stdout.write(f"# {database_note}\n")
 
 
-def _house_rows(ctx: click.Context, shared: Shared, merged: Merged) -> tuple[tuple[PreferenceRow, ...], str | None]:
+def _house_rows(ctx: click.Context, shared: Shared, *, redact: bool) -> tuple[tuple[PreferenceRow, ...], str | None]:
     """The stored preference rows, or none and the one sentence that says why.
 
-    A database is looked for only when one is named - typed, or ``database.url`` in some layer -
-    so a view with none named prints exactly what it always printed. Opened the way ``prefs``
-    opens it, without the writer lock so this works beside a running service, but never created,
-    and closed at once. A database that cannot be read costs this view one line, never its answer.
+    A database is looked for only when one is named - typed, or a non-empty ``database.url`` in
+    some layer (:func:`~..context.named_database` decides it, once) - so a view with none named
+    prints exactly what it always printed. Opened the way ``prefs`` opens it, without the writer
+    lock so this works beside a running service, but never created, and closed at once. A database
+    that cannot be read costs this view one line, never its answer.
     """
-    if shared.database is None and merged.config.get(config_path_of("database")) is None:
+    try:
+        choice = named_database(shared, narrate=_say_nothing)
+    except (ConfigInputError, OptionsError) as exc:
+        return (), _not_read(exc, redact=redact)
+    if choice is None:
         return (), None
-    store, note = _opened_quietly(ctx, shared)
-    if store is None:
-        return (), note
     try:
-        return store.load_preferences(), None
-    except StoreError as exc:
-        return (), _not_read(exc)
-    finally:
-        store.close()
-
-
-def _opened_quietly(ctx: click.Context, shared: Shared) -> tuple[HouseStore | None, str | None]:
-    """The store, open and saying nothing; or none, and why not."""
-    try:
-        choice = database_for(shared, narrate=_say_nothing)
-        store = store_opener_of(ctx)(choice.setting, password=choice.password, log=_say_nothing)
-    except (ConfigInputError, OptionsError, StoreError) as exc:
-        return None, _not_read(exc)
-    try:
+        store = store_opener_of(ctx)(choice.setting, password=choice.password, log=log_on_stderr)
         store.open(exclusive=False, create=False)
     except StoreMissingError:
-        return None, f"no preference is stored: the house database {store.where} does not exist"
+        where = "" if redact else f" {masked_database_url(choice.setting)}"
+        return (), f"no preference is stored: the house database{where} does not exist"
     except StoreError as exc:
-        return None, _not_read(exc)
-    return store, None
+        return (), _not_read(exc, redact=redact)
+    return _read_and_closed(store, redact=redact)
 
 
-def _not_read(exc: Exception) -> str:
-    """The sentence for a database that is named but could not be read. Every error it quotes names
-    the database through the masked setting only, so no password reaches the view."""
-    return f"the house database was not read ({exc}); a preference set there is not shown"
+def _read_and_closed(store: HouseStore, *, redact: bool) -> tuple[tuple[PreferenceRow, ...], str | None]:
+    """The rows, and the store closed. A close that fails after a good read keeps the rows: what was
+    read is the answer, and the failure is the one line (a lock release, a descriptor that would
+    not close - ``close`` lets an ``OSError`` through as well as a ``StoreError``)."""
+    try:
+        rows, note = store.load_preferences(), None
+    except StoreError as exc:
+        rows, note = (), _not_read(exc, redact=redact)
+    try:
+        store.close()
+    except (StoreError, OSError) as exc:
+        if note is None:
+            note = f"the house database was read but not closed ({_reason(exc, redact=redact)})"
+    return rows, note
+
+
+def _not_read(exc: Exception, *, redact: bool) -> str:
+    """The sentence for a database that is named but could not be read."""
+    return f"the house database was not read ({_reason(exc, redact=redact)}); a preference set there is not shown"
+
+
+def _reason(exc: Exception, *, redact: bool) -> str:
+    """The error in words, or with ``--redact`` its kind alone.
+
+    Every store error opens with the database it is about, and a driver's own words (PostgreSQL's
+    above all) name the host again; the listing masks a ``database.url`` from a private file or a
+    ``.env``, so this line must not print it back. The kind of failure is kept, which is what says
+    whether to look at the file, the server or the setting."""
+    return f"{type(exc).__name__}, the rest hidden by --redact" if redact else str(exc)

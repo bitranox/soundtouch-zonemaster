@@ -26,6 +26,7 @@ from lib_layered_config import REDACTED_PLACEHOLDER
 
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, clear_config_cache, defaults_from
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
+from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.zone_service.service import ZoneService
 from soundtouch_zonemaster.composition import build_production
 from soundtouch_zonemaster.domain.preferences import PreferenceName, PreferenceSource
@@ -36,8 +37,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ServiceOptions
-    from soundtouch_zonemaster.application.ports import RunService
+    from soundtouch_zonemaster.application.ports import HouseStore, RunService
+    from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.preferences import PreferenceValue
+    from soundtouch_zonemaster.domain.secret import Secret
 
 DEPLOYED_ARGV = (
     "--bind-ip",
@@ -1394,3 +1397,138 @@ def test_redact_masks_the_raw_text_of_a_row_the_rule_refused(
     _, beneath = _line_and_the_one_beneath(human, "mpd.rewind_s")
     assert beneath.startswith("#   ignored in the house database: mpd.rewind_s = "), beneath
     assert "7.5" not in human
+
+
+def test_a_database_url_from_a_config_layer_is_read_without_a_typed_database(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """How a house runs: the database is named once, in its configuration, and nothing is typed."""
+    database = _stored(tmp_path, PreferenceName.WINDOW, 0.7)
+    _user_config(isolated_config_layers, f'[database]\nurl = "{database}"\n')
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", "config", "--section", "dialling"))["data"]
+
+    assert data["config"]["dialling.window_s"] == 0.7
+    assert data["provenance"]["dialling.window_s"]["layer"] == "database"
+
+
+def test_an_empty_database_url_names_no_database_and_says_nothing_about_one(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path
+) -> None:
+    """An empty ``database.url`` is a setting nobody filled in, not a database that failed to open."""
+    without = _config_output(monkeypatch, capsys, "config", "--section", "dialling")
+    _user_config(isolated_config_layers, '[database]\nurl = ""\n')
+    clear_config_cache()
+    human = _config_output(monkeypatch, capsys, "config", "--section", "dialling")
+    data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", "config", "--section", "dialling"))["data"]
+
+    assert human == without
+    assert data["database_note"] is None
+
+
+@contextlib.contextmanager
+def _a_private_database_file(tracked: Path, tmp_path: Path, url: str) -> Generator[None]:
+    """The house's database named where a deployment keeps it: a private ``-rnhome`` file beside the
+    shipped defaults, which ``--redact`` exists to hide."""
+    base = tmp_path / "defaults" / tracked.name
+    base.parent.mkdir()
+    shutil.copy2(tracked, base)
+    shutil.copytree(tracked.with_suffix(".d"), base.with_suffix(".d"))
+    private = base.with_suffix(".d") / "93-database-rnhome.toml"
+    private.write_text(f'[database]\nurl = "{url}"\n', encoding="utf-8")
+    with defaults_from(base):
+        clear_config_cache()
+        yield
+    clear_config_cache()
+
+
+@pytest.mark.parametrize("state", ["missing", "unreadable"])
+def test_redact_keeps_the_database_location_out_of_the_note_too(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    *,
+    isolated_config_layers: Path,
+    tracked_defaults_only: Path,
+    tmp_path: Path,
+    state: str,
+) -> None:
+    """``--redact`` masks a private file's ``database.url`` in the listing, so the one line about the
+    database must not print it either: neither the path nor an error that quotes it.
+
+    The run without ``--redact`` is the control: there the location has to be visible."""
+    monkeypatch.chdir(tmp_path)
+    location = tmp_path / "private-house-location" / "db.sqlite"
+    if state == "unreadable":
+        location.parent.mkdir()
+        location.write_bytes(b"this is not a database, it is a sentence " * 100)
+    with _a_private_database_file(tracked_defaults_only, tmp_path, str(location)):
+        control = _config_output(monkeypatch, capsys, "config")
+        human = _config_output(monkeypatch, capsys, "config", "--redact")
+        data = json.loads(_config_output(monkeypatch, capsys, "--json-bare", "config", "--redact"))["data"]
+
+    assert "private-house-location" in control, "the control: without --redact the note names it"
+    assert "private-house-location" not in human, human
+    assert "private-house-location" not in json.dumps(data)
+    expected = {
+        "missing": "no preference is stored: the house database does not exist",
+        "unreadable": "the house database was not read (StoreError, the rest hidden by --redact); "
+        "a preference set there is not shown",
+    }[state]
+    assert data["database_note"] == expected
+    assert f"# {expected}" in human.splitlines()
+
+
+class _StoreThatFailsToClose(SqlHouseStore):
+    """The real store, whose close raises once it has closed - the way a lock release can fail."""
+
+    def close(self) -> None:
+        super().close()
+        message = f"{self.where}: the writer lock could not be released"
+        raise StoreError(message)
+
+
+class _StoreThatNarrates(SqlHouseStore):
+    """The real store, saying one line while it opens - the way a store narrates its own work."""
+
+    def open(self, *, exclusive: bool, create: bool = True) -> None:
+        self.log("store", "a line the store says while it opens")
+        super().open(exclusive=exclusive, create=create)
+
+
+def test_a_database_that_fails_to_close_costs_config_one_line_and_not_the_view(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    database = _stored(tmp_path, PreferenceName.WINDOW, 0.7)
+
+    def opener(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
+        return _StoreThatFailsToClose(database, password=password, log=log)
+
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--database", database, "config"])
+    assert main(open_store=opener) == 0
+    out = capsys.readouterr().out
+
+    line, _ = _line_and_the_one_beneath(out, "dialling.window_s")
+    assert line.startswith("dialling.window_s = 0.7    # database (cli, "), "what was read is still shown"
+    notes = [line for line in out.splitlines() if line.startswith("# the house database was read but not closed (")]
+    assert len(notes) == 1
+    assert "the writer lock could not be released" in notes[0]
+
+
+def test_what_the_store_says_goes_to_stderr_and_leaves_the_view_alone(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """``config``'s STDOUT is the view, but a store that narrates its own work (a migration, one
+    day) must still be heard: on STDERR. The control is the same view from the plain store."""
+    database = _stored(tmp_path, PreferenceName.WINDOW, 0.7)
+    plain = _config_output(monkeypatch, capsys, "--database", database, "config", "--section", "dialling")
+
+    def opener(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
+        return _StoreThatNarrates(database, password=password, log=log)
+
+    monkeypatch.setattr(
+        "sys.argv", ["soundtouch-zonemaster-service", "--database", database, "config", "--section", "dialling"]
+    )
+    assert main(open_store=opener) == 0
+    captured = capsys.readouterr()
+
+    assert captured.out == plain
+    assert "a line the store says while it opens" in captured.err

@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import sys
 import time
-from typing import ClassVar
+from typing import ClassVar, TextIO
 
 from ...domain.logfn import ERROR_KIND
 
-__all__ = ["LogRouting", "log"]
+__all__ = ["LogRouting", "log", "log_on_stderr"]
 
 
 class LogRouting:
@@ -36,8 +36,17 @@ def log(kind: str, text: str) -> None:
     Written to the stream rather than printed, so that a rule against stray prints keeps meaning
     something everywhere else: this is the one place output is the job.
     """
+    _write(sys.stderr if (kind == ERROR_KIND or LogRouting.to_stderr) else sys.stdout, kind, text)
+
+
+def log_on_stderr(kind: str, text: str) -> None:
+    """The same line, always on stderr: for a command whose STDOUT is its answer (``config``), so
+    what a part it calls says is still heard without landing in the view."""
+    _write(sys.stderr, kind, text)
+
+
+def _write(stream: TextIO, kind: str, text: str) -> None:
     now = time.time()
     stamp = time.strftime("%H:%M:%S", time.localtime(now)) + f".{int(now * 1000) % 1000:03d}"
-    stream = sys.stderr if (kind == ERROR_KIND or LogRouting.to_stderr) else sys.stdout
     stream.write(f"{stamp} {kind:<12} {text}\n")
     stream.flush()

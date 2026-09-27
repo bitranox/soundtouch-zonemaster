@@ -110,6 +110,8 @@ def overlay_preferences(
     ``overrides``. A row the rule refuses decides nothing: the file value and its origin stay, and
     the row is added beside them under :data:`IGNORED_ROW` with its raw text and the reason. A row
     under a name that is no preference at all has no key here to belong to, and ``prefs`` lists it.
+    Only keys already in ``values`` are visited, which holds every preference because each of the
+    five ships a default (``defaultconfig.d``); one without a default would need adding here.
 
     Judged by :func:`~soundtouch_zonemaster.domain.preferences.stored`, the one rule the running
     service applies too, so the view cannot show a row as deciding that the service ignores. The
