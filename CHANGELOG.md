@@ -6,10 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.9] 2026-09-27 09:54:21
+
 ### Added
 
 - New commands: `soundtouch-zonemaster-service switch [on|off]`, `channels export --output FILE`,
   `channels import FILE` (refused while the service runs).
+- A `database.password` setting (`SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD`) for PostgreSQL,
+  read through every configuration layer and handed to the driver as a connect argument. It has no
+  command-line option, `config` always shows it masked, and no envelope or log line carries it.
+  Left empty, the PostgreSQL client's own `~/.pgpass`, `PGPASSFILE` or `PGPASSWORD` apply.
+- PostgreSQL needs the package installed with its `postgres` extra.
 
 ### Changed
 
@@ -20,6 +27,17 @@ All notable changes to this project are documented here. The format follows
 - A database that cannot be read now refuses the start. The state file used to start empty instead.
 - An old `zone-state.json` or `channels.json` that exists but cannot be parsed also refuses the
   start, naming the file; nothing is imported and nothing is renamed.
+- A SQLite older than 3.37 refuses the start: the tables are `STRICT`.
+- A database URL carrying a password is refused; the password belongs in `database.password`.
+- The configured password goes only with the configured database. A `--database` typed on the
+  command line gets it only when it equals `database.url`; any other typed database is opened
+  without it, and one log line says so.
+- A `database.url` or `database.password` that arrives as no value (`null`, `none`) or as anything
+  but text is refused (exit 2), naming the setting and never the value. A null url is reported as a
+  database given nowhere, on every command. The one exception: a password that is not text, beside
+  a typed `--database` that is not the configured one, is not used and so not refused.
+- `config` masks every key under `[database]` except `url`, so a misspelled password key is not
+  printed; a `url` that is not text is masked whole, and a null one is shown as null.
 
 ## [0.4.8] 2026-09-25 19:53:39
 
