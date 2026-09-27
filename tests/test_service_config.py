@@ -779,17 +779,17 @@ def _stray_key_in_a_user_file(spelling: str) -> Callable[[pytest.MonkeyPatch, Pa
     return write
 
 
-def _stray_key_in_the_environment(_monkeypatch: pytest.MonkeyPatch, _root: Path) -> str:
-    _monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWROD", "TOPSECRET")
+def _stray_key_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> str:
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWROD", "TOPSECRET")
     return "passwrod"
 
 
-def _password_as_a_table_in_the_environment(_monkeypatch: pytest.MonkeyPatch, _root: Path) -> str:
+def _password_as_a_table_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> str:
     """The environment layer reads a value opening with ``{`` as a JSON object, so the password
     setting itself becomes a table whose leaves are keys the exact-key mask never names. What is
     listed is ``database.password.inner``, or ``database.password`` whole where ``--redact``'s own
     by-name mask got there first; the control reads the prefix both share."""
-    _monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWORD", '{"inner": "TOPSECRET"}')
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWORD", '{"inner": "TOPSECRET"}')
     return "password"
 
 
