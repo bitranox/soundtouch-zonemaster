@@ -212,22 +212,40 @@ def test_a_misspelled_password_key_is_named_without_its_value(
     assert FAKE not in captured.err
 
 
+DIGITS = "8675309"
+
+
+@pytest.mark.parametrize(
+    ("environment", "argv", "arrived_as"),
+    [
+        pytest.param(DIGITS, [], "int", id="env-digits-read-as-a-number"),
+        pytest.param(f'["{DIGITS}"]', [], "list", id="env-json-array-read-as-a-list"),
+        pytest.param(None, ["--set", f'database.password=["{DIGITS}"]'], "list", id="set-json-array-read-as-a-list"),
+    ],
+)
 def test_a_refused_password_type_is_reported_without_its_value(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    environment: str | None,
+    argv: list[str],
+    arrived_as: str,
 ) -> None:
-    """The environment layer reads digits as a number; the refusal the service prints names the
-    setting and the type, and neither stream carries the digits."""
-    digits = "8675309"
-    monkeypatch.setenv(PASSWORD_ENV, digits)
+    """The environment layer reads digits as a number and a value opening with ``[`` as a JSON
+    array, and ``--set`` reads JSON too (measured through the real loader). The refusal the service
+    prints names the setting and the type it arrived as, and neither stream carries the value."""
+    if environment is not None:
+        monkeypatch.setenv(PASSWORD_ENV, environment)
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(tmp_path / "z.sqlite"))
     seen, run = _capture()
-    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", "--bind-ip", "10.0.0.1"])
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *argv, "--bind-ip", "10.0.0.1"])
     assert main(run_service=run) == 1
     captured = capsys.readouterr()
     assert seen == [], "a refused start runs nothing"
-    assert "database.password" in captured.out
-    assert digits not in captured.out
-    assert digits not in captured.err
+    assert f"database.password arrived as {arrived_as}" in captured.out
+    assert DIGITS not in captured.out
+    assert DIGITS not in captured.err
 
 
 NO_VALUE_SPELLINGS = ["null", "NULL", "Null", "none", "None", "NONE"]
