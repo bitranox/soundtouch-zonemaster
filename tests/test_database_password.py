@@ -120,6 +120,7 @@ def test_an_empty_password_is_no_password() -> None:
         pytest.param(1.5, id="read-as-a-float"),
         pytest.param(True, id="read-as-a-boolean"),
         pytest.param(["a"], id="read-as-a-list"),
+        pytest.param({"a": "fake-pw-1"}, id="read-as-a-table"),
     ],
 )
 def test_a_password_that_arrived_as_something_other_than_text_is_refused_without_its_value(value: object) -> None:
@@ -139,6 +140,7 @@ def test_a_password_that_arrived_as_something_other_than_text_is_refused_without
     assert "database.password" in message
     assert "12345" not in message
     assert "1.5" not in message
+    assert "fake-pw-1" not in message
     assert caught.value.exit_code == ExitCode.ERROR
 
 
@@ -224,6 +226,7 @@ DIGITS = "8675309"
         pytest.param(DIGITS, [], "int", id="env-digits-read-as-a-number"),
         pytest.param(f'["{DIGITS}"]', [], "list", id="env-json-array-read-as-a-list"),
         pytest.param(None, ["--set", f'database.password=["{DIGITS}"]'], "list", id="set-json-array-read-as-a-list"),
+        pytest.param(f'{{"a": "{DIGITS}"}}', [], "dict", id="env-json-object-read-as-a-table"),
     ],
 )
 def test_a_refused_password_type_is_reported_without_its_value(
@@ -235,10 +238,10 @@ def test_a_refused_password_type_is_reported_without_its_value(
     argv: list[str],
     arrived_as: str,
 ) -> None:
-    """The environment layer reads digits as a number and a value opening with ``[`` as a JSON
-    array, and ``--set`` reads JSON too (measured through the real loader). The refusal the service
-    prints names the setting and the type it arrived as, exits 2 (the program could not run), and
-    neither stream carries the value."""
+    """The environment layer reads digits as a number, a value opening with ``[`` as a JSON array
+    and one opening with ``{`` as a JSON object, and ``--set`` reads JSON too (measured through the
+    real loader). The refusal the service prints names the setting and the type it arrived as,
+    exits 2 (the program could not run), and neither stream carries the value."""
     if environment is not None:
         monkeypatch.setenv(PASSWORD_ENV, environment)
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(tmp_path / "z.sqlite"))
