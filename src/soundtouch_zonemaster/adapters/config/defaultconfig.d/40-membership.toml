@@ -7,6 +7,12 @@
 
 # Device ids of Lifestyle consoles that may be taken into the zone anyway.
 #
+# A PREFERENCE: a value set in the house database with "soundtouch-zonemaster-service prefs set
+# membership.consoles_allowed <json>" overrides this file, the environment and the command line for
+# as long as it is set, and the running service picks it up within about a second. "prefs unset
+# membership.consoles_allowed" gives the decision back to the layers. "config" shows which of the
+# two is in force.
+#
 # Default: [] - no console is ever joined. Effect: a console is otherwise left out and not even
 # watched, because an API POWER flips its INPUT rather than waking it, so a service that reached
 # one would change what somebody is doing in that room, audibly, and undoing it needs a person at

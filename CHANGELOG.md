@@ -6,6 +6,40 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- New commands: `soundtouch-zonemaster-service prefs`, `prefs set NAME VALUE`, `prefs unset NAME`
+  for the five house preferences (`dialling.window_s`, `dialling.hold_threshold_s`, `mpd.rewind_s`,
+  `volume.fade_s`, `membership.consoles_allowed`). `prefs` lists every preference, its value, and
+  whether a config layer or a stored row is deciding it; `set` writes a row that beats every config
+  layer until `unset` removes it. A stored value a running service picks up within about a second.
+  A new setting, `volume.fade_s` (default 0.8 s, bounds 0.0 to 5.0 s inclusive): how long a joining
+  box's volume takes to climb back to its own level.
+- `config` now shows a preference set in the house database over the file value it replaces: the
+  file value is printed beneath it, on its own line. A stored row nothing can use (a name this
+  version does not know, a value out of bounds) is shown as ignored, with its raw text and why.
+
+### Changed
+
+- The calibrated dialling window and hold threshold no longer live on the `zone` row: they are two
+  of the five rows in a new `preference` table, migrated at the first start after the upgrade
+  (source `calibration`, the time not recorded, as it never was before). A config file's value for
+  any of the five preferences no longer decides while a stored row is set; `prefs unset` gives the
+  decision back to the config layers.
+- A console device id that is not exactly twelve hex digits is now refused
+  (`membership.consoles_allowed`, both from a config layer and from `prefs set`), rather than
+  accepted as written.
+
+### Note
+
+- `config` and `prefs` open the house database only when the view includes at least one
+  preference, and, like `switch`, migrate its schema to head if it is behind, briefly taking the
+  writer lock to do so. `config` never creates a database: a SQLite file that does not exist reads
+  as "no preference is stored", nothing is written. A database `config` cannot open or read costs
+  one line in its output and does not change its exit code; under `--redact` that line does not
+  name the database's location. The JSON envelope of `config` gains a `database_note` field (null
+  when there is nothing to say).
+
 ## [0.4.10] 2026-09-27 10:33:50
 
 ### Changed

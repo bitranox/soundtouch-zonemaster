@@ -37,6 +37,11 @@ port = 6600
 
 # How far back a channel starts when the house comes back to it, in seconds.
 #
+# A PREFERENCE: a value set in the house database with "soundtouch-zonemaster-service prefs set
+# mpd.rewind_s <seconds>" overrides this file, the environment and the command line for as long as
+# it is set, and the running service picks it up within about a second. "prefs unset mpd.rewind_s"
+# gives the decision back to the layers. "config" shows which of the two is in force.
+#
 # Default: 20, about a sentence and a half of speech, so that somebody returning to an audiobook
 # hears their way back in rather than landing mid-sentence. The place the house stopped at is
 # recorded exactly; this only moves where the resume starts, so changing it never rewrites

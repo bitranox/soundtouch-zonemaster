@@ -131,6 +131,7 @@ config.d/25-database.toml    [database]    where the house database is, and its 
 config.d/30-registry.toml    [registry]    where the speaker list comes from
 config.d/40-membership.toml  [membership]  who may join, and when a box stops counting
 config.d/50-dialling.toml    [dialling]    how a channel number is typed on the preset keys
+config.d/55-volume.toml      [volume]      how long a joining box's volume takes to climb back up
 config.d/60-switch.toml      [switch]      how quickly the switch row in the house database
                                            is noticed
 config.d/70-observer.toml    [observer]    each speaker's notification channel
@@ -205,6 +206,13 @@ database is still empty and then renamed `<name>.imported`. Once the database ho
 service does not read those files again, and all three may be absent. The switch itself is then
 `soundtouch-zonemaster-service switch on|off` (and `switch` alone reports it), and the channel
 list is `soundtouch-zonemaster-service channels export|import`.
+
+Five settings - the dialling window and hold threshold, the mpd rewind, the volume fade-in, and
+the consoles allowed into the zone - are PREFERENCES: a value may be set in the house database,
+where it overrides every config layer for as long as it stays set. `soundtouch-zonemaster-service
+prefs` lists all five and which one (a config layer, or a stored row) is deciding each; `prefs set
+NAME VALUE` writes a value there, and `prefs unset NAME` removes it, giving the decision back to
+the config layers. `config` shows a stored preference too, over the file value it replaces.
 
 PostgreSQL support needs the package installed with its `postgres` extra (`pip install
 "soundtouch-zonemaster[postgres]"`); it is built against the same schema as SQLite. CI runs the

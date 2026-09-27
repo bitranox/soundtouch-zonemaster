@@ -3,13 +3,13 @@
 # A speaker has six preset keys and the house may have more than six channels, so a number is
 # DIALLED: the keys are the digits, and pressing 1 then 2 inside one window selects channel 12.
 #
-# THESE ARE THE TWO SETTINGS A CONFIG FILE DOES NOT ALWAYS DECIDE. Both are CALIBRATED by one
-# gesture at a speaker, measured on the same presses, and a calibrated value is written to the state
-# file and re-read at every start (service.py, _restore). It overrides this file, the environment AND
-# the command line, so on a house that has ever been calibrated the values below are not what the
-# service is using. Read the real ones from the state file, or from the service's own "the dialling
-# window is N s" and "a key is held after N s" lines at startup. To go back to a value here, remove
-# dial_window_s or hold_threshold_s from the state file while the service is stopped.
+# THESE ARE TWO OF THE FIVE SETTINGS A CONFIG FILE DOES NOT ALWAYS DECIDE. Both are PREFERENCES: a
+# calibration at a speaker writes them to the house database, and so does
+# "soundtouch-zonemaster-service prefs set dialling.window_s <seconds>" (or hold_threshold_s). A
+# stored value overrides this file, the environment and the command line for as long as it is set,
+# so on a house that has ever been calibrated the values below may not be what the service is
+# using. "prefs" and "config" show which one is in force. "prefs unset dialling.window_s" (or
+# "prefs unset dialling.hold_threshold_s") gives the decision back to this file.
 
 [dialling]
 

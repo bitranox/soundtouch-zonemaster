@@ -26,6 +26,7 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/domain/calibration.py`  -  The gesture that starts a calibration, and the window it measures
 - `src/soundtouch_zonemaster/domain/state.py`  -  ZoneState: the house's state, what survives a restart
 - `src/soundtouch_zonemaster/domain/switch.py`  -  The switch rule: off only when the switch row says so
+- `src/soundtouch_zonemaster/domain/preferences.py`  -  The five house preferences a person may change while the service runs: one rule for the value and the stored row alike
 - `src/soundtouch_zonemaster/domain/database_url.py`  -  Whether a database setting carries a password, and how to show one without it
 - `src/soundtouch_zonemaster/domain/secret.py`  -  Secret: a password the records carry, shown as `***` everywhere and read only through `reveal()`
 
@@ -55,10 +56,11 @@ Complete (v0.2.0+, the template rebuild)
   - `switch_file.py`  -  The switch file, from before the database, watched rather than read once
   - `house_db.py`  -  Where the database is (a path or a URL), its engine, the writer lock per backend (`flock` on SQLite, a session advisory lock on PostgreSQL), the schema brought to Alembic's head while that lock is held
   - `house_schema.py`  -  The tables, as one SQLAlchemy `MetaData` the migrations are held to
-  - `migrations/`  -  Alembic: `env.py` and `versions/` (written by hand; `tests/test_house_db.py` holds them to `house_schema.py`)
+  - `migrations/`  -  Alembic: `env.py` and `versions/` (written by hand; `tests/test_house_db.py` holds them to `house_schema.py`; `0002_house_preferences.py` moves the calibrated window and hold out of the `zone` row and into the `preference` table)
   - `house_state.py`  -  The state, as rows: one table per collection field of ZoneState, replaced whole on every write
   - `house_switch.py`  -  The switch, as one row; off only when the row says so; DbSwitch is the service's watch
   - `house_channels.py`  -  The channel list, as rows ordered by `position` (never `rowid`), checked by the same rules the channel file is
+  - `house_preferences.py`  -  The preferences, as rows: one per preference somebody set, an UPSERT never a delete-then-insert
   - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
   - `house_store.py`  -  SqlHouseStore: the state, the channel list and the switch, in one database
 - `src/soundtouch_zonemaster/adapters/aftertouch/registry.py`  -  Who the speakers are, read from AfterTouch's own device list
@@ -97,6 +99,7 @@ Complete (v0.2.0+, the template rebuild)
   - `service/config_cmd.py`  -  `config`: every value, and the file it came from
   - `service/deploy_cmd.py`  -  `config-deploy`: writes the files and prints which
   - `service/store_cmd.py`  -  `switch` and `channels export|import`: the house database from the command line
+  - `service/prefs_cmd.py`  -  `prefs`, `prefs set` and `prefs unset`: the house preferences from the command line
 
 ### Composition Layer
 - `src/soundtouch_zonemaster/composition/__init__.py`  -  build_production() wires one adapter per port; hold_the_zone and run_prototype
@@ -113,7 +116,8 @@ Complete (v0.2.0+, the template rebuild)
 - `adapters/config/defaultconfig.d/25-database.toml`  -  The house database (`database.url`), SQLite or PostgreSQL, and its password (`database.password`)
 - `adapters/config/defaultconfig.d/30-registry.toml`  -  AfterTouch registry URL
 - `adapters/config/defaultconfig.d/40-membership.toml`  -  Membership windows (wakes, stand-down)
-- `adapters/config/defaultconfig.d/50-dialling.toml`  -  Dialling (digit timeout; the seventh database level is documented here)
+- `adapters/config/defaultconfig.d/50-dialling.toml`  -  Dialling (digit timeout; two of the five house preferences are documented here)
+- `adapters/config/defaultconfig.d/55-volume.toml`  -  The fade-in a joining box climbs back up in (a house preference)
 - `adapters/config/defaultconfig.d/60-switch.toml`  -  Switch poll interval
 - `adapters/config/defaultconfig.d/70-observer.toml`  -  Observer reconnect backoff
 - `adapters/config/defaultconfig.d/80-prototype.toml`  -  `[prototype] never_touch`, shipped empty (a house names its own boxes in its host layer)
@@ -254,9 +258,15 @@ file, at the one-time import.
 
 **config**: every value, and the file it came from (`--section`, `--json`, `--redact`).
 `database.password` is always shown masked, with or without `--redact`, and so is every other key
-under `[database]` but `url` (a stray key there is most likely the password misspelled).
-Note: a calibrated `dial_window_s` is written to the database's `zone` row and beats every config
-layer; `config` does not report that, the run's `--json` envelope does.
+under `[database]` but `url` (a stray key there is most likely the password misspelled). When the
+view includes a preference (any of `dialling`, `mpd`, `volume`, `membership`) and a database is
+named, `config` opens it (without the writer lock, migrating the schema to head if it is behind)
+and shows a stored preference over the file value it overrides, printed beneath it; a stored row
+nothing can use is shown as ignored, with its raw text and why. A database that does not exist
+reads as "no preference is stored", nothing is created; one that cannot be opened or read costs
+one line, unchanged exit code, and under `--redact` that line does not name the database.
+Note: the running service's own `--json` envelope does not carry the preferences either; `config`
+and `prefs` are where they are reported.
 
 **config-deploy**: `--target [app|host|user]`, `--force`; writes `defaultconfig.toml` plus the
 `defaultconfig.d/` files where the layers read them, and prints which.
@@ -269,6 +279,19 @@ and repairs. Opens without the writer lock.
 
 **channels import** `FILE`: replace the channel list with a file's. Opens WITH the writer lock, so
 it is refused (exit 1) while the service holds it.
+
+**prefs**: every one of the five house preferences (`dialling.window_s`,
+`dialling.hold_threshold_s`, `mpd.rewind_s`, `volume.fade_s`, `membership.consoles_allowed`), its
+value, and whether a config layer or a stored row is deciding it. Opens the database without the
+writer lock, like `switch`.
+
+**prefs set** `NAME VALUE`: parse `VALUE` as JSON, check it by the same rule a config file's value
+is, and write it to the house database as a row that beats every config layer; a running service
+picks it up within about a second. A refused value (out of bounds, not JSON, the wrong shape)
+writes nothing and opens nothing; exit 1 for a refused value, exit 2 for an unknown name or
+unparseable JSON.
+
+**prefs unset** `NAME`: remove the stored row, so the config layers decide the preference again.
 
 ---
 
@@ -293,4 +316,4 @@ Never run two suites at once: the tests bind fixed ports 40002/40003/40005/8090.
 
 ---
 
-**Last Updated:** 2026-09-27 (the database password setting)
+**Last Updated:** 2026-09-27 (the house preferences)
