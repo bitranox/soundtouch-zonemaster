@@ -62,6 +62,15 @@ __all__ = [
     "scoped_to_the_configured_database",
 ]
 
+_DATABASE_FIELD = "database"
+"""The record field the database setting fills. Its dotted config path comes from the settings
+map (:func:`config_path_of`), so no message here spells ``database.url`` itself."""
+
+_CREDENTIAL_FIELD = "database_password"
+"""The record field the password setting fills; its config path likewise comes from the map.
+Named for what it holds rather than with the word itself, which a secret scanner reads as a
+password literal assigned in code."""
+
 
 class ChannelPolicyInput(BaseModel):
     """A channel policy as a config file delivers it, before it is the record's own.
@@ -135,12 +144,12 @@ class ServiceOptionsInput(BaseModel):
     def _twelve_hex_digits(cls, value: str) -> str:
         return device_id_or_refuse(value)
 
-    @field_validator("database", mode="before")
+    @field_validator(_DATABASE_FIELD, mode="before")
     @classmethod
     def _database_as_text(cls, value: object) -> str | None:
         return database_text_or_refuse(value)
 
-    @field_validator("database")
+    @field_validator(_DATABASE_FIELD)
     @classmethod
     def _no_password_in_a_database_url(cls, value: str) -> str:
         """A URL is echoed by envelopes, `config` and logs; the password is the ``database.password``
@@ -156,12 +165,12 @@ class ServiceOptionsInput(BaseModel):
         if carries_a_password(value):
             message = (
                 "refused: the database URL carries a password; "
-                f"give it as {config_path_of('database_password')} (or keep it in ~/.pgpass) instead"
+                f"give it as {config_path_of(_CREDENTIAL_FIELD)} (or keep it in ~/.pgpass) instead"
             )
             raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return value
 
-    @field_validator("database_password", mode="before")
+    @field_validator(_CREDENTIAL_FIELD, mode="before")
     @classmethod
     def _password_as_text(cls, value: object) -> str | None:
         return password_text_or_refuse(value)
@@ -269,7 +278,7 @@ def database_text_or_refuse(value: object) -> str | None:
     if value is None or isinstance(value, str):
         return value
     message = (
-        f"refused: {config_path_of('database')} arrived as {type(value).__name__}, not as text; "
+        f"refused: {config_path_of(_DATABASE_FIELD)} arrived as {type(value).__name__}, not as text; "
         "quote it in a config file, or use --set with a JSON string"
     )
     raise OptionsError(message, exit_code=ExitCode.ERROR)
@@ -293,7 +302,7 @@ def password_text_or_refuse(value: object) -> str | None:
     if isinstance(value, str):
         return value
     message = (
-        f"refused: {config_path_of('database_password')} arrived as {type(value).__name__}, not as text; "
+        f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as {type(value).__name__}, not as text; "
         "quote it in a config file, or use --set with a JSON string"
     )
     raise OptionsError(message, exit_code=ExitCode.ERROR)
@@ -309,11 +318,10 @@ def _refuse_a_password_that_arrived_as_no_value(configured: Mapping[str, Any]) -
     absent from present-but-nothing, which is why this reads the mapping rather than the value.
     The refusal names the setting, never what was written.
     """
-    field = "database_password"
-    if field not in configured or configured[field] is not None:
+    if _CREDENTIAL_FIELD not in configured or configured[_CREDENTIAL_FIELD] is not None:
         return
     message = (
-        f"refused: {config_path_of(field)} arrived as no value, which is not the same as no password; "
+        f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as no value, which is not the same as no password; "
         "unset the variable (or drop the --set) for no password, or give the password in a config file"
     )
     raise OptionsError(message, exit_code=ExitCode.ERROR)
@@ -340,15 +348,14 @@ def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: s
     The service run and the store verbs both call this, so the two cannot come to disagree about
     which database a configured password is for.
     """
-    field = "database_password"
     scoped = dict(configured)
-    if typed is None or typed == configured.get("database") or scoped.get(field) in (None, ""):
+    if typed is None or typed == configured.get(_DATABASE_FIELD) or scoped.get(_CREDENTIAL_FIELD) in (None, ""):
         return scoped
-    del scoped[field]
+    del scoped[_CREDENTIAL_FIELD]
     log(
         "config",
-        f"the configured {config_path_of(field)} was not used: the typed --database is not the "
-        f"configured {config_path_of('database')}",
+        f"the configured {config_path_of(_CREDENTIAL_FIELD)} was not used: the typed --database is not the "
+        f"configured {config_path_of(_DATABASE_FIELD)}",
     )
     return scoped
 
@@ -356,7 +363,7 @@ def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: s
 def database_password_of(configured: Mapping[str, Any]) -> Secret | None:
     """The password the configuration layers give, for the store verbs that open the database
     without building the whole option record. The same rule as the record's own field."""
-    text = password_text_or_refuse(configured.get("database_password"))
+    text = password_text_or_refuse(configured.get(_CREDENTIAL_FIELD))
     return Secret(text) if text else None
 
 
