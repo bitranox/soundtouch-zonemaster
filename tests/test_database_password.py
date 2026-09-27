@@ -487,7 +487,11 @@ def test_a_database_url_that_is_not_text_refuses_the_start(
     _refuses_a_url_that_is_not_text(capsys, arrived_as)
 
 
-@pytest.mark.parametrize("verb", [["switch"], ["channels", "export", "--output", "{out}"]], ids=["switch", "export"])
+@pytest.mark.parametrize(
+    "verb",
+    [["switch"], ["channels", "export", "--output", "{out}"], ["channels", "import", "{out}"]],
+    ids=["switch", "export", "import"],
+)
 @pytest.mark.parametrize(("environment", "argv", "arrived_as"), NOT_TEXT_URLS)
 def test_a_database_url_that_is_not_text_refuses_the_store_verbs(
     monkeypatch: pytest.MonkeyPatch,
