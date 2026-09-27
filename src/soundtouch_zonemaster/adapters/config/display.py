@@ -25,12 +25,15 @@ __all__ = [
     "where",
 ]
 
-DATABASE_URL_KEY = "database.url"
+DATABASE_URL_KEY = config_path_of("database")
 """The one dotted key ``config`` reports whose value can itself be a URL carrying a password."""
 
 DATABASE_PASSWORD_KEY = config_path_of("database_password")
 """The dotted key whose whole value is a password: never shown, whatever it holds. Read from the
 settings map, so the key masked here is the key the service reads."""
+
+_DATABASE_SECTION = DATABASE_PASSWORD_KEY.partition(".")[0]
+"""The section both keys above live in. Every other key under it is masked whole."""
 
 
 def where(origin: Mapping[str, Any] | None) -> str:
@@ -43,8 +46,8 @@ def where(origin: Mapping[str, Any] | None) -> str:
 
 
 def mask_database_settings(values: Sequence[tuple[str, Any]], *, mask: str) -> list[tuple[str, Any]]:
-    """The same pairs, with :data:`DATABASE_PASSWORD_KEY`'s value replaced by ``mask`` and
-    :data:`DATABASE_URL_KEY`'s value masked wherever it carries a password.
+    """The same pairs, with every value under the database section replaced by ``mask`` except
+    :data:`DATABASE_URL_KEY`'s, which is masked wherever it carries a password.
 
     Unconditional, unlike :func:`mask_values_from_layer` and :func:`mask_values_from_private_files`:
     a database URL can carry a password from ANY layer - a config file, an environment variable, a
@@ -53,13 +56,19 @@ def mask_database_settings(values: Sequence[tuple[str, Any]], *, mask: str) -> l
     scheme alone before ``--redact`` is even asked about, in every output mode the ``config`` view
     has; one without a password is shown as typed. The password setting is replaced whatever its
     value and type, empty included, so no reading of it can put any of it on screen.
+
+    Every OTHER key in that section is replaced too, and the section is matched without regard to
+    case. The section holds two settings, so a third key there is almost certainly the password
+    under a name nobody spelled right (``passwrod``, ``Password``), or the password setting read
+    as a table, whose leaves carry names of their own. The exact key would miss every one of them.
     """
 
     def hidden(key: str, value: Any) -> Any:
-        if key == DATABASE_PASSWORD_KEY:
+        if key == DATABASE_URL_KEY:
+            return masked_database_url(value) if isinstance(value, str) else value
+        section, dot, _ = key.partition(".")
+        if dot and section.lower() == _DATABASE_SECTION:
             return mask
-        if key == DATABASE_URL_KEY and isinstance(value, str):
-            return masked_database_url(value)
         return value
 
     return [(key, hidden(key, value)) for key, value in values]

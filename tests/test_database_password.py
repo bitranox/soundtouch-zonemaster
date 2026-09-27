@@ -175,14 +175,33 @@ def test_the_service_run_prints_no_password(
     assert FAKE not in captured.err
 
 
+@pytest.mark.parametrize(
+    ("spelling", "where"),
+    [
+        pytest.param("passwrod", "file", id="file-misspelled"),
+        pytest.param("Password", "file", id="file-mixed-case"),
+        pytest.param("passwrod", "env", id="env-misspelled"),
+    ],
+)
+@pytest.mark.parametrize("mode", [["--json"], ["--json-bare"], []], ids=["json", "json-bare", "human"])
 def test_a_misspelled_password_key_is_named_without_its_value(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    spelling: str,
+    where: str,
+    mode: list[str],
 ) -> None:
     """A stray key in our own section gets a line; the line is about the KEY, whatever it holds."""
-    _user_config(isolated_config_layers, f'[database]\npasswrod = "{FAKE}"\n')
-    options = _run_with(monkeypatch, tmp_path)
+    if where == "file":
+        _user_config(isolated_config_layers, f'[database]\n{spelling} = "{FAKE}"\n')
+    else:
+        monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__{spelling.upper()}", FAKE)
+    options = _run_with(monkeypatch, tmp_path, *mode)
     captured = capsys.readouterr()
-    assert "passwrod" in captured.out + captured.err, "the control: the stray key was reported"
+    assert f"has no setting called {spelling!r}" in captured.out + captured.err, "the control: the key is named"
     assert options.database_password is None
     assert FAKE not in captured.out
     assert FAKE not in captured.err
