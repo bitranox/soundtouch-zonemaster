@@ -46,6 +46,13 @@ def write_preference(
     """Set one preference and hand back the row it replaced. The caller holds the transaction and checked the value.
 
     ``json.dumps`` writes a tuple as a JSON array, which is the shape the rule reads back.
+
+    The row handed back comes from a SELECT run before the UPSERT, not from the UPSERT itself: the
+    write is one atomic statement on both backends, but the read that reports what it replaced is
+    not part of it. On PostgreSQL under READ COMMITTED, two callers writing the same name at once
+    can each read the same "before" row and each report having replaced it, even though only one
+    of them did - a caller that trusts the returned row to mean "this is what my write replaced"
+    is trusting something the database does not guarantee here.
     """
     before = _row(connection, name)
     row = {"name": name.value, "value": json.dumps(value), "source": source.value, "changed_at": changed_at}

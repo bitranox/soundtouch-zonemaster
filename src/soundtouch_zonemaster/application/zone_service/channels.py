@@ -133,7 +133,8 @@ class ChannelBook(ServiceState):
         for number in range(1, PRESET_KEYS + 1):
             try:
                 request = await self.ports.read_preset(speaker.ip, number)
-            except Exception as exc:  # noqa: BLE001 - a key that is not set and a box that did not answer read alike here
+            # a key that is not set and a box that did not answer read alike here, so any error here means "no preset"
+            except Exception as exc:  # noqa: BLE001
                 self.log("channels", f"{speaker.name} preset {number}: {type(exc).__name__}: {exc}")
                 presets[number] = None
                 continue

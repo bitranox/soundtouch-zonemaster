@@ -630,7 +630,9 @@ def test_a_downgrade_to_0001_puts_the_calibration_back_on_the_zone_row(house_dat
 
 
 def test_dropping_the_calibrated_columns_keeps_zone_strict(tmp_path: Path) -> None:
-    """SQLite only: STRICT is a SQLite table option, and a batch-mode rebuild would drop it."""
+    """SQLite only: STRICT is a SQLite table option, and batch mode measurably keeps it on rebuild
+    (SQLAlchemy 2.1.1). This guards the rebuild the migration does to drop the columns, so a future
+    Alembic that stops carrying STRICT forward is caught here rather than found later."""
     path = str(tmp_path / "house.sqlite")
     _database_at_0001(path, zone=("3", 0.7, None))
     _after_the_migration(path)
@@ -638,4 +640,4 @@ def test_dropping_the_calibrated_columns_keeps_zone_strict(tmp_path: Path) -> No
     with database.reading() as connection:
         ddl = str(connection.execute(text("SELECT sql FROM sqlite_master WHERE name = 'zone'")).scalar_one())
     database.close()
-    assert ddl.rstrip().endswith("STRICT"), "dropping the columns must not rebuild zone without STRICT"
+    assert ddl.rstrip().endswith("STRICT"), "the rebuilt zone table must still be STRICT"
