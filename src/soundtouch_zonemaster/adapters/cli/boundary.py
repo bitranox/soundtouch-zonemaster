@@ -56,6 +56,7 @@ __all__ = [
     "ServiceOptionsInput",
     "configured_settings",
     "database_password_of",
+    "database_setting_of",
     "database_text_or_refuse",
     "merge_service_settings",
     "no_value_anywhere",
@@ -275,8 +276,8 @@ def database_text_or_refuse(value: object) -> str | None:
     nobody meant (a number) or hand the store the printed form of a list, password and all. It is
     refused instead, naming the setting and the type it arrived as, never the value. ``None`` is
     passed through, because no value is not a type error but no database: both callers answer it
-    with :func:`no_value_anywhere`, the store verbs when the setting reads ``None`` and the run by
-    dropping a ``None`` before the record is validated (:func:`parse_service_options`).
+    with :func:`no_value_anywhere`, the store verbs through :func:`database_setting_of` and the run
+    by dropping a ``None`` before the record is validated (:func:`parse_service_options`).
     """
     if value is None or isinstance(value, str):
         return value
@@ -373,6 +374,16 @@ def database_password_of(configured: Mapping[str, Any]) -> Secret | None:
     without building the whole option record. The same rule as the record's own field."""
     text = password_text_or_refuse(configured.get(_CREDENTIAL_FIELD))
     return Secret(text) if text else None
+
+
+def database_setting_of(configured: Mapping[str, Any]) -> str:
+    """The database the configuration layers give, for the store verbs that open it without
+    building the whole option record: text, or refused (exit 2) as not text or as given nowhere,
+    by the same two rules the record's own field follows."""
+    setting = database_text_or_refuse(configured.get(_DATABASE_FIELD))
+    if setting is None:
+        raise no_value_anywhere([_DATABASE_FIELD])
+    return setting
 
 
 def _database_file(database: str) -> Path | None:

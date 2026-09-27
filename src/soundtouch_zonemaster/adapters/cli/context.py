@@ -20,8 +20,7 @@ from ..config.overrides import apply_set_overrides
 from .boundary import (
     configured_settings,
     database_password_of,
-    database_text_or_refuse,
-    no_value_anywhere,
+    database_setting_of,
     scoped_to_the_configured_database,
 )
 from .envelope import OutputMode
@@ -102,7 +101,4 @@ def database_for(shared: Shared) -> DatabaseChoice:
     password = database_password_of(configured)
     if shared.database is not None:
         return DatabaseChoice(setting=shared.database, password=password)
-    setting = database_text_or_refuse(configured.get("database"))
-    if setting is None:
-        raise no_value_anywhere(["database"])
-    return DatabaseChoice(setting=setting, password=password)
+    return DatabaseChoice(setting=database_setting_of(configured), password=password)
