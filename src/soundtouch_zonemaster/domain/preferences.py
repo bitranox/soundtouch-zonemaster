@@ -34,7 +34,7 @@ __all__ = [
     "FADE_FLOOR_S",
     "HousePreferences",
     "PreferenceName",
-    "PreferenceRefused",
+    "PreferenceRefusedError",
     "PreferenceRow",
     "PreferenceSource",
     "PreferenceValue",
@@ -82,8 +82,12 @@ class PreferenceSource(StrEnum):
     APP = "app"
 
 
-class PreferenceRefused(ValueError):  # noqa: N818 - refused, not merely an error; every caller (CLI, store) names it this way
-    """A value a preference cannot hold, carrying the sentence that says why."""
+class PreferenceRefusedError(ValueError):
+    """A value a preference cannot hold, carrying the sentence that says why.
+
+    The caller (CLI, store) reads this as a refusal, not a run failure: it means exit 1
+    on a value that was rejected, never "could not run".
+    """
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -136,7 +140,7 @@ _FIELD: Mapping[PreferenceName, str] = {
 
 
 def checked(name: PreferenceName, value: object) -> PreferenceValue:
-    """The value in the shape the record holds it, or :class:`PreferenceRefused` naming why not.
+    """The value in the shape the record holds it, or :class:`PreferenceRefusedError` naming why not.
 
     The three messages the options already gave (window, hold, rewind) are reproduced exactly:
     the golden options corpus holds them, and a person who has met one should meet the same words
@@ -149,19 +153,19 @@ def checked(name: PreferenceName, value: object) -> PreferenceValue:
         message = (
             f"refused: the dialling window must be between {WINDOW_FLOOR_S} and {WINDOW_CEILING_S} s, not {number}"
         )
-        raise PreferenceRefused(message)
+        raise PreferenceRefusedError(message)
     if name is PreferenceName.HOLD and not HOLD_THRESHOLD_FLOOR_S <= number <= HOLD_THRESHOLD_CEILING_S:
         message = (
             f"refused: the hold threshold must be between {HOLD_THRESHOLD_FLOOR_S} and "
             f"{HOLD_THRESHOLD_CEILING_S} s, not {number}"
         )
-        raise PreferenceRefused(message)
+        raise PreferenceRefusedError(message)
     if name is PreferenceName.REWIND and number < 0:
         message = f"refused: the mpd rewind must not be negative, not {number}"
-        raise PreferenceRefused(message)
+        raise PreferenceRefusedError(message)
     if name is PreferenceName.FADE and not FADE_FLOOR_S <= number <= FADE_CEILING_S:
         message = f"refused: the fade-in must be between {FADE_FLOOR_S} and {FADE_CEILING_S} s, not {number}"
-        raise PreferenceRefused(message)
+        raise PreferenceRefusedError(message)
     return number
 
 
@@ -186,7 +190,7 @@ def stored(
         except json.JSONDecodeError:
             rejected.append((row, "not JSON"))
             continue
-        except PreferenceRefused as exc:
+        except PreferenceRefusedError as exc:
             rejected.append((row, str(exc)))
             continue
         usable[name] = Stored(value=value, row=row)
@@ -213,7 +217,7 @@ def _number(name: PreferenceName, value: object) -> float:
     """A JSON number as a float. A boolean is refused: JSON's ``true`` is not the number 1."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         message = f"refused: {name} must be a number, not {type(value).__name__}"
-        raise PreferenceRefused(message)
+        raise PreferenceRefusedError(message)
     return float(value)
 
 
@@ -221,11 +225,11 @@ def _device_ids(name: PreferenceName, value: object) -> tuple[str, ...]:
     """A list of device ids as a tuple, each one checked, so a typo cannot allow a console by accident."""
     if not isinstance(value, list | tuple):
         message = f"refused: {name} must be a list, not {type(value).__name__}"
-        raise PreferenceRefused(message)
+        raise PreferenceRefusedError(message)
     ids: list[str] = []
     for item in cast("list[object] | tuple[object, ...]", value):
         if not isinstance(item, str) or not DEVICE_ID.fullmatch(item):
             message = f"refused: {name} holds {item!r}, which is not a device id (12 hex digits)"
-            raise PreferenceRefused(message)
+            raise PreferenceRefusedError(message)
         ids.append(item)
     return tuple(ids)

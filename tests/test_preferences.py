@@ -8,7 +8,7 @@ from soundtouch_zonemaster.domain.preferences import (
     FADE_DEFAULT_S,
     HousePreferences,
     PreferenceName,
-    PreferenceRefused,
+    PreferenceRefusedError,
     PreferenceRow,
     Stored,
     checked,
@@ -54,7 +54,7 @@ def test_the_five_names_are_the_config_paths() -> None:
 def test_a_value_outside_what_the_preference_may_hold_is_refused_by_name(
     name: PreferenceName, value: object, message: str
 ) -> None:
-    with pytest.raises(PreferenceRefused) as refused:
+    with pytest.raises(PreferenceRefusedError) as refused:
         checked(name, value)
     assert str(refused.value) == message
 
