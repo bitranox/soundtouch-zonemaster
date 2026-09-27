@@ -276,13 +276,15 @@ def database_text_or_refuse(value: object) -> str | None:
 
 
 def password_text_or_refuse(value: object) -> str | None:
-    """A password setting as text, ``None`` when there is none. Raises :class:`OptionsError`.
+    """A password setting as text, ``None`` when there is none. Raises :class:`OptionsError` (exit 2).
 
     Empty is none: the store then hands the driver no password, and libpq's own ``~/.pgpass``,
     ``PGPASSFILE`` and ``PGPASSWORD`` apply. A value that is not text is refused rather than turned
     back into text: the environment layer reads ``0123`` as the number 123 and ``true`` as a
     boolean, so converting it would hand the driver a password that differs from the one written.
-    The refusal names the setting and the type it arrived as, never the value.
+    The refusal names the setting and the type it arrived as, never the value. It exits 2, like
+    the password that arrived as no value: a password setting that cannot be used means the
+    program could not run, not that it ran and the answer was no.
     """
     if value is None or value == "":
         return None
@@ -294,7 +296,7 @@ def password_text_or_refuse(value: object) -> str | None:
         f"refused: {config_path_of('database_password')} arrived as {type(value).__name__}, not as text; "
         "quote it in a config file, or use --set with a JSON string"
     )
-    raise OptionsError(message, exit_code=ExitCode.REFUSED)
+    raise OptionsError(message, exit_code=ExitCode.ERROR)
 
 
 def _refuse_a_password_that_arrived_as_no_value(configured: Mapping[str, Any]) -> None:

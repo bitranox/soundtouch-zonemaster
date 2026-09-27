@@ -17,7 +17,7 @@ from nothing_typed import NOTHING_TYPED
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
 from soundtouch_zonemaster.application.options import ServiceOptions
-from soundtouch_zonemaster.application.outcome import OptionsError
+from soundtouch_zonemaster.application.outcome import ExitCode, OptionsError
 from soundtouch_zonemaster.application.zone_service import ZoneService
 from soundtouch_zonemaster.composition import build_production, open_house_store
 from soundtouch_zonemaster.domain.secret import Secret
@@ -125,7 +125,9 @@ def test_an_empty_password_is_no_password() -> None:
 def test_a_password_that_arrived_as_something_other_than_text_is_refused_without_its_value(value: object) -> None:
     """The environment layer reads ``12345`` as a number and ``true`` as a boolean, so a password
     of digits would reach the driver changed (a leading zero lost) if it were turned back into
-    text. It is refused instead, naming the setting and saying to quote it, and never the value."""
+    text. It is refused instead, naming the setting and saying to quote it, and never the value.
+    A setting that cannot be used means the program could not run: exit 2, not the 1 of a refusal
+    that ran and answered no."""
     with pytest.raises(OptionsError) as caught:
         parse_service_options(
             bind_ip="10.0.0.1",
@@ -137,6 +139,7 @@ def test_a_password_that_arrived_as_something_other_than_text_is_refused_without
     assert "database.password" in message
     assert "12345" not in message
     assert "1.5" not in message
+    assert caught.value.exit_code == ExitCode.ERROR
 
 
 def test_the_record_prints_no_password(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -234,13 +237,14 @@ def test_a_refused_password_type_is_reported_without_its_value(
 ) -> None:
     """The environment layer reads digits as a number and a value opening with ``[`` as a JSON
     array, and ``--set`` reads JSON too (measured through the real loader). The refusal the service
-    prints names the setting and the type it arrived as, and neither stream carries the value."""
+    prints names the setting and the type it arrived as, exits 2 (the program could not run), and
+    neither stream carries the value."""
     if environment is not None:
         monkeypatch.setenv(PASSWORD_ENV, environment)
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(tmp_path / "z.sqlite"))
     seen, run = _capture()
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *argv, "--bind-ip", "10.0.0.1"])
-    assert main(run_service=run) == 1
+    assert main(run_service=run) == 2
     captured = capsys.readouterr()
     assert seen == [], "a refused start runs nothing"
     assert f"database.password arrived as {arrived_as}" in captured.out
