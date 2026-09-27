@@ -67,6 +67,7 @@ from soundtouch_zonemaster.composition import build_production, hold_the_zone, o
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.dialling import WINDOW_DEFAULT_S, WINDOW_FLOOR_S
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, KeyName, KeyState, SourceName
+from soundtouch_zonemaster.domain.logfn import ERROR_KIND
 from soundtouch_zonemaster.domain.longpress import HOLD_THRESHOLD_DEFAULT_S
 from soundtouch_zonemaster.domain.membership import UNREACHABLE_TIMEOUT_S, WAKE_WINDOW_S
 from soundtouch_zonemaster.domain.preferences import FADE_DEFAULT_S, PreferenceName, PreferenceSource
@@ -4528,21 +4529,28 @@ async def test_a_preference_read_that_fails_keeps_what_is_in_use_and_says_so_onc
 ) -> None:
     """A database that cannot be read is said once when it starts failing and once when it answers.
 
-    A value set while the reads fail is not taken in until one succeeds - and is then, which is the
-    proof that the watch outlived the failure rather than ending on it.
+    The failure is an error and is logged as one, beside every other failure; the recovery is not,
+    and is a preference line. A value set while the reads fail is not taken in until one succeeds -
+    and is then, which is the proof that the watch outlived the failure rather than ending on it.
     """
     options = _options(world, tmp_path)
+    failing = f"{ERROR_KIND}: "
+    kept = "keeping the preferences already in use"
     logs: list[str] = []
 
     async with _running_with_a_store_that_can_fail(options, logs) as (_service, store):
         await eventually(lambda: _said(logs, "member(s) remembered from the last run"), "it started")
         store.reading_preferences_fails = True
-        await eventually(lambda: _said(logs, "keeping the preferences already in use"), "the failure was said")
+        await eventually(lambda: _said(logs, kept), "the failure was said")
         _set_preference(options, PreferenceName.FADE, 1.0)
         await asyncio.sleep(options.switch_poll_s * 6)
-        assert sum("keeping the preferences already in use" in line for line in logs) == 1, "once, not every poll"
+        said_failing = [line for line in logs if kept in line]
+        assert len(said_failing) == 1, "once, not every poll"
+        assert said_failing[0].startswith(failing), f"and as an error: {said_failing[0]}"
         assert not _said(logs, "fades in over 1.0 s"), "nothing was taken from a read that failed"
 
         store.reading_preferences_fails = False
         await eventually(lambda: _said(logs, "a joining box fades in over 1.0 s, set by cli"), "taken in on recovery")
-        assert sum("the house database answers again" in line for line in logs) == 1
+        assert [line for line in logs if "the house database answers again" in line] == [
+            "prefs: the house database answers again"
+        ]

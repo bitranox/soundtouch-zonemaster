@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, cast
 
+from ...domain.logfn import ERROR_KIND
 from ...domain.preferences import PreferenceName, PreferenceSource, PreferenceValue, resolved, value_of
 from ..errors import StoreError
 from .zone import ZoneReconcile
@@ -77,10 +78,13 @@ class PreferenceBook(ZoneReconcile):
                 rows = self.store.load_preferences()
             except StoreError as exc:
                 if not failing:
-                    self.log("prefs", f"{exc}; keeping the preferences already in use")
+                    self.log(ERROR_KIND, f"{exc}; keeping the preferences already in use")
                     failing = True
                 continue
             if failing:
+                # Not an error, so not where errors go: the failure went to ERROR_KIND, which the
+                # narration sends to stderr beside every other failure, and its end is a preference
+                # line like the ones it lets through again.
                 self.log("prefs", "the house database answers again")
                 failing = False
             if rows != self._preference_rows:
