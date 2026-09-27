@@ -41,6 +41,7 @@ from ..envelope import Envelope, OutputMode, report_crash, report_failure, write
 from ..typed_click import option
 from .config_cmd import cli_config
 from .deploy_cmd import cli_config_deploy
+from .prefs_cmd import cli_prefs
 from .store_cmd import cli_channels, cli_switch
 
 if TYPE_CHECKING:
@@ -261,3 +262,4 @@ cli.add_command(cli_config)
 cli.add_command(cli_config_deploy)
 cli.add_command(cli_switch)
 cli.add_command(cli_channels)
+cli.add_command(cli_prefs)

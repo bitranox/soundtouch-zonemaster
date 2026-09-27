@@ -19,6 +19,7 @@ exists, and - for the other program - whether an address is one this house never
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,7 +41,7 @@ from ...domain.database_url import carries_a_password
 from ...domain.dialling import WINDOW_DEFAULT_S
 from ...domain.longpress import HOLD_THRESHOLD_DEFAULT_S
 from ...domain.membership import UNREACHABLE_TIMEOUT_S
-from ...domain.preferences import FADE_DEFAULT_S, PreferenceName
+from ...domain.preferences import FADE_DEFAULT_S, HousePreferences, PreferenceName
 from ...domain.secret import Secret
 from ...domain.switch import POLL_S
 from ..config.loader import ENV_PREFIX
@@ -59,11 +60,15 @@ __all__ = [
     "database_password_of",
     "database_setting_of",
     "database_text_or_refuse",
+    "layered_preferences",
     "merge_service_settings",
     "no_value_anywhere",
     "parse_service_options",
     "scoped_to_the_configured_database",
 ]
+
+_PREFERENCE_FIELDS = ("dial_window_s", "hold_threshold_s", "mpd_rewind_s", "fade_s", "consoles_allowed")
+"""The record fields that are preferences; each one's config path IS its preference name."""
 
 _DATABASE_FIELD = "database"
 """The record field the database setting fills. Its dotted config path comes from the settings
@@ -516,3 +521,24 @@ def configured_settings(config: Config) -> dict[str, Any]:
     found = service_settings(config)
     _refuse_a_malformed_password(found)
     return found
+
+
+def layered_preferences(configured: Mapping[str, Any]) -> HousePreferences:
+    """The five preferences as the config layers give them, each checked by the preference rule.
+
+    What ``prefs`` lays the stored rows over. It reads only these five fields, so a host that has
+    no bind address configured can still list and change its preferences. A field no layer sets
+    takes the record's own default, read off the class so there is no second copy of it.
+    """
+    defaults = {field.name: field.default for field in dataclasses.fields(ServiceOptions)}
+    values: dict[str, Any] = {}
+    for field_name in _PREFERENCE_FIELDS:
+        name = PreferenceName(config_path_of(field_name))
+        values[field_name] = preference_or_refuse(name, configured.get(field_name, defaults[field_name]))
+    return HousePreferences(
+        window_s=values["dial_window_s"],
+        hold_threshold_s=values["hold_threshold_s"],
+        rewind_s=values["mpd_rewind_s"],
+        fade_s=values["fade_s"],
+        consoles_allowed=values["consoles_allowed"],
+    )

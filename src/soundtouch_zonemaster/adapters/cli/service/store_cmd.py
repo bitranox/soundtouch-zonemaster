@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from ....application.ports import HouseStore
     from ..context import Shared
 
-__all__ = ["ChannelsReport", "SwitchReport", "cli_channels", "cli_switch"]
+__all__ = ["ChannelsReport", "SwitchReport", "cli_channels", "cli_switch", "open_store_or_exit"]
 
 
 class SwitchReport(BaseModel):
@@ -48,7 +48,7 @@ class ChannelsReport(BaseModel):
     path: str
 
 
-def _open(ctx: click.Context, shared: Shared, *, exclusive: bool, command: str) -> HouseStore:
+def open_store_or_exit(ctx: click.Context, shared: Shared, *, exclusive: bool, command: str) -> HouseStore:
     """The store for this invocation, opened, or the refusal reported and the context exited."""
     try:
         choice = database_for(shared)
@@ -76,7 +76,7 @@ def cli_switch(ctx: click.Context, *, word: str | None) -> None:
     """Show the switch, or set it: off stands the house down, on lets the service take it in again."""
     shared = shared_of(ctx)
     command = f"{service_command} switch"
-    store = _open(ctx, shared, exclusive=False, command=command)
+    store = open_store_or_exit(ctx, shared, exclusive=False, command=command)
     try:
         changed = False if word is None else store.set_switch(on=word == "on")
         where = store.where
@@ -101,7 +101,7 @@ def cli_channels_export(ctx: click.Context, *, output: str) -> None:
     """Write the channel list as the JSON document a person reads and repairs."""
     shared = shared_of(ctx)
     command = f"{service_command} channels export"
-    store = _open(ctx, shared, exclusive=False, command=command)
+    store = open_store_or_exit(ctx, shared, exclusive=False, command=command)
     try:
         text = store.export_channels()
         count = len(store.load_channels().channels)
@@ -126,7 +126,7 @@ def cli_channels_import(ctx: click.Context, *, path: str) -> None:
     """Replace the channel list with a file's. Refused while the service runs; stop it first."""
     shared = shared_of(ctx)
     command = f"{service_command} channels import"
-    store = _open(ctx, shared, exclusive=True, command=command)
+    store = open_store_or_exit(ctx, shared, exclusive=True, command=command)
     try:
         count = len(store.import_channels(Path(path)).channels)
         where = store.where

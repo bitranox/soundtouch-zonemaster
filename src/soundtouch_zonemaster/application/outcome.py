@@ -15,6 +15,7 @@ into a config file are refused with the same sentence.
 from __future__ import annotations
 
 from enum import IntEnum
+from typing import cast
 
 from ..domain.preferences import DEVICE_ID as _DEVICE_ID
 from ..domain.preferences import PreferenceName, PreferenceRefusedError, checked
@@ -79,12 +80,19 @@ def preference_or_refuse[V](name: PreferenceName, value: V) -> V:
     """A preference through the house rule (``domain/preferences.py``), as the CLI's own refusal.
 
     The one place :class:`~..domain.preferences.PreferenceRefusedError` becomes an
-    :class:`OptionsError`: the record's own ``__post_init__`` and the boundary's pydantic
-    validators both call this, so a value is never legal from one source and refused from the
-    other, and a person who has met one refusal meets the same words from ``prefs set``.
+    :class:`OptionsError`: the record's own ``__post_init__``, the boundary's pydantic
+    validators and ``prefs``' own ``layered_preferences`` all call this, so a value is never
+    legal from one source and refused from the other, and a person who has met one refusal meets
+    the same words from ``prefs set``.
+
+    Hands back what :func:`~..domain.preferences.checked` decoded, not the value it was given: a
+    caller reading a config layer's raw JSON (a list where the record holds a tuple) gets the
+    shape the record actually holds, not the shape the file happened to spell it in. For a value
+    already typed by pydantic's own field coercion the two are equal, so this changes nothing for
+    the validators that already called it before ``prefs`` existed.
     """
     try:
-        checked(name, value)
+        decoded = checked(name, value)
     except PreferenceRefusedError as exc:
         raise OptionsError(str(exc), exit_code=ExitCode.REFUSED) from exc
-    return value
+    return cast("V", decoded)
