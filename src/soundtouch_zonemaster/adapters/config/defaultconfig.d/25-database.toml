@@ -42,6 +42,7 @@
 # anything but text is refused rather than changed, so give such a password in a file, or with
 # --set database.password='"0123"'. A password that arrives as no value (that environment spelling,
 # or --set database.password=null) refuses the start too, rather than quietly meaning no password:
-# for no password leave the variable unset or empty.
+# for no password leave the variable unset or empty. In a .env, quote a password containing " #":
+# unquoted, the value ends where that inline comment begins.
 #   env: SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD
 # password = "..."
