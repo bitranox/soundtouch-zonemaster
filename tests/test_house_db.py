@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import re
+import tokenize
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -14,6 +18,8 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.pool import QueuePool
 
+from soundtouch_zonemaster.adapters.config.settings_map import config_path_of
+from soundtouch_zonemaster.adapters.files import house_db
 from soundtouch_zonemaster.adapters.files.house_db import (
     MIGRATIONS,
     AdvisoryLock,
@@ -29,7 +35,6 @@ from soundtouch_zonemaster.domain.secret import Secret
 
 if TYPE_CHECKING:
     import sqlite3
-    from pathlib import Path
 
     from conftest import PostgresLogin
 
@@ -500,3 +505,27 @@ def test_a_wrong_password_on_postgresql_is_refused_without_repeating_it(
     assert wrong not in message
     leaked = postgres_login.password.reveal() in message
     assert not leaked, "the real password appears in the refusal"
+
+
+_TEXT_TOKENS = frozenset({tokenize.STRING, tokenize.FSTRING_MIDDLE})
+"""Where a setting's name can be written in a module: a string, a docstring, or the text of an
+f-string, which tokenizes into pieces of its own since Python 3.12."""
+
+_A_DATABASE_SETTING = re.compile(r"\bdatabase\.\w+")
+
+
+def _database_settings_named_in(source: str) -> list[str]:
+    """Every ``database.<key>`` written inside a string of ``source``, code outside strings aside."""
+    tokens = tokenize.generate_tokens(io.StringIO(source).readline)
+    return [
+        found for token in tokens if token.type in _TEXT_TOKENS for found in _A_DATABASE_SETTING.findall(token.string)
+    ]
+
+
+def test_every_password_setting_the_store_names_is_the_one_the_settings_map_reads() -> None:
+    """``adapters/files`` may not import the config adapter, so the store spells the setting out in
+    its refusals and its docstring. Each such spelling is read from the module's own text, so one
+    added later is held to the settings map without this test being edited."""
+    named = _database_settings_named_in(Path(house_db.__file__).read_text(encoding="utf-8"))
+    assert named, "the control: the store names the setting somewhere"
+    assert set(named) == {config_path_of("database_password")}
