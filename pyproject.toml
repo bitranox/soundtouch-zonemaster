@@ -46,7 +46,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
-    "coverage[toml]>=7.16.1",
+    "coverage[toml]>=7.16.2",
     "psycopg[binary]>=3.3.6",
     # The gate's own tools, declared so `uv run <tool>` in this venv matches what
     # bmk runs. bmk resolves them from its own pinned toolchain either way, so a
