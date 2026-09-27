@@ -188,11 +188,17 @@ class VolumeGuard(SpeakerBook):
 
         The fade's length is read ONCE, here, and every step uses that: a preference changed while
         a box is climbing applies to the next fade, not to this one half-way up.
+
+        A length of zero is no climb at all: the box still waits out its own station, and then the
+        level goes back in the one write below. Climbing through the seven steps with no pause
+        between them would still send eight writes, each echoed back as a touch, for a change
+        nobody hears as a fade.
         """
         step_s = self._preferences.fade_s / FADE_STEPS
+        steps = range(1, FADE_STEPS) if step_s > 0 else range(0)
         try:
             await asyncio.sleep(MUTE_HOLD_S)
-            for step in range(1, FADE_STEPS):
+            for step in steps:
                 # The target is read from the note at every step rather than held from the start:
                 # a house-volume step that lands mid-fade moves the note, and the climb then ends
                 # where the house now is instead of where it was when the box was switched on.

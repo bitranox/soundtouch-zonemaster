@@ -4519,8 +4519,9 @@ async def test_a_fade_changed_while_a_box_climbs_keeps_its_pace_and_the_next_fad
 
     2.4 s over eight steps is a write every 0.3 s. The change to 0.0 is taken in while the studio
     is on its way up - the line saying so is the barrier - and every write the studio receives AFTER
-    that is still 0.3 s from the one before it. The hallway, joining once the change is in, climbs
-    with no pause between its writes at all.
+    that is still 0.3 s from the one before it. The hallway, joining once the change is in, is put
+    back in one write: 0.0 means no climb at all (the design, and ``FADE_FLOOR_S``), not eight steps
+    with no pause between them.
     """
     options = _options(world, tmp_path)
     _set_preference(options, PreferenceName.FADE, 2.4)
@@ -4539,10 +4540,8 @@ async def test_a_fade_changed_while_a_box_climbs_keeps_its_pace_and_the_next_fad
         assert min(after) >= step_s * 0.8, f"the climb in progress was re-timed: {after}"
 
         await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
-        await eventually(lambda: _faded_back(world.hallway, 30), "the hallway's climb finished")
-        climb = _gaps_from(world.hallway, 1)
-        assert len(climb) >= 3, f"the hallway did not climb: {world.hallway.volumes}"
-        assert max(climb) < step_s / 2, f"the next fade kept the old length: {climb}"
+        await eventually(lambda: _faded_back(world.hallway, 30), "the hallway's level was put back")
+        assert world.hallway.volumes == [0, 30], "a fade of 0.0 puts the level back in one write, not a climb"
 
 
 async def test_a_preference_read_that_fails_keeps_what_is_in_use_and_says_so_once_each_way(
