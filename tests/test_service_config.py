@@ -819,6 +819,16 @@ def _url_as_an_array_in_a_set_override(_monkeypatch: pytest.MonkeyPatch, _root: 
     return "url", ["--set", f'database.url=["{URL_WITH_A_PASSWORD}"]']
 
 
+def _url_as_null_in_the_environment(monkeypatch: pytest.MonkeyPatch, _root: Path) -> tuple[str, list[str]]:
+    """The environment layer reads ``null`` (and ``none``, in any case) as no value at all."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", "null")
+    return "url", []
+
+
+def _url_as_null_in_a_set_override(_monkeypatch: pytest.MonkeyPatch, _root: Path) -> tuple[str, list[str]]:
+    return "url", ["--set", "database.url=null"]
+
+
 @pytest.mark.parametrize(
     "source",
     [
@@ -830,6 +840,8 @@ def _url_as_an_array_in_a_set_override(_monkeypatch: pytest.MonkeyPatch, _root: 
         pytest.param(_url_as_a_table_in_the_environment, id="env-url-table"),
         pytest.param(_url_as_an_array_in_a_user_file, id="file-url-array"),
         pytest.param(_url_as_an_array_in_a_set_override, id="set-url-array"),
+        pytest.param(_url_as_null_in_the_environment, id="env-url-null"),
+        pytest.param(_url_as_null_in_a_set_override, id="set-url-null"),
     ],
 )
 @pytest.mark.parametrize("mode", [["--json-bare"], ["--json"], []], ids=["json-bare", "json", "human"])
@@ -846,8 +858,9 @@ def test_config_masks_every_database_key_but_the_url(
     """A key under ``[database]`` that is not a setting is almost certainly a password somebody
     misspelled, so its value is masked like the password's own, in every output mode and with or
     without ``--redact``. The url keeps its own rule only while it is text: a url that arrived as
-    a list or a table is not a URL, and is masked whole rather than printed as it came. The key
-    itself is still listed: the control that the view read it."""
+    a list or a table is not a URL, and is masked whole rather than printed as it came; one that
+    arrived as no value is listed too, and shown as null (pinned below). The key itself is still
+    listed: the control that the view read it."""
     key, overrides = source(monkeypatch, isolated_config_layers)
     monkeypatch.setattr(
         "sys.argv",
@@ -859,6 +872,65 @@ def test_config_masks_every_database_key_but_the_url(
     assert f"database.{key}" in captured.out, "the control: the key is listed"
     assert "TOPSECRET" not in captured.out
     assert "TOPSECRET" not in captured.err
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(_url_as_null_in_the_environment, id="env-url-null"),
+        pytest.param(_url_as_null_in_a_set_override, id="set-url-null"),
+    ],
+)
+@pytest.mark.parametrize("redact", [["--redact"], []], ids=["redact", "no-redact"])
+@pytest.mark.parametrize("mode", [["--json-bare"], ["--json"]], ids=["json-bare", "json"])
+def test_config_shows_a_database_url_that_arrived_as_no_value_as_null(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    *,
+    source: Callable[[pytest.MonkeyPatch, Path], tuple[str, list[str]]],
+    mode: list[str],
+    redact: list[str],
+) -> None:
+    """No value carries no password, and showing it says what is wrong: the service refuses it as
+    a database given nowhere. Every other url that is not text is masked whole."""
+    _, overrides = source(monkeypatch, isolated_config_layers)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["soundtouch-zonemaster-service", *mode, *overrides, "config", "--section", "database", *redact],
+    )
+
+    assert main() == 0
+    shown = json.loads(capsys.readouterr().out)["data"]["config"]
+    assert "database.url" in shown, "the control: the setting is listed"
+    assert shown["database.url"] is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(_url_as_null_in_the_environment, id="env-url-null"),
+        pytest.param(_url_as_null_in_a_set_override, id="set-url-null"),
+    ],
+)
+@pytest.mark.parametrize("redact", [["--redact"], []], ids=["redact", "no-redact"])
+def test_config_shows_a_database_url_that_arrived_as_no_value_as_null_to_a_person(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    *,
+    source: Callable[[pytest.MonkeyPatch, Path], tuple[str, list[str]]],
+    redact: list[str],
+) -> None:
+    _, overrides = source(monkeypatch, isolated_config_layers)
+    monkeypatch.setattr(
+        "sys.argv", ["soundtouch-zonemaster-service", *overrides, "config", "--section", "database", *redact]
+    )
+
+    assert main() == 0
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.startswith("database.url ")]
+    assert len(lines) == 1, "the control: the setting is listed once"
+    assert lines[0].startswith("database.url = null ")
 
 
 def test_config_still_shows_a_database_url_without_a_password_as_typed(

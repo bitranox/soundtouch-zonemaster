@@ -66,11 +66,16 @@ def mask_database_settings(values: Sequence[tuple[str, Any]], *, mask: str) -> l
     reads a value opening with ``[`` as a JSON array (``--set`` and a TOML array do the same), and
     a URL carrying a password inside a list would otherwise be shown as it came; a url that is not
     text is not a URL, so it is masked whole. One that arrived as a table is walked into leaves
-    under ``database.url.``, which the section rule already masks.
+    under ``database.url.``, which the section rule already masks. The one exception is no value
+    at all (``null`` or ``none`` from the environment, ``--set database.url=null``): it can carry
+    no password, and showing it says what is wrong, since the service refuses it as a database
+    given nowhere.
     """
 
     def hidden(key: str, value: Any) -> Any:
         if key == DATABASE_URL_KEY:
+            if value is None:
+                return None
             return masked_database_url(value) if isinstance(value, str) else mask
         section, dot, _ = key.partition(".")
         if dot and section.lower() == _DATABASE_SECTION:
