@@ -1,0 +1,21 @@
+# How a box that joins the zone is brought back up to its own level.
+#
+# A box is turned down to zero while it is taken in, so the moment it plays its own station before
+# our stream reaches it is inaudible, and then its volume climbs back in eight steps.
+#
+# A PREFERENCE: a value set in the house database with "soundtouch-zonemaster-service prefs set
+# volume.fade_s <seconds>" overrides this file, the environment and the command line for as long as
+# it is set, and the running service picks it up within about a second. "prefs unset volume.fade_s"
+# gives the decision back to the layers. "config" shows which of the two is in force.
+
+[volume]
+
+# How long the climb from zero back to the box's own level takes, in seconds.
+#
+# Default: 0.8. Effect: eight volume writes spread over this time, starting 1.5 s after the box was
+# told to join.
+# Bounds: refused outside 0.0 to 5.0 s, by name with exit 1. 0.0 puts the level back in one step.
+# When to raise it: a join that sounds abrupt.
+# Consequence above the ceiling: a joining room stays quiet long enough to read as a fault.
+#   env: SOUNDTOUCH_ZONEMASTER___VOLUME__FADE_S
+fade_s = 0.8

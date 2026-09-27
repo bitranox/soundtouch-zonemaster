@@ -48,6 +48,7 @@ SETTINGS: Mapping[str, str] = {
     "membership.unreachable_timeout_s": "unreachable_timeout_s",
     "dialling.window_s": "dial_window_s",
     "dialling.hold_threshold_s": "hold_threshold_s",
+    "volume.fade_s": "fade_s",
     "switch.poll_s": "switch_poll_s",
     "observer.port": "channel_policy.port",
     "observer.backoff_s": "channel_policy.backoff_s",

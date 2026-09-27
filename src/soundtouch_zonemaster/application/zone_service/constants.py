@@ -14,7 +14,6 @@ from __future__ import annotations
 
 __all__ = [
     "DIAL_TICK_S",
-    "FADE_S",
     "FADE_STEPS",
     "JOIN_RETRY_S",
     "MIN_CHANNELS_TO_STEP",
@@ -77,8 +76,6 @@ mean, because being late costs silence in a room that would have been silent any
 about three more seconds to buffer OUR stream - while being early is the sound the mute was added to
 remove.
 """
-FADE_S = 0.8
-"""How long the volume takes to travel from zero back to what the box was on."""
 FADE_STEPS = 8
 """How many steps that journey is made of. Each one is an HTTP call to the box, so this trades
 smoothness against traffic; eight over 0.8 s is a step every 100 ms."""

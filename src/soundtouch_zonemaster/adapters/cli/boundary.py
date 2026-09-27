@@ -35,11 +35,12 @@ from ...application.options import (
     ServiceOptions,
     default_device_id,
 )
-from ...application.outcome import ExitCode, OptionsError, device_id_or_refuse, tcp_port_or_refuse
+from ...application.outcome import ExitCode, OptionsError, device_id_or_refuse, preference_or_refuse, tcp_port_or_refuse
 from ...domain.database_url import carries_a_password
-from ...domain.dialling import WINDOW_CEILING_S, WINDOW_DEFAULT_S, WINDOW_FLOOR_S
-from ...domain.longpress import HOLD_THRESHOLD_CEILING_S, HOLD_THRESHOLD_DEFAULT_S, HOLD_THRESHOLD_FLOOR_S
+from ...domain.dialling import WINDOW_DEFAULT_S
+from ...domain.longpress import HOLD_THRESHOLD_DEFAULT_S
 from ...domain.membership import UNREACHABLE_TIMEOUT_S
+from ...domain.preferences import FADE_DEFAULT_S, PreferenceName
 from ...domain.secret import Secret
 from ...domain.switch import POLL_S
 from ..config.loader import ENV_PREFIX
@@ -140,6 +141,8 @@ class ServiceOptionsInput(BaseModel):
     mpd_port: int = MPD_PORT
     mpd_rewind_s: float = MPD_REWIND_S
     """How far back an MPD channel starts when the house comes back to it."""
+    fade_s: float = FADE_DEFAULT_S
+    """How long a joining box's volume climbs back."""
 
     @field_validator("device_id")
     @classmethod
@@ -186,12 +189,7 @@ class ServiceOptionsInput(BaseModel):
     def _inside_the_measured_bounds(cls, value: float) -> float:
         """Below the floor a two-digit number starts splitting into two; above the ceiling the
         wait stops reading as a wait and starts reading as a fault."""
-        if not WINDOW_FLOOR_S <= value <= WINDOW_CEILING_S:
-            message = (
-                f"refused: the dialling window must be between {WINDOW_FLOOR_S} and {WINDOW_CEILING_S} s, not {value}"
-            )
-            raise OptionsError(message, exit_code=ExitCode.REFUSED)
-        return value
+        return preference_or_refuse(PreferenceName.WINDOW, value)
 
     @field_validator("mpd_port")
     @classmethod
@@ -205,23 +203,26 @@ class ServiceOptionsInput(BaseModel):
         """A negative overlap would start LATER than the house stopped, skipping what it did not
         hear, which is the one thing this setting must not be able to do. Zero is allowed and
         means no overlap at all, which is what music rather than speech wants."""
-        if value < 0:
-            message = f"refused: the mpd rewind must not be negative, not {value}"
-            raise OptionsError(message, exit_code=ExitCode.REFUSED)
-        return value
+        return preference_or_refuse(PreferenceName.REWIND, value)
 
     @field_validator("hold_threshold_s")
     @classmethod
     def _a_hold_a_person_can_make(cls, value: float) -> float:
         """Below the floor an ordinary slow tap is read as a hold; above the ceiling a held key
         acts so late that the person has let go and pressed again."""
-        if not HOLD_THRESHOLD_FLOOR_S <= value <= HOLD_THRESHOLD_CEILING_S:
-            message = (
-                f"refused: the hold threshold must be between {HOLD_THRESHOLD_FLOOR_S} and "
-                f"{HOLD_THRESHOLD_CEILING_S} s, not {value}"
-            )
-            raise OptionsError(message, exit_code=ExitCode.REFUSED)
-        return value
+        return preference_or_refuse(PreferenceName.HOLD, value)
+
+    @field_validator("fade_s")
+    @classmethod
+    def _a_fade_a_room_does_not_wait_out(cls, value: float) -> float:
+        """Above the ceiling a joining room is quiet long enough to read as a fault."""
+        return preference_or_refuse(PreferenceName.FADE, value)
+
+    @field_validator("consoles_allowed")
+    @classmethod
+    def _consoles_named_by_device_id(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """A typo here would allow nothing and say nothing, or allow a box nobody meant."""
+        return preference_or_refuse(PreferenceName.CONSOLES, value)
 
     @model_validator(mode="after")
     def _somewhere_for_every_file_it_names(self) -> ServiceOptionsInput:
@@ -268,6 +269,7 @@ class ServiceOptionsInput(BaseModel):
             mpd_host=self.mpd_host,
             mpd_port=self.mpd_port,
             mpd_rewind_s=self.mpd_rewind_s,
+            fade_s=self.fade_s,
         )
 
 

@@ -19,7 +19,7 @@ import time
 from typing import TYPE_CHECKING
 
 from ...domain.housevolume import owe, stepped
-from .constants import FADE_S, FADE_STEPS, MUTE_HOLD_S
+from .constants import FADE_STEPS, MUTE_HOLD_S
 from .speakers import SpeakerBook
 
 if TYPE_CHECKING:
@@ -198,7 +198,7 @@ class VolumeGuard(SpeakerBook):
                 except Exception as exc:  # noqa: BLE001 - the step below is the retry, so this must not raise
                     self.log("zone", f"{speaker.name}: fade stopped at step {step} ({type(exc).__name__})")
                     break
-                await asyncio.sleep(FADE_S / FADE_STEPS)
+                await asyncio.sleep(self.options.fade_s / FADE_STEPS)
             await self._put_one_back(speaker, level)
         except asyncio.CancelledError:
             with contextlib.suppress(Exception):

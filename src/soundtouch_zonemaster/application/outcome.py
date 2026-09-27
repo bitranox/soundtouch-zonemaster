@@ -17,8 +17,9 @@ from __future__ import annotations
 from enum import IntEnum
 
 from ..domain.preferences import DEVICE_ID as _DEVICE_ID
+from ..domain.preferences import PreferenceName, PreferenceRefusedError, checked
 
-__all__ = ["ExitCode", "OptionsError", "device_id_or_refuse", "tcp_port_or_refuse"]
+__all__ = ["ExitCode", "OptionsError", "device_id_or_refuse", "preference_or_refuse", "tcp_port_or_refuse"]
 
 
 class ExitCode(IntEnum):
@@ -71,4 +72,19 @@ def tcp_port_or_refuse(value: int, *, what: str) -> int:
     if not _LOWEST_PORT <= value <= _HIGHEST_PORT:
         message = f"refused: {what} must be a port between {_LOWEST_PORT} and {_HIGHEST_PORT}, not {value}"
         raise OptionsError(message, exit_code=ExitCode.REFUSED)
+    return value
+
+
+def preference_or_refuse[V](name: PreferenceName, value: V) -> V:
+    """A preference through the house rule (``domain/preferences.py``), as the CLI's own refusal.
+
+    The one place :class:`~..domain.preferences.PreferenceRefusedError` becomes an
+    :class:`OptionsError`: the record's own ``__post_init__`` and the boundary's pydantic
+    validators both call this, so a value is never legal from one source and refused from the
+    other, and a person who has met one refusal meets the same words from ``prefs set``.
+    """
+    try:
+        checked(name, value)
+    except PreferenceRefusedError as exc:
+        raise OptionsError(str(exc), exit_code=ExitCode.REFUSED) from exc
     return value

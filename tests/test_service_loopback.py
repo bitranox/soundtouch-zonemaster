@@ -56,7 +56,6 @@ from soundtouch_zonemaster.adapters.soundtouch.zone_master import ZoneMaster
 from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.options import ChannelPolicy, ServiceOptions
 from soundtouch_zonemaster.application.zone_service.constants import (
-    FADE_S,
     JOIN_RETRY_S,
     MUTE_HOLD_S,
     PORTS_BUSY_RETRY_S,
@@ -68,6 +67,7 @@ from soundtouch_zonemaster.domain.dialling import WINDOW_DEFAULT_S, WINDOW_FLOOR
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, KeyName, KeyState, SourceName
 from soundtouch_zonemaster.domain.longpress import HOLD_THRESHOLD_DEFAULT_S
 from soundtouch_zonemaster.domain.membership import UNREACHABLE_TIMEOUT_S, WAKE_WINDOW_S
+from soundtouch_zonemaster.domain.preferences import FADE_DEFAULT_S
 from soundtouch_zonemaster.domain.presses import CONFIRM_BACK_WINDOW_S
 from soundtouch_zonemaster.domain.state import Place, ZoneState
 from soundtouch_zonemaster.domain.zonexml import station_content_item
@@ -2711,7 +2711,7 @@ async def test_a_box_owed_below_zero_joins_silent_and_is_not_faded(world: World,
         await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
         await eventually(lambda: len(joins(world.hallway)) == 1, "the hallway joined")
         await eventually(lambda: owed_volume(options) == {}, "what it owed was taken")
-        await asyncio.sleep(MUTE_HOLD_S + FADE_S + 0.3)
+        await asyncio.sleep(MUTE_HOLD_S + FADE_DEFAULT_S + 0.3)
 
         assert world.hallway.volumes == [0], "turned down once and never faded back up"
 

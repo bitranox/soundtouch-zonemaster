@@ -946,3 +946,37 @@ def test_config_still_shows_a_database_url_without_a_password_as_typed(
     shown = json.loads(capsys.readouterr().out)["data"]["config"]
     assert shown["database.url"] == url
     assert shown["database.passwrod"] == REDACTED_PLACEHOLDER
+
+
+def test_the_fade_in_is_a_setting_with_its_default(
+    monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    _user_config(isolated_config_layers, _house(tmp_path))
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service"])
+    assert main(run_service=run) == 0
+    assert seen[0].fade_s == 0.8
+    assert seen[0].preferences.fade_s == 0.8
+
+
+def test_a_fade_in_outside_its_bounds_is_refused_by_name(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    _user_config(isolated_config_layers, _house(tmp_path, extra="[volume]\nfade_s = 6.0\n"))
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json-bare"])
+    assert main(run_service=run) == 1
+    assert seen == []
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["message"] == "refused: the fade-in must be between 0.0 and 5.0 s, not 6.0"
+
+
+def test_a_console_that_is_not_a_device_id_is_refused_by_name(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    _user_config(isolated_config_layers, _house(tmp_path, extra='[membership]\nconsoles_allowed = ["notadeviceid"]\n'))
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json-bare"])
+    assert main(run_service=run) == 1
+    assert seen == []
+    assert "which is not a device id" in json.loads(capsys.readouterr().out)["message"]

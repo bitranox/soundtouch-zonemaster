@@ -19,11 +19,12 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from ..domain.dialling import WINDOW_CEILING_S, WINDOW_DEFAULT_S, WINDOW_FLOOR_S
-from ..domain.longpress import HOLD_THRESHOLD_CEILING_S, HOLD_THRESHOLD_DEFAULT_S, HOLD_THRESHOLD_FLOOR_S
+from ..domain.dialling import WINDOW_DEFAULT_S
+from ..domain.longpress import HOLD_THRESHOLD_DEFAULT_S
 from ..domain.membership import UNREACHABLE_TIMEOUT_S
+from ..domain.preferences import FADE_DEFAULT_S, HousePreferences, PreferenceName
 from ..domain.switch import POLL_S
-from .outcome import ExitCode, OptionsError, device_id_or_refuse, tcp_port_or_refuse
+from .outcome import device_id_or_refuse, preference_or_refuse, tcp_port_or_refuse
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -216,6 +217,10 @@ class ServiceOptions:
 
     Read when a place is resumed and never when one is written, so what is recorded stays where
     the house actually stopped and this can be changed at any time."""
+    fade_s: float = FADE_DEFAULT_S
+    """How long a joining box's volume climbs from zero back to its own level (``domain/preferences.py``).
+
+    A preference: a value set in the house database overrides this one while it is set."""
 
     @property
     def legacy(self) -> LegacyFiles:
@@ -223,31 +228,36 @@ class ServiceOptions:
         return LegacyFiles(state_file=self.state_file, channel_file=self.channel_file, switch_file=self.switch_file)
 
     def __post_init__(self) -> None:
-        """Refuse a device id that is not one, then a window outside the measured bounds.
+        """Refuse a device id that is not one, then every preference outside its bounds.
 
-        In that order, because that is the order the two refusals came in when they were
-        field validators and a caller giving both a bad id and a bad window saw the id
-        refused. Below the floor a two-digit number starts splitting into two; above the
-        ceiling the wait stops reading as a wait and starts reading as a fault. The MPD port
-        is checked after both, for that reason: it arrived with M3a, and putting it anywhere
-        else would change which refusal an option set with two faults reports. The hold
-        threshold arrived later still, so it is checked after the port.
+        In that order, because that is the order the refusals came in when they were field
+        validators and a caller giving both a bad id and a bad value saw the id refused. The
+        MPD port is checked between the window and the hold threshold, for that reason: it
+        arrived with M3a, and putting it anywhere else would change which refusal an option
+        set with two faults reports. The rewind, the fade-in and the consoles arrived later
+        still, so they are checked after the ones above them. The five preference bounds
+        themselves live in one place, ``domain/preferences.py``, so a value can never be legal
+        from one source and refused from the other.
 
         Whether the state file's directory exists is NOT checked here: it is a question
         about the machine rather than about the option set, and it is refused at the CLI
         boundary with the same message and the same exit code.
         """
         device_id_or_refuse(self.device_id)
-        if not WINDOW_FLOOR_S <= self.dial_window_s <= WINDOW_CEILING_S:
-            message = (
-                f"refused: the dialling window must be between {WINDOW_FLOOR_S} and {WINDOW_CEILING_S} s, "
-                f"not {self.dial_window_s}"
-            )
-            raise OptionsError(message, exit_code=ExitCode.REFUSED)
+        preference_or_refuse(PreferenceName.WINDOW, self.dial_window_s)
         tcp_port_or_refuse(self.mpd_port, what="the mpd port")
-        if not HOLD_THRESHOLD_FLOOR_S <= self.hold_threshold_s <= HOLD_THRESHOLD_CEILING_S:
-            message = (
-                f"refused: the hold threshold must be between {HOLD_THRESHOLD_FLOOR_S} and "
-                f"{HOLD_THRESHOLD_CEILING_S} s, not {self.hold_threshold_s}"
-            )
-            raise OptionsError(message, exit_code=ExitCode.REFUSED)
+        preference_or_refuse(PreferenceName.HOLD, self.hold_threshold_s)
+        preference_or_refuse(PreferenceName.REWIND, self.mpd_rewind_s)
+        preference_or_refuse(PreferenceName.FADE, self.fade_s)
+        preference_or_refuse(PreferenceName.CONSOLES, self.consoles_allowed)
+
+    @property
+    def preferences(self) -> HousePreferences:
+        """The five preferences as the options give them: what the house database's rows are laid over."""
+        return HousePreferences(
+            window_s=self.dial_window_s,
+            hold_threshold_s=self.hold_threshold_s,
+            rewind_s=self.mpd_rewind_s,
+            fade_s=self.fade_s,
+            consoles_allowed=self.consoles_allowed,
+        )
