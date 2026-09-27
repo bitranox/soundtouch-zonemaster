@@ -14,8 +14,9 @@ into a config file are refused with the same sentence.
 
 from __future__ import annotations
 
-import re
 from enum import IntEnum
+
+from ..domain.preferences import DEVICE_ID as _DEVICE_ID
 
 __all__ = ["ExitCode", "OptionsError", "device_id_or_refuse", "tcp_port_or_refuse"]
 
@@ -34,8 +35,6 @@ class ExitCode(IntEnum):
     ERROR = 2
     """It could not run."""
 
-
-_DEVICE_ID = re.compile(r"[0-9A-F]{12}")
 
 _LOWEST_PORT, _HIGHEST_PORT = 1, 65535
 """What a TCP port can be. Zero is not one: it means "any free port" to a listener and nothing at
