@@ -223,3 +223,34 @@ def test_the_human_listing_keeps_a_multi_line_row_on_one_line(
     _stored_by_hand(database, "mpd.rewind_s", "1\n2")
     assert _run(monkeypatch, "--database", database, "prefs") == 0
     assert "# ignored: mpd.rewind_s = 1\\n2 (not JSON)" in capsys.readouterr().out.splitlines()
+
+
+@pytest.mark.parametrize(
+    ("argv", "note"),
+    [
+        (("set", "volume.fade_s", "1.5"), "a running service reads it within about a second"),
+        (
+            ("set", "membership.consoles_allowed", '["AABBCC000012"]'),
+            "a running service reads it within about a second; a console no longer allowed is let go at the "
+            "next pass, one newly allowed is watched from the next registry read (registry.poll_s) and taken in "
+            "when it next wakes",
+        ),
+    ],
+    ids=["fade", "consoles"],
+)
+def test_the_note_says_when_a_running_service_acts_on_the_change(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    argv: tuple[str, ...],
+    note: str,
+) -> None:
+    """A console put on the list is not taken in "within about a second": it waits for the next
+    registry read, and for its next wake. The note promises only what the service does."""
+    database = str(tmp_path / "db.sqlite")
+    assert _run(monkeypatch, "--json", "--database", database, "prefs", *argv) == 0
+    change = _envelope(capsys)["data"]
+    assert isinstance(change, dict)
+    assert change["note"] == note

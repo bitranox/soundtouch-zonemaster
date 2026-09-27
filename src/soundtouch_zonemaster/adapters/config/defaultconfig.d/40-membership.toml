@@ -9,7 +9,10 @@
 #
 # A PREFERENCE: a value set in the house database with "soundtouch-zonemaster-service prefs set
 # membership.consoles_allowed <json>" overrides this file, the environment and the command line for
-# as long as it is set, and the running service picks it up within about a second. "prefs unset
+# as long as it is set. A running service reads the new list within about a second, but it does not
+# act on it that fast: a console taken OFF the list is let go at the next pass, while a console put
+# ON it is only watched from the next speaker-registry read (registry.poll_s, 30 s by default) and
+# is taken in the next time it wakes - one that is already awake stays out until then. "prefs unset
 # membership.consoles_allowed" gives the decision back to the layers. "config" shows which of the
 # two is in force.
 #
@@ -18,7 +21,7 @@
 # one would change what somebody is doing in that room, audibly, and undoing it needs a person at
 # the console.
 # When to set: only when somebody who uses that room has agreed to it, naming that console's
-# twelve hex digits.
+# twelve upper-case hex digits.
 # Consequence: the console joins and leaves like any other box, including being sent the zone
 # document. There is no way to make that quieter, which is why it is off by default and per-device
 # rather than a boolean.

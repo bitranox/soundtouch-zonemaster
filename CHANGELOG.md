@@ -12,7 +12,11 @@ All notable changes to this project are documented here. The format follows
   for the five house preferences (`dialling.window_s`, `dialling.hold_threshold_s`, `mpd.rewind_s`,
   `volume.fade_s`, `membership.consoles_allowed`). `prefs` lists every preference, its value, and
   whether a config layer or a stored row is deciding it; `set` writes a row that beats every config
-  layer until `unset` removes it. A stored value a running service picks up within about a second.
+  layer until `unset` removes it. A running service reads a stored value within about a second.
+  The window and the hold apply once nobody is dialling or holding a key, the fade from the next
+  join. A console removed from `membership.consoles_allowed` is let go at the next pass; one added
+  is only watched from the next speaker-registry read (`registry.poll_s`, 30 s by default) and is
+  taken in the next time it wakes, so one that is already awake stays out until then.
   A new setting, `volume.fade_s` (default 0.8 s, bounds 0.0 to 5.0 s inclusive): how long a joining
   box's volume takes to climb back to its own level.
 - `config` now shows a preference set in the house database over the file value it replaces: the
@@ -26,7 +30,7 @@ All notable changes to this project are documented here. The format follows
   (source `calibration`, the time not recorded, as it never was before). A config file's value for
   any of the five preferences no longer decides while a stored row is set; `prefs unset` gives the
   decision back to the config layers.
-- A console device id that is not exactly twelve hex digits is now refused
+- A console device id that is not exactly twelve upper-case hex digits is now refused
   (`membership.consoles_allowed`, both from a config layer and from `prefs set`), rather than
   accepted as written.
 

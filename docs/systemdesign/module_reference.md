@@ -287,7 +287,9 @@ writer lock, like `switch`.
 
 **prefs set** `NAME VALUE`: parse `VALUE` as JSON, check it by the same rule a config file's value
 is, and write it to the house database as a row that beats every config layer; a running service
-picks it up within about a second. A refused value (out of bounds, not JSON, the wrong shape)
+reads it within about a second. A console added to `membership.consoles_allowed` is the exception
+to "at once": it is watched only from the next speaker-registry read (`registry.poll_s`) and taken
+in the next time it wakes. A refused value (out of bounds, not JSON, the wrong shape)
 writes nothing and opens nothing; exit 1 for a refused value, exit 2 for an unknown name or
 unparseable JSON.
 

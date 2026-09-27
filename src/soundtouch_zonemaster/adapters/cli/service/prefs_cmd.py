@@ -50,6 +50,16 @@ __all__ = ["IgnoredRow", "PrefChange", "PreferenceView", "PrefsReport", "cli_pre
 CONFIGURATION = "configuration"
 """The source a preference has when no stored row decides it."""
 
+TAKEN_IN = "a running service reads it within about a second"
+"""When a change reaches a running service: its preference watch reads the table every switch poll."""
+
+CONSOLE_TAKEN_IN = (
+    "a running service reads it within about a second; a console no longer allowed is let go at the next pass, "
+    "one newly allowed is watched from the next registry read (registry.poll_s) and taken in when it next wakes"
+)
+"""The console list is read as fast as the rest, but a console first allowed is not watched until the registry
+is read again, and one already awake is not taken in until it wakes again - so the note says so."""
+
 
 class PreferenceView(BaseModel):
     """One preference as ``prefs`` reports it: its value, and who is deciding it right now."""
@@ -225,7 +235,7 @@ def cli_prefs_set(ctx: click.Context, *, name: str, value: str) -> None:
             name=str(preference),
             before=before,
             after=after,
-            note="a running service takes it within about a second",
+            note=_when_taken_in(preference),
         ),
     )
 
@@ -251,12 +261,16 @@ def cli_prefs_unset(ctx: click.Context, *, name: str) -> None:
         return
     finally:
         store.close()
-    note = "nothing was set" if removed is None else "a running service takes it within about a second"
+    note = "nothing was set" if removed is None else _when_taken_in(preference)
     _report_change(
         shared,
         command=command,
         change=PrefChange(database=where, name=str(preference), before=before, after=after, note=note),
     )
+
+
+def _when_taken_in(preference: PreferenceName) -> str:
+    return CONSOLE_TAKEN_IN if preference is PreferenceName.CONSOLES else TAKEN_IN
 
 
 def _report_change(shared: Shared, *, command: str, change: PrefChange) -> None:
