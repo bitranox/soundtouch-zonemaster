@@ -153,7 +153,12 @@ def _layered_or_exit(ctx: click.Context, shared: Shared, *, command: str) -> Hou
 @click.group("prefs", invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
 @click.pass_context
 def cli_prefs(ctx: click.Context) -> None:
-    """The house preferences: every one, its value, and who set it. `set` and `unset` change one."""
+    """The house preferences: every one, its value, and who set it. `set` and `unset` change one.
+
+    "configuration" is the config layers plus any `--set`. It cannot see the flags a running service
+    was started with (`--allow-console`, `--dial-window-s`, `--mpd-rewind-s`), which beat the
+    layers for that run; a stored row beats them all.
+    """
     if ctx.invoked_subcommand is not None:
         return
     shared = shared_of(ctx)

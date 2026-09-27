@@ -111,7 +111,8 @@ def database_for(shared: Shared) -> DatabaseChoice:
 
 def named_database(shared: Shared, *, narrate: LogFn) -> DatabaseChoice | None:
     """The database this invocation names, or ``None`` when nothing names one: no ``--database``
-    typed, and ``database.url`` unset or empty in every layer. For a reader (``config``) whose
+    typed and ``database.url`` unset or empty in every layer, or a ``--database ""`` typed empty -
+    which does not fall back to ``database.url``, since a typed value always wins. For a reader (``config``) whose
     answer to "no database" is "nothing stored" rather than a refusal; an empty setting is one
     nobody filled in, so it names nothing here. The same choice and password rule as
     :func:`database_for`.

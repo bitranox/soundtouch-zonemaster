@@ -4506,6 +4506,17 @@ async def test_a_stored_number_nothing_can_read_costs_one_value_and_not_the_hous
         assert all(len(line) < 300 for line in logs if "is ignored" in line), "a row is quoted cut short"
 
 
+async def test_a_rewind_with_a_fraction_is_logged_as_it_was_set(world: World, tmp_path: Path) -> None:
+    """2.5 s is what runs, so 2.5 s is what the line says - not the "2 s" a whole-second format
+    rounded it down to."""
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        _set_preference(options, PreferenceName.REWIND, 2.5)
+        await eventually(lambda: _said(logs, "an MPD channel starts 2.5 s back, set by cli"), "it was taken in")
+
+
 def _gaps_from(box: FakeSpeaker, first: int) -> list[float]:
     """The time between each volume write from the ``first``-th on and the write after it."""
     times = box.volumes_at[first:]

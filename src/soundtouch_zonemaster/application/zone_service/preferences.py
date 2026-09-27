@@ -54,7 +54,7 @@ def _device_ids(value: PreferenceValue) -> str:
 _SAID: Mapping[PreferenceName, Callable[[PreferenceValue], str]] = {
     PreferenceName.WINDOW: lambda v: f"the dialling window is {_seconds(v):.1f} s",
     PreferenceName.HOLD: lambda v: f"a key is held after {_seconds(v):.1f} s",
-    PreferenceName.REWIND: lambda v: f"an MPD channel starts {_seconds(v):.0f} s back",
+    PreferenceName.REWIND: lambda v: f"an MPD channel starts {_seconds(v):g} s back",
     PreferenceName.FADE: lambda v: f"a joining box fades in over {_seconds(v):.1f} s",
     PreferenceName.CONSOLES: lambda v: f"consoles allowed into the zone: {_device_ids(v)}",
 }

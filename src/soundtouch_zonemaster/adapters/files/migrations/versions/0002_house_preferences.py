@@ -58,6 +58,22 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Put the stored window and hold back on the ``zone`` row, and drop the ``preference`` table.
+
+    Only what 0001 can hold goes back, and the rest is lost with the table:
+
+    - a window or hold row is written onto the ``zone`` row with ``id = 1``; a database with no
+      ``zone`` row (never given a state) has nowhere to put it, and the value is dropped;
+    - the source is not kept: a ``cli`` or ``app`` row goes down exactly as a calibration would,
+      because the old columns were only ever written by one;
+    - the other three preferences have no column in 0001 and are dropped;
+    - a window or hold row whose text is not a JSON number a float can hold (hand-edited, say)
+      makes the downgrade raise. Inside a transaction that covers DDL - the store's own
+      ``BEGIN IMMEDIATE`` on SQLite, or PostgreSQL, whose DDL is transactional - everything rolls
+      back. Through a plain SQLAlchemy engine on SQLite it does not: pysqlite opens its transaction
+      only at the first data statement, so the two columns just added to ``zone`` stay while the
+      version stays 0002 (measured 2026-09-27). Remove or fix the row before downgrading.
+    """
     op.add_column("zone", sa.Column("dial_window_s", _REAL))
     op.add_column("zone", sa.Column("hold_threshold_s", _REAL))
     bind = op.get_bind()

@@ -34,7 +34,7 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse
 - `src/soundtouch_zonemaster/application/errors.py`  -  PortsBusyError, RegistryError
 - `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy; every default lives on a field
-- `src/soundtouch_zonemaster/application/ports.py`  -  Protocols for adapter functions plus HouseStore (the state, the channel list and the switch in one database - a SQLite file, or PostgreSQL) and OpenHouseStore (its opener), bundled as ZoneServicePorts, PrototypePorts and ServiceCommands
+- `src/soundtouch_zonemaster/application/ports.py`  -  Protocols for adapter functions plus HouseStore (the state, the channel list, the switch and the house preferences in one database - a SQLite file, or PostgreSQL) and OpenHouseStore (its opener), bundled as ZoneServicePorts, PrototypePorts and ServiceCommands
 - `src/soundtouch_zonemaster/application/prototype.py`  -  The prototype's run: options in, the run loop it drives
 - `src/soundtouch_zonemaster/application/zone_service/`  -  The service loop as a chain of nine classes, one file each:
   - `constants.py`  -  The constants more than one class in the chain reads
@@ -62,7 +62,7 @@ Complete (v0.2.0+, the template rebuild)
   - `house_channels.py`  -  The channel list, as rows ordered by `position` (never `rowid`), checked by the same rules the channel file is
   - `house_preferences.py`  -  The preferences, as rows: one per preference somebody set, an UPSERT never a delete-then-insert
   - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
-  - `house_store.py`  -  SqlHouseStore: the state, the channel list and the switch, in one database
+  - `house_store.py`  -  SqlHouseStore: the state, the channel list, the switch and the house preferences, in one database
 - `src/soundtouch_zonemaster/adapters/aftertouch/registry.py`  -  Who the speakers are, read from AfterTouch's own device list
 - `src/soundtouch_zonemaster/adapters/soundtouch/`  -  The zone protocol as a master speaks it:
   - `zone_master.py`  -  ZoneMaster: the zone itself - lifecycle, station, slaves, transport book
@@ -283,7 +283,10 @@ it is refused (exit 1) while the service holds it.
 **prefs**: every one of the five house preferences (`dialling.window_s`,
 `dialling.hold_threshold_s`, `mpd.rewind_s`, `volume.fade_s`, `membership.consoles_allowed`), its
 value, and whether a config layer or a stored row is deciding it. Opens the database without the
-writer lock, like `switch`.
+writer lock, like `switch`. "configuration" means the config layers plus any `--set`: `prefs` cannot
+see the flags a service was started with (`--allow-console`, `--dial-window-s`, `--mpd-rewind-s`),
+so for a service started with one of those, the value it runs on is that flag's unless a stored row
+decides it.
 
 **prefs set** `NAME VALUE`: parse `VALUE` as JSON, check it by the same rule a config file's value
 is, and write it to the house database as a row that beats every config layer; a running service
