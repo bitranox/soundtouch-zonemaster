@@ -4360,6 +4360,44 @@ async def test_a_window_changed_mid_number_waits_until_that_number_is_read(world
         await eventually(lambda: _playing(service).endswith("?c=12"), "still one number, 12")
 
 
+async def test_a_hold_changed_while_a_key_is_down_decides_the_next_hold(world: World, tmp_path: Path) -> None:
+    """The key somebody is holding is decided on the threshold it went down with.
+
+    2.0 s from the options, 1.0 s from the house database while the first key is down - the line
+    saying so is the barrier - and that key comes up at 1.5 s: a tap on the 2.0 s it began with,
+    where the new 1.0 s would already have made it a hold. On a station a held step moves the
+    channel as a tap does, so the "held" line is what tells the two apart, and the step is what
+    shows the release was read at all. The next key, down for the same 1.5 s, is a hold.
+
+    The step arriving also orders the second press after the hand-over: the dialling worker hands
+    the numbers over on its very next turn after booking the step, and the channel only shows as
+    playing once a separate start has reached the station.
+    """
+    options = replace(_dialable_world(world, tmp_path, dial_window_s=WINDOW_DEFAULT_S), hold_threshold_s=2.0)
+    down_for_s = 1.5
+    held = f"held {KeyName.NEXT_TRACK} for"
+    logs: list[str] = []
+    loop = asyncio.get_running_loop()
+
+    async with _running(options, logs) as service:
+        await _both_wake(world)
+        assert _playing(service).endswith("?c=1")
+        pressed_at = loop.time()
+        await _forward_key(STUDIO_IP, KeyName.NEXT_TRACK, KeyState.PRESS)
+        _set_preference(options, PreferenceName.HOLD, 1.0)
+        await eventually(lambda: _said(logs, "a key is held after 1.0 s, set by cli"), "it took it")
+        assert loop.time() < pressed_at + 1.0, "the control: taken in while the key could not yet be a hold"
+        await asyncio.sleep(pressed_at + down_for_s - loop.time())
+        await _forward_key(STUDIO_IP, KeyName.NEXT_TRACK, KeyState.RELEASE)
+        await eventually(lambda: _playing(service).endswith("?c=12"), "the key that was down stepped")
+        assert not _said(logs, held), "and it was a tap, on the 2.0 s it went down with"
+
+        await _forward_key(STUDIO_IP, KeyName.NEXT_TRACK, KeyState.PRESS)
+        await asyncio.sleep(down_for_s)
+        await _forward_key(STUDIO_IP, KeyName.NEXT_TRACK, KeyState.RELEASE)
+        await eventually(lambda: _said(logs, held), "the next key held as long is a hold, on the new 1.0 s")
+
+
 async def test_a_console_taken_off_the_list_leaves_the_zone(world: World, tmp_path: Path) -> None:
     """Allowed only by a stored row, and let go once that row is gone: nothing else changed.
 
