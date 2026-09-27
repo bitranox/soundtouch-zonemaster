@@ -17,7 +17,8 @@
 # give the password as `password` below, or leave that empty and keep it in ~/.pgpass.
 # It must arrive as text: the environment layer reads a value opening with [ or { as JSON and
 # digits as a number, and such a url is refused by name rather than turned into a path (`config`
-# shows it masked).
+# shows it masked). One that arrives as no value (null or none, in any case, from the environment;
+# --set database.url=null) is no database at all, and is refused as a database given nowhere.
 # When to set: always. It must not live in /tmp. On the deployed unit it sits in
 # /var/lib/zonemaster, which systemd creates through StateDirectory=.
 # Consequence of losing it: the house comes back on its default channel with every box in

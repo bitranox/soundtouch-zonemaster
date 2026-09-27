@@ -15,6 +15,7 @@ import pytest
 from nothing_typed import NOTHING_TYPED
 
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
+from soundtouch_zonemaster.adapters.config import loader
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
 from soundtouch_zonemaster.application.options import ServiceOptions
 from soundtouch_zonemaster.application.outcome import ExitCode, OptionsError
@@ -509,3 +510,57 @@ def test_a_database_url_that_is_not_text_refuses_the_store_verbs(
     assert main(run_service=_never, open_store=open_store) == 2
     assert handed == [], "nothing was opened"
     _refuses_a_url_that_is_not_text(capsys, arrived_as)
+
+
+NO_VALUE_URLS = [
+    pytest.param("null", [], id="env-null"),
+    pytest.param("None", [], id="env-None"),
+    pytest.param(None, ["--set", "database.url=null"], id="set-null"),
+]
+"""Every way ``database.url`` arrives as no value at all (measured through the real loader): the
+environment layer reads ``null`` and ``none`` in any case that way, ``--set`` the JSON ``null``."""
+
+EVERY_COMMAND_THAT_OPENS_THE_DATABASE = [
+    pytest.param(["--bind-ip", "10.0.0.1"], id="start"),
+    pytest.param(["switch"], id="switch"),
+    pytest.param(["channels", "export", "--output", "{out}"], id="export"),
+    pytest.param(["channels", "import", "{out}"], id="import"),
+]
+
+
+def _refusal_of(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path, *argv: str) -> str:
+    """One invocation expected to be refused (exit 2) before it runs or opens anything; its message."""
+    seen, run = _capture()
+    handed, open_store = _recording_opener(tmp_path)
+    typed = [part.format(out=tmp_path / "channels.json") for part in argv]
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *typed])
+    assert main(run_service=run, open_store=open_store) == 2
+    assert seen == [], "a refused start runs nothing"
+    assert handed == [], "nothing was opened"
+    return str(json.loads(capsys.readouterr().out)["message"])
+
+
+@pytest.mark.parametrize("command", EVERY_COMMAND_THAT_OPENS_THE_DATABASE)
+@pytest.mark.parametrize(("environment", "argv"), NO_VALUE_URLS)
+def test_a_database_url_that_arrived_as_no_value_is_refused_as_no_database_at_all(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    environment: str | None,
+    argv: list[str],
+    command: list[str],
+) -> None:
+    """A url written as ``null`` is no database: the start and every store verb refuse it in the
+    one sentence a database given nowhere gets, which names the setting and the option to type,
+    rather than in the record field's name and pydantic's own words."""
+    if environment is not None:
+        monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", environment)
+    refused = _refusal_of(monkeypatch, capsys, tmp_path, *argv, *command)
+    monkeypatch.delenv(f"{ENV_PREFIX}DATABASE__URL", raising=False)
+    loader.clear_config_cache()
+    given_nowhere = _refusal_of(monkeypatch, capsys, tmp_path, "--bind-ip", "10.0.0.1")
+    assert refused == given_nowhere
+    assert "no value anywhere for database" in refused
+    assert "database.url" in refused
+    assert "--database" in refused

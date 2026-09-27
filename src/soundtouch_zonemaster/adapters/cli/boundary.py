@@ -58,6 +58,7 @@ __all__ = [
     "database_password_of",
     "database_text_or_refuse",
     "merge_service_settings",
+    "no_value_anywhere",
     "parse_service_options",
     "scoped_to_the_configured_database",
 ]
@@ -273,7 +274,9 @@ def database_text_or_refuse(value: object) -> str | None:
     number. None of them is a URL or a path, and turning one back into text would name a file
     nobody meant (a number) or hand the store the printed form of a list, password and all. It is
     refused instead, naming the setting and the type it arrived as, never the value. ``None`` is
-    left to the caller, which already says "no value anywhere" in its own words.
+    passed through, because no value is not a type error but no database: both callers answer it
+    with :func:`no_value_anywhere`, the store verbs when the setting reads ``None`` and the run by
+    dropping a ``None`` before the record is validated (:func:`parse_service_options`).
     """
     if value is None or isinstance(value, str):
         return value
@@ -430,6 +433,11 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     merged = merge_service_settings(
         configured=scoped_to_the_configured_database(configured, typed=database), given=given
     )
+    if _DATABASE_FIELD in merged and merged[_DATABASE_FIELD] is None:
+        # The environment layer reads `null` and `none` as no value, and `--set` the JSON null.
+        # Validated as it came, pydantic would refuse it as a record field that is not a string;
+        # dropped, it is a database given nowhere, refused in the one sentence the store verbs give.
+        del merged[_DATABASE_FIELD]
     try:
         return ServiceOptionsInput.model_validate(merged).record()
     except ValidationError as exc:
@@ -437,26 +445,33 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
 
 
 def _refusal(exc: ValidationError) -> OptionsError:
-    """A pydantic complaint turned into the sentence an operator can act on.
-
-    A missing setting is named with the two places it can be put, because the whole point of the
-    configuration layers is that the command line is no longer the only one and an error that
-    only mentions the flag would send a reader back to the unit file.
-    """
+    """A pydantic complaint turned into the sentence an operator can act on; a missing setting is
+    :func:`no_value_anywhere`'s."""
     missing = sorted({str(error["loc"][0]) for error in exc.errors() if error["type"] == "missing" and error["loc"]})
     if missing:
-        names = ", ".join(missing)
-        flags = " ".join(f"--{name.replace('_', '-')}" for name in missing)
-        where = ", ".join(sorted(config_path_of(name) for name in missing))
-        message = (
-            f"refused: no value anywhere for {names}. "
-            f"Give it on the command line ({flags}), or in a config file as {where} - "
-            f"run `{service_command} config-deploy --target user` to write one - "
-            f"or set {ENV_PREFIX}{env_name_of(missing[0])}."
-        )
-        return OptionsError(message, exit_code=ExitCode.ERROR)
+        return no_value_anywhere(missing)
     complaints = "; ".join(f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in exc.errors())
     return OptionsError(f"refused: {complaints}", exit_code=ExitCode.ERROR)
+
+
+def no_value_anywhere(missing: Sequence[str]) -> OptionsError:
+    """The refusal (exit 2) for settings that have no default and were given nowhere.
+
+    Named with the places each can be put, because the whole point of the configuration layers is
+    that the command line is no longer the only one, and an error that only mentions the flag would
+    send a reader back to the unit file. The run and the store verbs both refuse a missing database
+    with this, so the two say it in the same words.
+    """
+    names = ", ".join(missing)
+    flags = " ".join(f"--{name.replace('_', '-')}" for name in missing)
+    where = ", ".join(sorted(config_path_of(name) for name in missing))
+    message = (
+        f"refused: no value anywhere for {names}. "
+        f"Give it on the command line ({flags}), or in a config file as {where} - "
+        f"run `{service_command} config-deploy --target user` to write one - "
+        f"or set {ENV_PREFIX}{env_name_of(missing[0])}."
+    )
+    return OptionsError(message, exit_code=ExitCode.ERROR)
 
 
 def configured_settings(config: Config) -> dict[str, Any]:
