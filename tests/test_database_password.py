@@ -26,7 +26,7 @@ from soundtouch_zonemaster.entry import service_main as main
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from soundtouch_zonemaster.application.ports import HouseStore, RunService
+    from soundtouch_zonemaster.application.ports import HouseStore, OpenHouseStore, RunService
     from soundtouch_zonemaster.domain.logfn import LogFn
 
 FAKE = "TOPSECRET"
@@ -52,12 +52,13 @@ def _user_config(root: Path, body: str) -> Path:
 
 
 def _run_with(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *argv: str) -> ServiceOptions:
-    """One service start with a SQLite database and an address given, the record it was handed."""
+    """One service start with a SQLite database and an address given, the record it was handed.
+
+    The database is CONFIGURED rather than typed: a configured password goes only with the
+    configured database, so a typed one would take the password out of what these tests watch."""
     seen, run = _capture()
-    database = str(tmp_path / "zonemaster.sqlite")
-    monkeypatch.setattr(
-        "sys.argv", ["soundtouch-zonemaster-service", "--bind-ip", "10.0.0.1", "--database", database, *argv]
-    )
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(tmp_path / "zonemaster.sqlite"))
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--bind-ip", "10.0.0.1", *argv])
     assert main(run_service=run) == 0
     return seen[0]
 
@@ -127,7 +128,10 @@ def test_a_password_that_arrived_as_something_other_than_text_is_refused_without
     text. It is refused instead, naming the setting and saying to quote it, and never the value."""
     with pytest.raises(OptionsError) as caught:
         parse_service_options(
-            bind_ip="10.0.0.1", database="db.sqlite", configured={"database_password": value}, **NOTHING_TYPED
+            bind_ip="10.0.0.1",
+            database=None,
+            configured={"database": "db.sqlite", "database_password": value},
+            **NOTHING_TYPED,
         )
     message = str(caught.value)
     assert "database.password" in message
@@ -215,11 +219,9 @@ def test_a_refused_password_type_is_reported_without_its_value(
     setting and the type, and neither stream carries the digits."""
     digits = "8675309"
     monkeypatch.setenv(PASSWORD_ENV, digits)
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(tmp_path / "z.sqlite"))
     seen, run = _capture()
-    monkeypatch.setattr(
-        "sys.argv",
-        ["soundtouch-zonemaster-service", "--json", "--bind-ip", "10.0.0.1", "--database", str(tmp_path / "z.sqlite")],
-    )
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", "--bind-ip", "10.0.0.1"])
     assert main(run_service=run) == 1
     captured = capsys.readouterr()
     assert seen == [], "a refused start runs nothing"
@@ -306,3 +308,109 @@ def test_an_empty_password_in_the_environment_is_no_password(monkeypatch: pytest
     libpq's own ``~/.pgpass``, ``PGPASSFILE`` and ``PGPASSWORD`` still apply."""
     monkeypatch.setenv(PASSWORD_ENV, "")
     assert _run_with(monkeypatch, tmp_path).database_password is None
+
+
+CONFIGURED_URL = "postgresql+psycopg://zonemaster@db.example/zonemaster"
+"""The database the configuration names. Never opened: every test here either types another
+database or hands the opener's result to a SQLite file of its own."""
+
+ANOTHER_SERVER = "postgresql+psycopg://zonemaster@elsewhere.example/zonemaster"
+
+NOT_USED = "the configured database.password was not used"
+"""The one line saying a typed database went without the configured password."""
+
+
+def _configured_house(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A PostgreSQL host's configuration: the URL and its password, from the environment."""
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", CONFIGURED_URL)
+    monkeypatch.setenv(PASSWORD_ENV, FAKE)
+
+
+def _recording_opener(tmp_path: Path) -> tuple[list[tuple[str, Secret | None]], OpenHouseStore]:
+    """An opener that records what it was asked to open and opens a SQLite file instead."""
+    handed: list[tuple[str, Secret | None]] = []
+
+    def open_store(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
+        handed.append((database, password))
+        return open_house_store(str(tmp_path / "stand-in.sqlite"), password=None, log=log)
+
+    return handed, open_store
+
+
+async def _never(_options: ServiceOptions) -> int:
+    raise AssertionError("a store verb must not start the service")
+
+
+def _switch(monkeypatch: pytest.MonkeyPatch, *typed: str, open_store: OpenHouseStore | None = None) -> int:
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *typed, "switch"])
+    return main(run_service=_never, open_store=open_store)
+
+
+def test_a_typed_sqlite_database_opens_on_a_host_with_a_configured_password(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The configured password belongs to the configured PostgreSQL database; a SQLite file typed
+    for one command is opened without it rather than refused for having been handed one."""
+    _configured_house(monkeypatch)
+    database = tmp_path / "copy.sqlite"
+    assert _switch(monkeypatch, "--database", str(database)) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["ok"] is True
+    assert database.exists(), "the typed database was opened"
+    assert NOT_USED in captured.err
+    assert FAKE not in captured.out + captured.err
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        pytest.param([], (CONFIGURED_URL, Secret(FAKE)), id="nothing-typed"),
+        pytest.param(["--database", CONFIGURED_URL], (CONFIGURED_URL, Secret(FAKE)), id="typed-the-configured-url"),
+        pytest.param(["--database", ANOTHER_SERVER], (ANOTHER_SERVER, None), id="typed-another-server"),
+    ],
+)
+def test_a_store_verb_hands_the_configured_password_only_to_the_configured_database(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    typed: list[str],
+    expected: tuple[str, Secret | None],
+) -> None:
+    _configured_house(monkeypatch)
+    handed, open_store = _recording_opener(tmp_path)
+    assert _switch(monkeypatch, *typed, open_store=open_store) == 0
+    captured = capsys.readouterr()
+    assert handed == [expected]
+    assert (NOT_USED in captured.err) is (expected[1] is None), "the line appears exactly when it was not used"
+    assert FAKE not in captured.out + captured.err
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        pytest.param(None, Secret(FAKE), id="nothing-typed"),
+        pytest.param(CONFIGURED_URL, Secret(FAKE), id="typed-the-configured-url"),
+        pytest.param(ANOTHER_SERVER, None, id="typed-another-server"),
+        pytest.param("{sqlite}", None, id="typed-a-sqlite-file"),
+    ],
+)
+def test_the_service_run_takes_the_configured_password_only_for_the_configured_database(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    typed: str | None,
+    expected: Secret | None,
+) -> None:
+    """The run reaches the store through its record, so the record is what is asserted; that the
+    record's password is what the service hands its opener is pinned above."""
+    _configured_house(monkeypatch)
+    seen, run = _capture()
+    database = [] if typed is None else ["--database", typed.format(sqlite=tmp_path / "copy.sqlite")]
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", "--bind-ip", "10.0.0.1", *database])
+    assert main(run_service=run) == 0
+    captured = capsys.readouterr()
+    assert seen[0].database_password == expected
+    assert (NOT_USED in captured.err) is (expected is None), "the line appears exactly when it was not used"
+    assert FAKE not in captured.out + captured.err

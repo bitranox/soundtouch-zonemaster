@@ -233,13 +233,17 @@ def test_every_store_verb_takes_the_password_setting_and_never_shows_it(
     """The verbs open the store without the service's option record, so they read the password
     from the configuration layers themselves. A SQLite database has none, and the store refuses
     one given for it by name - which is how a test without a PostgreSQL server can see that the
-    verb handed it over at all. Neither the refusal nor anything else printed may carry it."""
+    verb handed it over at all. Neither the refusal nor anything else printed may carry it.
+
+    The database is configured beside the password rather than typed: a configured password goes
+    only with the configured database, and a typed SQLite file would be opened without it."""
     source = tmp_path / "edited.json"
     save_channels(source, LIST)
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(tmp_path / "db.sqlite"))
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__PASSWORD", "TOPSECRET")
     argv = [part.format(out=tmp_path / "out.json", source=source) for part in verb]
 
-    rc = _run(monkeypatch, *mode, "--database", str(tmp_path / "db.sqlite"), *argv)
+    rc = _run(monkeypatch, *mode, *argv)
 
     captured = capsys.readouterr()
     assert rc == 2

@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict
 from ...application.outcome import ExitCode, OptionsError
 from ..config.loader import get_config
 from ..config.overrides import apply_set_overrides
-from .boundary import configured_settings, database_password_of
+from .boundary import configured_settings, database_password_of, scoped_to_the_configured_database
 from .envelope import OutputMode
 
 if TYPE_CHECKING:
@@ -88,8 +88,12 @@ class DatabaseChoice:
 def database_for(shared: Shared) -> DatabaseChoice:
     """The database this invocation means - typed, else configured, else refused by name (exit 2) -
     and the password the configuration layers give for it (``database.password``; there is no
-    command-line option for it, since argv is visible to every user of the machine)."""
-    configured = configured_settings(config_for(shared).config)
+    command-line option for it, since argv is visible to every user of the machine). That password
+    goes only with the configured database: see
+    :func:`~.boundary.scoped_to_the_configured_database`, which the service run shares."""
+    configured = scoped_to_the_configured_database(
+        configured_settings(config_for(shared).config), typed=shared.database
+    )
     password = database_password_of(configured)
     if shared.database is not None:
         return DatabaseChoice(setting=shared.database, password=password)

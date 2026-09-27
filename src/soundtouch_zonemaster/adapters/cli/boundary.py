@@ -58,6 +58,7 @@ __all__ = [
     "database_password_of",
     "merge_service_settings",
     "parse_service_options",
+    "scoped_to_the_configured_database",
 ]
 
 
@@ -299,6 +300,32 @@ def _secret_of(value: SecretStr | None) -> Secret | None:
     return Secret(text) if text else None
 
 
+def scoped_to_the_configured_database(configured: Mapping[str, Any], *, typed: str | None) -> dict[str, Any]:
+    """The settings, less the configured password when a typed database is not the configured one.
+
+    The password in the configuration belongs to the database in the configuration. It goes along
+    when nothing was typed, or when what was typed is exactly the configured ``database.url``; for
+    any other typed database it is left out, so a SQLite file typed for one command is not refused
+    for having been handed a password, and a URL naming another server is not sent this one's.
+    libpq's own ``~/.pgpass``, ``PGPASSFILE`` and ``PGPASSWORD`` still apply to it. One line says
+    so, naming the setting and neither the password nor the typed database.
+
+    The service run and the store verbs both call this, so the two cannot come to disagree about
+    which database a configured password is for.
+    """
+    field = "database_password"
+    scoped = dict(configured)
+    if typed is None or typed == configured.get("database") or scoped.get(field) in (None, ""):
+        return scoped
+    del scoped[field]
+    log(
+        "config",
+        f"the configured {config_path_of(field)} was not used: the typed --database is not the "
+        f"configured {config_path_of('database')}",
+    )
+    return scoped
+
+
 def database_password_of(configured: Mapping[str, Any]) -> Secret | None:
     """The password the configuration layers give, for the store verbs that open the database
     without building the whole option record. The same rule as the record's own field."""
@@ -361,7 +388,9 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
         "mpd_port": mpd_port,
         "mpd_rewind_s": mpd_rewind_s,
     }
-    merged = merge_service_settings(configured=configured, given=given)
+    merged = merge_service_settings(
+        configured=scoped_to_the_configured_database(configured, typed=database), given=given
+    )
     try:
         return ServiceOptionsInput.model_validate(merged).record()
     except ValidationError as exc:

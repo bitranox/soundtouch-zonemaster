@@ -244,7 +244,10 @@ six. A setting given in NO layer is refused by name with exit 2. The PostgreSQL 
 setting `database.password` (`SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD`), which has no command-line
 option; `--set database.password=...` is the per-run override. The store hands it to the driver as
 a connect argument; when it is empty, libpq's own `~/.pgpass`, `PGPASSFILE` or `PGPASSWORD` apply.
-A password given for a SQLite database is refused. A database that cannot be opened
+A password given for a SQLite database is refused. The configured password goes only with the
+configured database: a typed `--database` other than exactly `database.url` is opened without it,
+with one line saying so (`boundary.scoped_to_the_configured_database`, shared by the run and the
+store verbs). A database that cannot be opened
 refuses the start; an old file that exists but cannot be parsed refuses the start too, naming the
 file, at the one-time import.
 
