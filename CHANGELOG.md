@@ -30,9 +30,9 @@ All notable changes to this project are documented here. The format follows
   (source `calibration`, the time not recorded, as it never was before). A config file's value for
   any of the five preferences no longer decides while a stored row is set; `prefs unset` gives the
   decision back to the config layers.
-- A console device id that is not exactly twelve upper-case hex digits is now refused
-  (`membership.consoles_allowed`, both from a config layer and from `prefs set`), rather than
-  accepted as written.
+- A console device id is now checked (`membership.consoles_allowed`, both from a config layer and
+  from `prefs set`), rather than accepted as written: an id of twelve hex digits in any case is
+  accepted and stored in upper case, and anything else is refused.
 
 ### Note
 

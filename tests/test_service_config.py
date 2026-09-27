@@ -211,6 +211,22 @@ def test_a_repeatable_option_nobody_used_leaves_the_configured_list_alone(
     assert seen[0].consoles_allowed == ("AABBCC000012",)
 
 
+def test_a_lower_case_console_id_in_a_config_layer_no_longer_stops_the_start(
+    monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """A deployed config spelling an id lower-case must not exit 1 at start: it is folded to
+    upper case, the same value a speaker's own device id compares against."""
+    _user_config(
+        isolated_config_layers,
+        _house(tmp_path, extra='[membership]\nconsoles_allowed = ["aabbcc000012"]\n'),
+    )
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service"])
+
+    assert main(run_service=run) == 0
+    assert seen[0].consoles_allowed == ("AABBCC000012",)
+
+
 def test_a_misspelled_setting_gets_a_line_rather_than_silence(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:

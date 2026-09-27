@@ -21,7 +21,7 @@
 # one would change what somebody is doing in that room, audibly, and undoing it needs a person at
 # the console.
 # When to set: only when somebody who uses that room has agreed to it, naming that console's
-# twelve upper-case hex digits.
+# twelve hex digits (either case; it is stored upper case).
 # Consequence: the console joins and leaves like any other box, including being sent the zone
 # document. There is no way to make that quieter, which is why it is off by default and per-device
 # rather than a boolean.

@@ -66,7 +66,7 @@ FADE_CEILING_S = 5.0
 """Past this a joining room is audibly quiet for long enough to read as a fault."""
 
 DEVICE_ID = re.compile(r"[0-9A-F]{12}")
-"""A speaker's device id: its MAC, twelve upper-case hex digits, as the registry spells it."""
+"""A speaker's device id: its MAC, twelve hex digits, as the registry spells it (upper case)."""
 
 PreferenceValue = float | tuple[str, ...]
 
@@ -305,17 +305,25 @@ def _number(name: PreferenceName, value: object) -> float:
 
 
 def _device_ids(name: PreferenceName, value: object) -> tuple[str, ...]:
-    """A list of device ids as a tuple, each one checked, so a typo cannot allow a console by accident."""
+    """A list of device ids as a tuple, each one checked and folded to upper case.
+
+    Twelve hex digits of either case are accepted - a deployed config or a person typing ``prefs
+    set`` may spell an id lower-case - and normalised to upper case, the shape the registry itself
+    reports (``research/REPORT.md``), so a stored or configured id compares equal to what a speaker
+    says however it was written. A typo still cannot allow a console by accident: anything that is
+    not twelve hex digits, in any case, is refused.
+    """
     if not isinstance(value, list | tuple):
         message = f"refused: {name} must be a list, not {type(value).__name__}"
         raise PreferenceRefusedError(message)
     ids: list[str] = []
     for item in cast("list[object] | tuple[object, ...]", value):
-        if not isinstance(item, str) or not DEVICE_ID.fullmatch(item):
+        upper = item.upper() if isinstance(item, str) else None
+        if upper is None or not DEVICE_ID.fullmatch(upper):
             # Only a string is quoted: anything else decoded from a stored row (a nested list, say)
             # can be megabytes, and repr() would build all of it before any cut.
             said = quoted(item) if isinstance(item, str) else f"something of type {type(item).__name__}"
-            message = f"refused: {name} holds {said}, which is not a device id (12 upper-case hex digits)"
+            message = f"refused: {name} holds {said}, which is not a device id (12 hex digits)"
             raise PreferenceRefusedError(message)
-        ids.append(item)
+        ids.append(upper)
     return tuple(ids)

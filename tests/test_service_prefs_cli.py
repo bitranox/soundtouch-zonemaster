@@ -110,6 +110,18 @@ def test_a_list_is_written_as_json(
     assert _stored(database) == [("membership.consoles_allowed", '["AABBCC000012"]')]
 
 
+def test_a_lower_case_console_id_is_stored_and_shown_upper_case(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    database = str(tmp_path / "db.sqlite")
+    argv = ("--json", "--database", database, "prefs", "set", "membership.consoles_allowed", '["a1b2c3d4e5f6"]')
+    assert _run(monkeypatch, *argv) == 0
+    change = _envelope(capsys)["data"]
+    assert isinstance(change, dict)
+    assert change["after"]["value"] == ["A1B2C3D4E5F6"]
+    assert _stored(database) == [("membership.consoles_allowed", '["A1B2C3D4E5F6"]')]
+
+
 @pytest.mark.parametrize(
     ("argv", "rc", "message"),
     [

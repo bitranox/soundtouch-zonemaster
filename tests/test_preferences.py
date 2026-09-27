@@ -50,8 +50,12 @@ def test_the_five_names_are_the_config_paths() -> None:
         (
             PreferenceName.CONSOLES,
             ["AABBCC00001"],
-            "refused: membership.consoles_allowed holds 'AABBCC00001', "
-            "which is not a device id (12 upper-case hex digits)",
+            "refused: membership.consoles_allowed holds 'AABBCC00001', which is not a device id (12 hex digits)",
+        ),
+        (
+            PreferenceName.CONSOLES,
+            ["not-hex-at-all"],
+            "refused: membership.consoles_allowed holds 'not-hex-at-all', which is not a device id (12 hex digits)",
         ),
     ],
 )
@@ -109,6 +113,18 @@ def test_a_legal_value_comes_back_in_the_shape_the_record_holds() -> None:
     assert checked(PreferenceName.FADE, 0) == 0.0
     assert checked(PreferenceName.CONSOLES, ["AABBCC000012"]) == ("AABBCC000012",)
     assert checked(PreferenceName.CONSOLES, []) == ()
+
+
+def test_a_console_id_is_accepted_in_any_case_and_stored_upper_case() -> None:
+    """A deployed config or an old note may spell an id lower-case; the value the record holds -
+    and so what a running service compares against a speaker's own upper-case device id - is
+    always upper case."""
+    assert checked(PreferenceName.CONSOLES, ["a1b2c3d4e5f6"]) == ("A1B2C3D4E5F6",)
+    assert checked(PreferenceName.CONSOLES, ["A1b2C3d4E5f6"]) == ("A1B2C3D4E5F6",)
+    assert checked(PreferenceName.CONSOLES, ["a1b2c3d4e5f6", "A1B2C3D4E5F6"]) == (
+        "A1B2C3D4E5F6",
+        "A1B2C3D4E5F6",
+    ), "no de-duplication happens today for a same-case pair either, so a mixed-case pair keeps both"
 
 
 def test_no_rows_leave_the_base_untouched() -> None:
@@ -174,7 +190,7 @@ TOO_DEEP = "[" * 100_000
             PreferenceName.CONSOLES,
             "[" + ",".join(["[1]"] * 100_000) + "]",
             "refused: membership.consoles_allowed holds something of type list, "
-            "which is not a device id (12 upper-case hex digits)",
+            "which is not a device id (12 hex digits)",
         ),
     ],
     ids=["overflows-a-float", "past-the-digit-limit", "nested-too-deep", "a-list-where-an-id-goes"],
@@ -198,14 +214,10 @@ def test_an_integer_too_large_for_a_float_is_refused_without_echoing_it() -> Non
     assert str(refused.value) == "refused: dialling.window_s is too large to be a number of seconds"
 
 
-def test_a_console_id_is_named_as_upper_case_and_a_long_one_is_cut_short() -> None:
-    """The rule is twelve UPPER-CASE hex digits, and the message says so, so somebody holding a
-    lower-case id from an old config sees why it is refused. An enormous item is cut, not echoed."""
-    with pytest.raises(PreferenceRefusedError) as lower:
-        checked(PreferenceName.CONSOLES, ["aabbcc000012"])
-    assert str(lower.value) == (
-        "refused: membership.consoles_allowed holds 'aabbcc000012', which is not a device id (12 upper-case hex digits)"
-    )
+def test_a_console_id_of_any_case_is_accepted_and_a_long_bad_one_is_cut_short() -> None:
+    """The rule is twelve hex digits of any case, folded to upper: a lower-case id from an old
+    config is accepted, not refused for its case. An enormous refused item is cut, not echoed."""
+    assert checked(PreferenceName.CONSOLES, ["aabbcc000012"]) == ("AABBCC000012",)
     with pytest.raises(PreferenceRefusedError) as long:
         checked(PreferenceName.CONSOLES, ["A" * 1_000_000])
     assert len(str(long.value)) < 200
