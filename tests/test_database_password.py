@@ -432,3 +432,70 @@ def test_the_service_run_takes_the_configured_password_only_for_the_configured_d
     assert seen[0].database_password == expected
     assert (NOT_USED in captured.err) is (expected is None), "the line appears exactly when it was not used"
     assert FAKE not in captured.out + captured.err
+
+
+URL_WITH_A_PASSWORD = f"postgresql+psycopg://zonemaster:{FAKE}@db.example/zonemaster"
+
+NOT_TEXT_URLS = [
+    pytest.param(f'["{URL_WITH_A_PASSWORD}"]', [], "list", id="env-json-array"),
+    pytest.param(f'{{"inner": "{URL_WITH_A_PASSWORD}"}}', [], "dict", id="env-json-object"),
+    pytest.param(DIGITS, [], "int", id="env-digits"),
+    pytest.param(None, ["--set", f'database.url=["{URL_WITH_A_PASSWORD}"]'], "list", id="set-json-array"),
+]
+"""Every shape the environment layer and ``--set`` turn a url into that is not text (measured
+through the real loader): a JSON array, a JSON object, a number."""
+
+
+def _refuses_a_url_that_is_not_text(captured: pytest.CaptureFixture[str], arrived_as: str) -> None:
+    streams = captured.readouterr()
+    envelope = json.loads(streams.out)
+    assert envelope["ok"] is False
+    assert f"database.url arrived as {arrived_as}, not as text" in envelope["message"]
+    for stream in (streams.out, streams.err):
+        assert FAKE not in stream
+        assert DIGITS not in stream
+
+
+@pytest.mark.parametrize(("environment", "argv", "arrived_as"), NOT_TEXT_URLS)
+def test_a_database_url_that_is_not_text_refuses_the_start(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    *,
+    environment: str | None,
+    argv: list[str],
+    arrived_as: str,
+) -> None:
+    """A url that arrived as a list, a table or a number is not a URL: the start is refused by the
+    setting's name and the type it arrived as (exit 2, it could not run), never with its value."""
+    if environment is not None:
+        monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", environment)
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *argv, "--bind-ip", "10.0.0.1"])
+    assert main(run_service=run) == 2
+    assert seen == [], "a refused start runs nothing"
+    _refuses_a_url_that_is_not_text(capsys, arrived_as)
+
+
+@pytest.mark.parametrize("verb", [["switch"], ["channels", "export", "--output", "{out}"]], ids=["switch", "export"])
+@pytest.mark.parametrize(("environment", "argv", "arrived_as"), NOT_TEXT_URLS)
+def test_a_database_url_that_is_not_text_refuses_the_store_verbs(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    *,
+    verb: list[str],
+    environment: str | None,
+    argv: list[str],
+    arrived_as: str,
+) -> None:
+    """The store verbs read the configured url through the same rule as the run: refused, and
+    nothing opened. Turned into text instead, a number named a SQLite file in the working
+    directory and a list reached the store as its printed form."""
+    if environment is not None:
+        monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", environment)
+    handed, open_store = _recording_opener(tmp_path)
+    typed = [part.format(out=tmp_path / "out.json") for part in verb]
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json", *argv, *typed])
+    assert main(run_service=_never, open_store=open_store) == 2
+    assert handed == [], "nothing was opened"
+    _refuses_a_url_that_is_not_text(capsys, arrived_as)

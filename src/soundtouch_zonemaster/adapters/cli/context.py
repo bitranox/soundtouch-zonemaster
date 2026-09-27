@@ -18,7 +18,12 @@ from pydantic import BaseModel, ConfigDict
 from ...application.outcome import ExitCode, OptionsError
 from ..config.loader import get_config
 from ..config.overrides import apply_set_overrides
-from .boundary import configured_settings, database_password_of, scoped_to_the_configured_database
+from .boundary import (
+    configured_settings,
+    database_password_of,
+    database_text_or_refuse,
+    scoped_to_the_configured_database,
+)
 from .envelope import OutputMode
 
 if TYPE_CHECKING:
@@ -97,11 +102,11 @@ def database_for(shared: Shared) -> DatabaseChoice:
     password = database_password_of(configured)
     if shared.database is not None:
         return DatabaseChoice(setting=shared.database, password=password)
-    setting = configured.get("database")
+    setting = database_text_or_refuse(configured.get("database"))
     if setting is None:
         message = (
             "refused: no value anywhere for database. Give it on the command line (--database), "
             "or in a config file as database.url"
         )
         raise OptionsError(message, exit_code=ExitCode.ERROR)
-    return DatabaseChoice(setting=str(setting), password=password)
+    return DatabaseChoice(setting=setting, password=password)

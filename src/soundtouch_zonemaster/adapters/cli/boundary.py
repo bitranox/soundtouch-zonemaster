@@ -56,6 +56,7 @@ __all__ = [
     "ServiceOptionsInput",
     "configured_settings",
     "database_password_of",
+    "database_text_or_refuse",
     "merge_service_settings",
     "parse_service_options",
     "scoped_to_the_configured_database",
@@ -133,6 +134,11 @@ class ServiceOptionsInput(BaseModel):
     @classmethod
     def _twelve_hex_digits(cls, value: str) -> str:
         return device_id_or_refuse(value)
+
+    @field_validator("database", mode="before")
+    @classmethod
+    def _database_as_text(cls, value: object) -> str | None:
+        return database_text_or_refuse(value)
 
     @field_validator("database")
     @classmethod
@@ -248,6 +254,25 @@ class ServiceOptionsInput(BaseModel):
             mpd_port=self.mpd_port,
             mpd_rewind_s=self.mpd_rewind_s,
         )
+
+
+def database_text_or_refuse(value: object) -> str | None:
+    """A database setting as text, ``None`` passed through. Raises :class:`OptionsError` (exit 2).
+
+    The environment layer reads a value opening with ``[`` or ``{`` as JSON and digits as a
+    number, and ``--set`` reads JSON too, so ``database.url`` can arrive as a list, a table or a
+    number. None of them is a URL or a path, and turning one back into text would name a file
+    nobody meant (a number) or hand the store the printed form of a list, password and all. It is
+    refused instead, naming the setting and the type it arrived as, never the value. ``None`` is
+    left to the caller, which already says "no value anywhere" in its own words.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    message = (
+        f"refused: {config_path_of('database')} arrived as {type(value).__name__}, not as text; "
+        "quote it in a config file, or use --set with a JSON string"
+    )
+    raise OptionsError(message, exit_code=ExitCode.ERROR)
 
 
 def password_text_or_refuse(value: object) -> str | None:
