@@ -980,6 +980,20 @@ def test_a_fade_in_outside_its_bounds_is_refused_by_name(
     assert envelope["message"] == "refused: the fade-in must be between 0.0 and 5.0 s, not 6.0"
 
 
+def test_a_non_finite_rewind_is_refused_by_name(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """NaN passes rewind's bare ``< 0`` check, so it must be caught earlier, at the same layered
+    boundary that already refuses an out-of-bounds fade-in or hold threshold."""
+    _user_config(isolated_config_layers, _house(tmp_path, extra="[mpd]\nrewind_s = nan\n"))
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json-bare"])
+    assert main(run_service=run) == 1
+    assert seen == []
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["message"] == "refused: mpd.rewind_s must be finite, not nan"
+
+
 def test_a_console_that_is_not_a_device_id_is_refused_by_name(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:

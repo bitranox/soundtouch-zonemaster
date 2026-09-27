@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from soundtouch_zonemaster.domain.preferences import (
@@ -57,6 +59,46 @@ def test_a_value_outside_what_the_preference_may_hold_is_refused_by_name(
     with pytest.raises(PreferenceRefusedError) as refused:
         checked(name, value)
     assert str(refused.value) == message
+
+
+@pytest.mark.parametrize(
+    "name", [PreferenceName.WINDOW, PreferenceName.HOLD, PreferenceName.REWIND, PreferenceName.FADE]
+)
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf], ids=["nan", "inf", "-inf"])
+def test_a_non_finite_number_is_refused_on_every_numeric_preference(name: PreferenceName, value: float) -> None:
+    """NaN and infinity would otherwise slip past rewind's bare ``< 0`` check (a stored NaN rewind
+    made a resumed place seconds=0.0, restarting every audiobook silently)."""
+    with pytest.raises(PreferenceRefusedError) as refused:
+        checked(name, value)
+    assert str(refused.value) == f"refused: {name} must be finite, not {value}"
+
+
+def test_the_negative_rewind_message_is_unchanged_by_the_finite_check() -> None:
+    """The one refusal message this plan promises byte-identical: a genuine negative, not NaN/inf."""
+    with pytest.raises(PreferenceRefusedError) as refused:
+        checked(PreferenceName.REWIND, -1)
+    assert str(refused.value) == "refused: the mpd rewind must not be negative, not -1.0"
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        (PreferenceName.WINDOW, "NaN"),
+        (PreferenceName.HOLD, "Infinity"),
+        (PreferenceName.REWIND, "NaN"),
+        (PreferenceName.REWIND, "-Infinity"),
+        (PreferenceName.FADE, "Infinity"),
+    ],
+)
+def test_a_row_holding_a_non_finite_json_number_is_rejected_not_used(name: PreferenceName, text: str) -> None:
+    """Python's ``json`` module accepts ``NaN``/``Infinity``/``-Infinity`` even though the JSON
+    spec does not, so a hand-edited or migrated row can carry one straight into ``stored``."""
+    row = _row(str(name), text)
+    usable, rejected = stored((row,))
+    assert usable == {}
+    assert len(rejected) == 1
+    assert rejected[0][0] == row
+    assert "must be finite" in rejected[0][1]
 
 
 def test_a_legal_value_comes_back_in_the_shape_the_record_holds() -> None:

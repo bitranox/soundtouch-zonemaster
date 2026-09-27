@@ -16,6 +16,7 @@ is computation rather than I/O.
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, replace
 from enum import StrEnum
@@ -214,11 +215,25 @@ def value_of(preferences: HousePreferences, name: PreferenceName) -> PreferenceV
 
 
 def _number(name: PreferenceName, value: object) -> float:
-    """A JSON number as a float. A boolean is refused: JSON's ``true`` is not the number 1."""
+    """A JSON number as a float. A boolean is refused: JSON's ``true`` is not the number 1.
+
+    Refused here, for every numeric preference at once, rather than in each preference's own
+    range check: NaN and infinity compare false against every bound (``lo <= nan <= hi`` is
+    always false), so window, hold and fade already turn them away as "out of bounds" - but
+    rewind's check is a bare ``number < 0``, which a non-finite value slips past silently. A
+    stored NaN rewind reached :func:`~.dialling.Place.resumed` and gave back zero seconds, so an
+    audiobook would restart from the beginning on every resume. One check here closes that for
+    the whole shape: no numeric preference can ever hold a value nothing finite can be measured
+    against.
+    """
     if isinstance(value, bool) or not isinstance(value, int | float):
         message = f"refused: {name} must be a number, not {type(value).__name__}"
         raise PreferenceRefusedError(message)
-    return float(value)
+    number = float(value)
+    if not math.isfinite(number):
+        message = f"refused: {name} must be finite, not {number}"
+        raise PreferenceRefusedError(message)
+    return number
 
 
 def _device_ids(name: PreferenceName, value: object) -> tuple[str, ...]:
