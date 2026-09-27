@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from alembic import command
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, func, insert, inspect, select, text, update
@@ -394,7 +396,8 @@ def test_advisory_lock_release_forgets_the_connection_even_when_close_itself_rai
     with pytest.raises(RuntimeError):
         lock.release()
 
-    assert lock._connection is None, "the state is reset even though close() itself raised"  # pyright: ignore[reportPrivateUsage]
+    held = lock._connection  # pyright: ignore[reportPrivateUsage]
+    assert held is None, "the state is reset even though close() itself raised"
     engine.dispose()
 
 
@@ -531,3 +534,108 @@ def test_every_database_setting_the_store_names_is_one_the_settings_map_reads() 
     named = _database_settings_named_in(Path(house_db.__file__).read_text(encoding="utf-8"))
     assert named, "the control: the store names a setting somewhere"
     assert set(named) <= set(SETTINGS), f"not a setting the service reads: {sorted(set(named) - set(SETTINGS))}"
+
+
+_ZoneRow = tuple[str | None, float | None, float | None]
+"""The 0001 zone row's channel, calibrated window and calibrated hold."""
+
+
+def _database_at_0001(setting: str, *, zone: _ZoneRow | None) -> None:
+    """A database exactly as rank 19 part 1 left it: migrated to 0001, with ``zone`` as its one row.
+
+    ``zone`` is that row, or nothing for a database never given a state. The
+    engine is a plain one, not the store's: the store migrates to head as it opens, and the point
+    is a database that has not seen 0002 yet."""
+    engine = create_engine(database_url(setting))
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "0001")
+        if zone is not None:
+            channel, window, hold = zone
+            connection.execute(
+                text("INSERT INTO zone (id, channel, dial_window_s, hold_threshold_s) VALUES (1, :c, :w, :h)"),
+                {"c": channel, "w": window, "h": hold},
+            )
+    engine.dispose()
+
+
+def _after_the_migration(setting: str) -> tuple[list[tuple[str, str, str, str]], str | None, set[str]]:
+    """Open the store as the service does, which migrates: the rows, the channel and the zone's columns."""
+    store = SqlHouseStore(setting, log=_quiet)
+    store.open(exclusive=True)
+    try:
+        rows = [(row.name, row.text, row.source, row.changed_at) for row in store.load_preferences()]
+        channel = store.load_state().channel
+    finally:
+        store.close()
+    database = _opened(setting)
+    with database.reading() as connection:
+        columns = {str(column["name"]) for column in inspect(connection).get_columns("zone")}
+    database.close()
+    return rows, channel, columns
+
+
+def test_a_database_at_0001_carries_its_calibration_into_the_preference_table(house_database: str) -> None:
+    _database_at_0001(house_database, zone=("3", 0.7, None))
+
+    rows, channel, columns = _after_the_migration(house_database)
+
+    assert rows == [("dialling.window_s", "0.7", "calibration", "")]
+    assert channel == "3"
+    assert columns == {"id", "channel"}
+
+
+def test_a_database_at_0001_carries_both_calibrated_numbers(house_database: str) -> None:
+    _database_at_0001(house_database, zone=(None, 0.6, 1.4))
+
+    rows, _channel, _columns = _after_the_migration(house_database)
+
+    assert rows == [
+        ("dialling.hold_threshold_s", "1.4", "calibration", ""),
+        ("dialling.window_s", "0.6", "calibration", ""),
+    ]
+
+
+@pytest.mark.parametrize(
+    "zone", [None, ("3", None, None)], ids=["never-given-a-state", "a-state-with-nothing-calibrated"]
+)
+def test_a_database_at_0001_with_nothing_calibrated_migrates_to_an_empty_preference_table(
+    house_database: str, zone: _ZoneRow | None
+) -> None:
+    _database_at_0001(house_database, zone=zone)
+
+    rows, _channel, columns = _after_the_migration(house_database)
+
+    assert rows == []
+    assert columns == {"id", "channel"}
+
+
+def test_a_downgrade_to_0001_puts_the_calibration_back_on_the_zone_row(house_database: str) -> None:
+    """The way back: what 0002 moved into the preference table returns to the columns it came from."""
+    _database_at_0001(house_database, zone=("3", 0.7, 1.4))
+    _after_the_migration(house_database)
+    engine = create_engine(database_url(house_database))
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.downgrade(config, "0001")
+        zone = connection.execute(text("SELECT channel, dial_window_s, hold_threshold_s FROM zone")).one()
+        tables = set(inspect(connection).get_table_names())
+    engine.dispose()
+    assert tuple(zone) == ("3", 0.7, 1.4)
+    assert "preference" not in tables
+
+
+def test_dropping_the_calibrated_columns_keeps_zone_strict(tmp_path: Path) -> None:
+    """SQLite only: STRICT is a SQLite table option, and a batch-mode rebuild would drop it."""
+    path = str(tmp_path / "house.sqlite")
+    _database_at_0001(path, zone=("3", 0.7, None))
+    _after_the_migration(path)
+    database = _opened(path)
+    with database.reading() as connection:
+        ddl = str(connection.execute(text("SELECT sql FROM sqlite_master WHERE name = 'zone'")).scalar_one())
+    database.close()
+    assert ddl.rstrip().endswith("STRICT"), "dropping the columns must not rebuild zone without STRICT"

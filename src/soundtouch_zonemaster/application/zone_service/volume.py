@@ -185,7 +185,11 @@ class VolumeGuard(SpeakerBook):
         has already taken it out of ``_fading``, so not even ``_stop_fading`` waits on it - and
         asyncio printed a traceback of its own to a logger that is not this service's, which is
         exactly where somebody looking for a real fault starts reading.
+
+        The fade's length is read ONCE, here, and every step uses that: a preference changed while
+        a box is climbing applies to the next fade, not to this one half-way up.
         """
+        step_s = self._preferences.fade_s / FADE_STEPS
         try:
             await asyncio.sleep(MUTE_HOLD_S)
             for step in range(1, FADE_STEPS):
@@ -198,7 +202,7 @@ class VolumeGuard(SpeakerBook):
                 except Exception as exc:  # noqa: BLE001 - the step below is the retry, so this must not raise
                     self.log("zone", f"{speaker.name}: fade stopped at step {step} ({type(exc).__name__})")
                     break
-                await asyncio.sleep(self.options.fade_s / FADE_STEPS)
+                await asyncio.sleep(step_s)
             await self._put_one_back(speaker, level)
         except asyncio.CancelledError:
             with contextlib.suppress(Exception):

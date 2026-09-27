@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     from ...domain.events import SpeakerEvent
     from ...domain.logfn import LogFn
+    from ...domain.preferences import PreferenceName, PreferenceRow
     from ...domain.speakers import Speaker
     from ..options import ServiceOptions
     from ..ports import MpdControlPort, ZoneMasterPort, ZoneServicePorts
@@ -172,6 +173,7 @@ class ServiceState:
             unreachable_timeout_s=options.unreachable_timeout_s,
             consoles_allowed=options.consoles_allowed,
         )
+        self._no_preference_read_yet(options)
         self._speakers: dict[str, Speaker] = {}
         self._observers: dict[str, asyncio.Task[None]] = {}
         self._joined: dict[str, str] = {}
@@ -237,6 +239,22 @@ class ServiceState:
         collected while it is still fetching.
         """
 
+    def _no_preference_read_yet(self, options: ServiceOptions) -> None:
+        """The five preferences as the options give them, before the house database has been read.
+
+        One group because they are one subject: what the service runs on, which stored rows decided
+        it, and what has already been said about them. The rows are laid over at start
+        (``Dialling._take_the_preferences``), which is also where each one is first said.
+        """
+        self._preferences = options.preferences
+        """The five preferences the service is using: the options, with the house database's rows laid over them."""
+        self._set_by: dict[PreferenceName, PreferenceRow] = {}
+        """Which preferences a stored row decides, and that row: what the log names as the source."""
+        self._preference_rows: tuple[PreferenceRow, ...] = ()
+        """The rows as last read, so an unchanged read costs nothing and says nothing."""
+        self._rejected_seen: set[tuple[str, str]] = set()
+        """(name, text) of every stored row already named as ignored, so it is said once, not every poll."""
+
     def _no_volume_moved_yet(self) -> None:
         """Every volume this service takes away or moves, at its empty start.
 
@@ -294,10 +312,6 @@ class ServiceState:
         self._calibration = Calibration()
         """One calibration at a time for the whole house: the numbers it writes are one setting each."""
         self._gesture = Gesture()
-        self._calibrated_window_s: float | None = None
-        """What a calibration measured, kept so the state can be written from one place."""
-        self._calibrated_hold_s: float | None = None
-        """The hold threshold the same calibration measured, kept for the same reason."""
         self._dialled = asyncio.Event()
         """Set when a digit lands, so the dialling worker recomputes its deadline rather than
         sleeping through a number that is still being typed."""
@@ -330,8 +344,6 @@ class ServiceState:
                 muted=dict(self._muted),
                 out_of_multiroom=tuple(sorted(self._out_of_multiroom)),
                 positions=dict(self._positions),
-                dial_window_s=self._calibrated_window_s,
-                hold_threshold_s=self._calibrated_hold_s,
                 owed_volume=dict(self._owed_volume),
             ),
         )

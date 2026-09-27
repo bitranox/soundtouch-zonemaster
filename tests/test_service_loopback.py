@@ -48,7 +48,7 @@ from speaker_double import (
 
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
-from soundtouch_zonemaster.adapters.files.state_file import save_state
+from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
 from soundtouch_zonemaster.adapters.soundtouch.speaker_http import SPEAKER_HTTP_TIMEOUT_S
@@ -67,7 +67,7 @@ from soundtouch_zonemaster.domain.dialling import WINDOW_DEFAULT_S, WINDOW_FLOOR
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, KeyName, KeyState, SourceName
 from soundtouch_zonemaster.domain.longpress import HOLD_THRESHOLD_DEFAULT_S
 from soundtouch_zonemaster.domain.membership import UNREACHABLE_TIMEOUT_S, WAKE_WINDOW_S
-from soundtouch_zonemaster.domain.preferences import FADE_DEFAULT_S
+from soundtouch_zonemaster.domain.preferences import FADE_DEFAULT_S, PreferenceName, PreferenceSource
 from soundtouch_zonemaster.domain.presses import CONFIRM_BACK_WINDOW_S
 from soundtouch_zonemaster.domain.state import Place, ZoneState
 from soundtouch_zonemaster.domain.zonexml import station_content_item
@@ -79,6 +79,7 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.application.options import LegacyFiles
     from soundtouch_zonemaster.application.ports import HouseStore, SwitchReader
     from soundtouch_zonemaster.domain.logfn import LogFn
+    from soundtouch_zonemaster.domain.preferences import PreferenceRow, PreferenceValue
     from soundtouch_zonemaster.domain.secret import Secret
 
 MASTER = "127.0.0.1"
@@ -307,6 +308,15 @@ def _state_of(options: ServiceOptions) -> ZoneState:
         store.close()
 
 
+def _preferences_of(options: ServiceOptions) -> dict[str, str]:
+    """The stored preferences as name -> JSON text, read the way a restart reads them."""
+    store = _store_of(options)
+    try:
+        return {row.name: row.text for row in store.load_preferences()}
+    finally:
+        store.close()
+
+
 def _channels_of(options: ServiceOptions) -> ChannelList:
     """The channel list as the service left it, read the way a restart reads it."""
     store = _store_of(options)
@@ -494,7 +504,7 @@ async def test_a_box_that_wakes_and_dials_is_taken_in_on_the_number_it_dialled(w
     (``source._peek``).
     """
     options = _dialable_world(world, tmp_path, dial_window_s=0.5)
-    save_state(_state_file(options), ZoneState(channel="1", members=()))
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="1", members=())))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -564,7 +574,7 @@ async def test_a_box_arriving_while_a_number_is_still_open_waits_for_the_number(
     type and the fetch itself (``source._peek``), so four is two stations.
     """
     options = _dialable_world(world, tmp_path, dial_window_s=1.0)
-    save_state(_state_file(options), ZoneState(channel="1", members=()))
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="1", members=())))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -974,7 +984,7 @@ async def test_a_service_that_died_mid_join_puts_the_volume_back_when_it_starts(
     broken hardware.
     """
     options = _options(world, tmp_path)
-    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
+    save_state(_state_file(options), LegacyState(state=ZoneState(muted={STUDIO_ID: 22})))
     world.studio.volume = 0
 
     async with _running(options, []):
@@ -996,7 +1006,7 @@ async def test_a_box_left_at_zero_is_turned_back_up_even_when_the_switch_is_off(
     """
     options = _options(world, tmp_path)
     _switch_file(options).write_text("off\n", encoding="utf-8")
-    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
+    save_state(_state_file(options), LegacyState(state=ZoneState(muted={STUDIO_ID: 22})))
     world.studio.volume = 0
 
     async with _running(options, []):
@@ -1025,7 +1035,7 @@ async def test_a_note_the_start_up_could_not_clear_is_cleared_by_a_pass_with_the
     """
     options = _options(world, tmp_path)
     _switch_file(options).write_text("off\n", encoding="utf-8")
-    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
+    save_state(_state_file(options), LegacyState(state=ZoneState(muted={STUDIO_ID: 22})))
     world.studio.volume = 0
     world.studio.refuse = frozenset({"POST /volume"})
     logs: list[str] = []
@@ -1058,7 +1068,7 @@ async def test_a_note_the_start_up_could_not_clear_is_cleared_by_a_pass_that_giv
     The port is taken by a real socket, which is what took it in the flat on 2026-09-07.
     """
     options = _options(world, tmp_path)
-    save_state(_state_file(options), ZoneState(muted={STUDIO_ID: 22}))
+    save_state(_state_file(options), LegacyState(state=ZoneState(muted={STUDIO_ID: 22})))
     world.studio.volume = 0
     world.studio.refuse = frozenset({"POST /volume"})
     logs: list[str] = []
@@ -1605,7 +1615,7 @@ async def test_the_remembered_channel_is_what_gets_played(world: World, tmp_path
             )
         ),
     )
-    save_state(_state_file(options), ZoneState(channel="3", members=()))
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="3", members=())))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -1625,7 +1635,7 @@ async def test_a_remembered_channel_that_is_gone_falls_back_to_the_lowest_and_sa
             channels=(Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),)
         ),
     )
-    save_state(_state_file(options), ZoneState(channel="3", members=()))
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="3", members=())))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -2705,7 +2715,7 @@ async def test_a_box_owed_below_zero_joins_silent_and_is_not_faded(world: World,
     options = _options(world, tmp_path)
     logs: list[str] = []
     world.hallway.volume = 20
-    save_state(_state_file(options), ZoneState(owed_volume={HALLWAY_ID: -30}))
+    save_state(_state_file(options), LegacyState(state=ZoneState(owed_volume={HALLWAY_ID: -30})))
 
     async with _running(options, logs):
         await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
@@ -2820,8 +2830,8 @@ async def test_a_digit_during_a_calibration_is_a_sample_rather_than_a_channel(wo
     # one starved cpu). What this test claims is that the measurement is the value stored.
     said = next(line for line in logs if "the window becomes" in line)
     measured = float(said.rsplit("the window becomes ", 1)[1].split(" s")[0])
-    written = _state_of(options)
-    assert written.dial_window_s == pytest.approx(measured, abs=0.05), "and what it measured was written down"
+    written = float(_preferences_of(options)["dialling.window_s"])
+    assert written == pytest.approx(measured, abs=0.05), "and what it measured was written down"
 
 
 async def test_a_key_a_calibration_swallows_is_said_by_name(world: World, tmp_path: Path) -> None:
@@ -2859,7 +2869,7 @@ async def test_a_calibrated_window_is_what_a_restart_dials_with(world: World, tm
     channel at all, so the zone would sit where it started.
     """
     options = _dialable_world(world, tmp_path, dial_window_s=0.5)
-    save_state(_state_file(options), ZoneState(channel="1", members=(), dial_window_s=1.5))
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="1", members=()), dial_window_s=1.5))
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -2934,8 +2944,8 @@ async def test_a_calibration_writes_the_hold_threshold_it_measured(world: World,
     said = next(line for line in logs if "the hold becomes" in line)
     measured = float(said.rsplit("the hold becomes ", 1)[1].split(" s")[0])
     assert measured > HOLD_THRESHOLD_DEFAULT_S, "a hand that rests on its keys gets a longer threshold"
-    written = _state_of(options)
-    assert written.hold_threshold_s == pytest.approx(measured), "and what it measured was written down"
+    written = float(_preferences_of(options)["dialling.hold_threshold_s"])
+    assert written == pytest.approx(measured), "and what it measured was written down"
 
 
 async def test_a_calibrated_hold_threshold_is_what_a_restart_holds_with(world: World, tmp_path: Path) -> None:
@@ -2946,7 +2956,10 @@ async def test_a_calibrated_hold_threshold_is_what_a_restart_holds_with(world: W
     out of multiroom instead.
     """
     options = _rotation_world(world, tmp_path, numbers=("1", "12", "13"))
-    save_state(_state_file(options), ZoneState(channel="1", members=(), dial_window_s=0.5, hold_threshold_s=1.8))
+    save_state(
+        _state_file(options),
+        LegacyState(state=ZoneState(channel="1", members=()), dial_window_s=0.5, hold_threshold_s=1.8),
+    )
     logs: list[str] = []
 
     async with _running(options, logs) as service:
@@ -3703,6 +3716,17 @@ class _StoreThatCannotSaveState:
     def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader:
         return self._real.switch(poll_s=poll_s, ignored_file=ignored_file)
 
+    def load_preferences(self) -> tuple[PreferenceRow, ...]:
+        return self._real.load_preferences()
+
+    def set_preference(
+        self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
+    ) -> PreferenceRow | None:
+        return self._real.set_preference(name, value, source=source)
+
+    def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
+        return self._real.unset_preference(name)
+
 
 @asynccontextmanager
 async def _running_with_a_store_that_cannot_save_state(
@@ -4061,7 +4085,7 @@ async def test_a_gesture_acts_at_its_window_while_a_slow_station_is_still_starti
             )
         ),
     )
-    save_state(_state_file(options), ZoneState(channel="1", members=()))
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="1", members=())))
     logs: list[str] = []
 
     try:
@@ -4190,7 +4214,10 @@ async def test_coming_back_to_a_directory_finds_the_file_by_name_after_one_was_a
     grown = ["Buch/10.mp3", "Buch/2.mp3", "Buch/3.mp3"]
     async with _mpd(directories={"Buch": grown}) as fake:
         options = _radio_and_directory(world, tmp_path, fake)
-        save_state(_state_file(options), ZoneState(positions={"12": Place(track=1, seconds=61.5, file="Buch/10.mp3")}))
+        save_state(
+            _state_file(options),
+            LegacyState(state=ZoneState(positions={"12": Place(track=1, seconds=61.5, file="Buch/10.mp3")})),
+        )
         async with _running(options, []) as service:
             await _on_the_mpd_channel(world, service)
             await eventually(lambda: "seek 2 41.500" in fake.seen, "the file was found where it is now")
@@ -4237,3 +4264,23 @@ async def test_a_held_next_on_a_stored_playlist_steps_by_directory_too(world: Wo
             await _hold_key(STUDIO_IP, KeyName.NEXT_TRACK, threshold_s=options.hold_threshold_s)
             await eventually(lambda: "play 3" in fake.seen[loaded:], "mpd was asked for B/1.mp3")
             assert "play 1" not in fake.seen[loaded:], "a held key is not a step to the next file"
+
+
+async def test_a_console_allowed_in_the_house_database_is_taken_in_when_it_wakes(world: World, tmp_path: Path) -> None:
+    """A stored preference decides from the first pass: the console joins, although no config file names it."""
+    options = _options(world, tmp_path)
+    assert options.consoles_allowed == (), "the control: nothing but the stored row allows it"
+    store = _store_of(options)
+    try:
+        store.set_preference(PreferenceName.CONSOLES, (CONSOLE_ID,), source=PreferenceSource.CLI)
+    finally:
+        store.close()
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        await eventually(
+            lambda: any(f"consoles allowed into the zone: {CONSOLE_ID}, set by cli" in line for line in logs),
+            "it said so",
+        )
+        await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=RADIO))
+        await eventually(lambda: len(joins(world.console)) == 1, "the console was taken into the zone")

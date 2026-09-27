@@ -1,6 +1,6 @@
 """What survives a restart, as rows: one table per field of :class:`ZoneState` that is a collection.
 
-The scalar fields sit in the one-row ``zone`` table. That row is also what tells a database that
+The channel sits in the one-row ``zone`` table. That row is also what tells a database that
 has never held a state from one holding an EMPTY state: the legacy importer (``legacy_import``)
 may fill the first and must not overwrite the second.
 
@@ -29,12 +29,10 @@ _REPLACED = (ZONE, MEMBER, MUTED, OUT_OF_MULTIROOM, PLACE, OWED_VOLUME)
 
 def read_state(connection: Connection) -> ZoneState | None:
     """The state, or nothing when no state was ever written."""
-    zone = connection.execute(
-        select(ZONE.c.channel, ZONE.c.dial_window_s, ZONE.c.hold_threshold_s).where(ZONE.c.id == 1)
-    ).one_or_none()
+    zone = connection.execute(select(ZONE.c.channel).where(ZONE.c.id == 1)).one_or_none()
     if zone is None:
         return None
-    channel, dial_window_s, hold_threshold_s = zone
+    (channel,) = zone
     return ZoneState(
         channel=None if channel is None else str(channel),
         members=tuple(str(one) for one in connection.scalars(select(MEMBER.c.device_id).order_by(MEMBER.c.position))),
@@ -54,8 +52,6 @@ def read_state(connection: Connection) -> ZoneState | None:
                 select(PLACE.c.channel, PLACE.c.track, PLACE.c.seconds, PLACE.c.file).order_by(PLACE.c.position)
             )
         },
-        dial_window_s=None if dial_window_s is None else float(dial_window_s),
-        hold_threshold_s=None if hold_threshold_s is None else float(hold_threshold_s),
         owed_volume={
             str(device): int(steps)
             for device, steps in connection.execute(
@@ -69,11 +65,7 @@ def write_state(connection: Connection, state: ZoneState) -> None:
     """Replace the whole state. The caller holds the transaction."""
     for table in _REPLACED:
         connection.execute(delete(table))
-    connection.execute(
-        insert(ZONE).values(
-            id=1, channel=state.channel, dial_window_s=state.dial_window_s, hold_threshold_s=state.hold_threshold_s
-        )
-    )
+    connection.execute(insert(ZONE).values(id=1, channel=state.channel))
     _in_order(connection, MEMBER, [{"device_id": one} for one in state.members])
     _in_order(connection, MUTED, [{"device_id": device, "volume": volume} for device, volume in state.muted.items()])
     _in_order(connection, OUT_OF_MULTIROOM, [{"device_id": one} for one in state.out_of_multiroom])

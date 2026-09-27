@@ -17,7 +17,18 @@ from __future__ import annotations
 from sqlalchemy import CheckConstraint, Column, Float, Integer, MetaData, Table, Text, UniqueConstraint
 from sqlalchemy.dialects.sqlite import REAL
 
-__all__ = ["CHANNEL", "MEMBER", "METADATA", "MUTED", "OUT_OF_MULTIROOM", "OWED_VOLUME", "PLACE", "SWITCH", "ZONE"]
+__all__ = [
+    "CHANNEL",
+    "MEMBER",
+    "METADATA",
+    "MUTED",
+    "OUT_OF_MULTIROOM",
+    "OWED_VOLUME",
+    "PLACE",
+    "PREFERENCE",
+    "SWITCH",
+    "ZONE",
+]
 
 METADATA = MetaData()
 
@@ -28,8 +39,6 @@ ZONE = Table(
     METADATA,
     Column("id", Integer, primary_key=True, autoincrement=False),
     Column("channel", Text),
-    Column("dial_window_s", _REAL),
-    Column("hold_threshold_s", _REAL),
     CheckConstraint("id = 1", name="zone_one_row"),
     sqlite_strict=True,
 )
@@ -109,3 +118,19 @@ SWITCH = Table(
     sqlite_strict=True,
 )
 """``changed_at`` is ISO 8601 text: a timezone-aware timestamp type differs per backend, and STRICT refuses DATETIME."""
+
+PREFERENCE = Table(
+    "preference",
+    METADATA,
+    Column("name", Text, primary_key=True),
+    Column("value", Text, nullable=False),
+    Column("source", Text, nullable=False),
+    Column("changed_at", Text, nullable=False),
+    CheckConstraint("source IN ('calibration', 'cli', 'app')", name="preference_source"),
+    sqlite_strict=True,
+)
+"""One row per preference somebody SET (``domain/preferences.py``); no row means the layers decide.
+
+``value`` is JSON text, because four of the five hold a number and one a list, and a column per
+preference would make every new one a migration. ``changed_at`` is ISO 8601 text, or empty for a
+calibration carried over from before the table existed, whose time was never recorded."""

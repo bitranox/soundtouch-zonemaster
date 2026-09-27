@@ -12,6 +12,11 @@ Only into an EMPTY part. A database that already holds a state, a list or a swit
 any of these files, whoever wrote it, and an import over it would undo that without a word - which
 is also why an unusable file over an ALREADY-HELD part must not refuse: nothing was ever going to
 read it.
+
+An old state file also carries the two numbers a calibration measured. They become preference
+rows (``house_preferences``) with ``source = 'calibration'`` and no time, because the file never
+recorded when the calibration ran - and, by the same rule, each only where nobody has set that
+preference already.
 """
 
 from __future__ import annotations
@@ -19,11 +24,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...application.errors import StoreError
+from ...domain.preferences import PreferenceSource
 from .channel_file import ChannelFileError, load_channels
 from .house_channels import channel_count, write_channels
+from .house_preferences import preference_is_set, write_preference
 from .house_state import read_state, write_state
 from .house_switch import read_switch, write_switch
-from .state_file import StateFileError, load_state_strict
+from .state_file import LegacyState, StateFileError, load_state_strict
 from .switch_file import Switch
 
 if TYPE_CHECKING:
@@ -34,7 +41,6 @@ if TYPE_CHECKING:
     from ...application.options import LegacyFiles
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
-    from ...domain.state import ZoneState
     from .house_db import HouseDatabase
 
 __all__ = ["IMPORTED_SUFFIX", "import_legacy"]
@@ -51,9 +57,10 @@ def import_legacy(database: HouseDatabase, files: LegacyFiles, *, log: LogFn) ->
     atomic - a database that already holds a list or a state must never even attempt to parse a
     legacy file it is not going to read, and a database that is missing only one of the two must
     still refuse the whole start rather than half-import. ``load_state_strict`` is the strict
-    sibling of ``state_file.load_state``, which the ordinary service still uses and which never
-    raises. The switch file never raises on a bad read (``Switch.is_on``), so reading it ahead of
-    the transaction changes nothing observable and keeps the transaction itself short.
+    sibling of ``state_file.load_state``, which never raises and which nothing in the program calls
+    any more (the golden corpus replays the old format through it). The switch file never raises
+    on a bad read (``Switch.is_on``), so reading it ahead of the transaction changes nothing
+    observable and keeps the transaction itself short.
     """
     switch = _read_switch(files.switch_file, log=log)
     with database.writing() as connection:
@@ -80,7 +87,7 @@ def _read_channels(path: Path, *, log: LogFn) -> ChannelList:
         raise StoreError(str(exc)) from exc
 
 
-def _read_state(path: Path) -> ZoneState:
+def _read_state(path: Path) -> LegacyState:
     try:
         return load_state_strict(path)
     except StateFileError as exc:
@@ -105,8 +112,13 @@ def _take_state(connection: Connection, path: Path | None, *, where: str, log: L
     if read_state(connection) is not None:
         _not_read(path, what="a state", where=where, log=log)
         return None
-    state = _read_state(path)
-    write_state(connection, state)
+    legacy = _read_state(path)
+    write_state(connection, legacy.state)
+    for name, value in legacy.calibration():
+        # Only into an empty place, like every other part of the import: a value somebody set
+        # with `prefs set` before this first start is newer than any file.
+        if not preference_is_set(connection, name):
+            write_preference(connection, name, value, source=PreferenceSource.CALIBRATION, changed_at="")
     log("store", f"{path}: imported the state into {where}")
     return path
 

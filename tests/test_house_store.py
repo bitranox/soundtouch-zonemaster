@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
-from soundtouch_zonemaster.adapters.files.state_file import save_state
+from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
 from soundtouch_zonemaster.application.options import LegacyFiles
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 LIST = ChannelList(channels=(Channel(number="1", name="One", kind=ChannelKind.RADIO, url="http://radio.example/1"),))
-STATE = ZoneState(channel="1", members=("AABBCC0000A1",), dial_window_s=0.7)
+STATE = ZoneState(channel="1", members=("AABBCC0000A1",))
 
 
 def _quiet(_kind: str, _text: str) -> None:
@@ -55,13 +55,14 @@ def _require(path: Path | None) -> Path:
 
 def test_a_first_start_imports_all_three_files_and_sets_them_aside(house_database: str, tmp_path: Path) -> None:
     legacy = _legacy(tmp_path)
-    save_state(_require(legacy.state_file), STATE)
+    save_state(_require(legacy.state_file), LegacyState(state=STATE, dial_window_s=0.7))
     save_channels(_require(legacy.channel_file), LIST)
     _require(legacy.switch_file).write_text("off\n", encoding="utf-8")
     store = _store(house_database)
     store.open(exclusive=True)
     store.import_legacy(legacy)
     assert (store.load_state(), store.load_channels(), store.is_on()) == (STATE, LIST, False)
+    assert [(row.name, row.text) for row in store.load_preferences()] == [("dialling.window_s", "0.7")]
     store.close()
     for path in (legacy.state_file, legacy.channel_file, legacy.switch_file):
         real = _require(path)
@@ -87,7 +88,7 @@ def test_a_part_already_held_is_not_overwritten_and_its_file_is_named(house_data
 def test_an_unusable_channel_file_refuses_the_start_and_imports_nothing(house_database: str, tmp_path: Path) -> None:
     legacy = _legacy(tmp_path)
     state_file = _require(legacy.state_file)
-    save_state(state_file, STATE)
+    save_state(state_file, LegacyState(state=STATE))
     channel_file = _require(legacy.channel_file)
     channel_file.write_text('{"channels": [{"number": "x"}]}', encoding="utf-8")
     store = _store(house_database)
@@ -170,7 +171,7 @@ def test_a_duplicate_channel_number_in_the_legacy_file_refuses_and_imports_nothi
     """
     legacy = _legacy(tmp_path)
     state_file = _require(legacy.state_file)
-    save_state(state_file, STATE)
+    save_state(state_file, LegacyState(state=STATE))
     channel_file = _require(legacy.channel_file)
     channel_file.write_text(
         '{"channels": ['
@@ -237,7 +238,7 @@ def test_a_state_already_held_is_not_overwritten_and_its_file_is_named(house_dat
     store.save_state(held)
     legacy = LegacyFiles(state_file=tmp_path / "zone-state.json")
     state_file = _require(legacy.state_file)
-    save_state(state_file, STATE)
+    save_state(state_file, LegacyState(state=STATE))
     store.import_legacy(legacy)
     assert store.load_state() == held
     assert state_file.exists()

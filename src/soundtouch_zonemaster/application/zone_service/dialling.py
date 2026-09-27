@@ -14,16 +14,20 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ...domain.enums import ChannelKind, KeyName
+from ...domain.preferences import PreferenceName, PreferenceSource, PreferenceValue, resolved, value_of
 from .constants import DIAL_TICK_S, MIN_CHANNELS_TO_STEP
 from .zone import ZoneReconcile
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
     from ...domain.channellist import Channel
     from ...domain.dialling import DigitIgnored
     from ...domain.longpress import Hold
+    from ...domain.preferences import PreferenceRow
     from ...domain.presses import Press
     from ..ports import ZoneMasterPort
 
@@ -41,6 +45,33 @@ and clear a favourite mark that nothing anywhere ever read; this reads it on eve
 2026-09-25 it takes a HOLD, because one stray touch changed the rotation for the whole house and
 nothing audible said so. The same map says which way a double tap moves a box: up is in, down out.
 """
+
+_KIND: Mapping[PreferenceName, str] = {
+    PreferenceName.WINDOW: "dial",
+    PreferenceName.HOLD: "dial",
+    PreferenceName.REWIND: "prefs",
+    PreferenceName.FADE: "prefs",
+    PreferenceName.CONSOLES: "prefs",
+}
+"""The log kind each preference's line is written under; the two dialling ones keep the kind they always had."""
+
+
+def _seconds(value: PreferenceValue) -> float:
+    return cast("float", value)
+
+
+def _device_ids(value: PreferenceValue) -> str:
+    return ", ".join(cast("tuple[str, ...]", value)) or "none"
+
+
+_SAID: Mapping[PreferenceName, Callable[[PreferenceValue], str]] = {
+    PreferenceName.WINDOW: lambda v: f"the dialling window is {_seconds(v):.1f} s",
+    PreferenceName.HOLD: lambda v: f"a key is held after {_seconds(v):.1f} s",
+    PreferenceName.REWIND: lambda v: f"an MPD channel starts {_seconds(v):.0f} s back",
+    PreferenceName.FADE: lambda v: f"a joining box fades in over {_seconds(v):.1f} s",
+    PreferenceName.CONSOLES: lambda v: f"consoles allowed into the zone: {_device_ids(v)}",
+}
+"""How each preference reads in the log. The window and hold wordings are the lines the house has always printed."""
 
 
 class Dialling(ZoneReconcile):
@@ -237,6 +268,40 @@ class Dialling(ZoneReconcile):
         """Whether a step key on that box is still down and may yet become a hold."""
         return any(self._longpresses.undecided(device_id, key) for key in STEP_OF)
 
+    def _take_the_preferences(self, rows: tuple[PreferenceRow, ...]) -> None:
+        """Lay the stored preferences over the options, apply them, and say each one that changed.
+
+        Called at start and after a calibration. A line is written only for a value or a source
+        that changed, so a start with nothing stored says nothing, as it always did.
+        """
+        resolution = resolved(self.options.preferences, rows)
+        for row, why in resolution.rejected:
+            if (row.name, row.text) not in self._rejected_seen:
+                self._rejected_seen.add((row.name, row.text))
+                self.log("prefs", f"{row.name} = {row.text} in the house database is ignored ({why})")
+        before, before_set_by = self._preferences, self._set_by
+        self._preference_rows = rows
+        self._preferences = resolution.preferences
+        self._set_by = dict(resolution.set_by)
+        self.policy.consoles_allowed = frozenset(self._preferences.consoles_allowed)
+        self._the_window_is_now(self._preferences.window_s)
+        self._the_hold_is_now(self._preferences.hold_threshold_s)
+        for name in PreferenceName:
+            moved = value_of(before, name) != value_of(self._preferences, name)
+            if moved or before_set_by.get(name) != self._set_by.get(name):
+                self.log(_KIND[name], self._described(name))
+
+    def _described(self, name: PreferenceName) -> str:
+        """One preference as the log says it: its value, and who decided it."""
+        row = self._set_by.get(name)
+        if row is None:
+            origin = "from the configuration"
+        elif row.source == PreferenceSource.CALIBRATION:
+            origin = "calibrated in an earlier run" if row.changed_at == "" else f"calibrated at {row.changed_at}"
+        else:
+            origin = f"set by {row.source} at {row.changed_at}"
+        return f"{_SAID[name](value_of(self._preferences, name))}, {origin}"
+
     async def _tell_the_house_a_calibration_began(self) -> None:
         """Say it the only way a flat with no screen can hear: the playing channel starts again.
 
@@ -263,14 +328,14 @@ class Dialling(ZoneReconcile):
             return
         result = self._calibration.finish(at=at)
         self.log("dial", f"calibration: {result.said}")
-        if result.window_s is not None:
-            self._the_window_is_now(result.window_s)
-            self._calibrated_window_s = result.window_s
-        if result.hold_s is not None:
-            self._the_hold_is_now(result.hold_s)
-            self._calibrated_hold_s = result.hold_s
-        if result.window_s is not None or result.hold_s is not None:
-            self._save_the_state()
+        measured = ((PreferenceName.WINDOW, result.window_s), (PreferenceName.HOLD, result.hold_s))
+        for name, value in measured:
+            if value is not None:
+                self.store.set_preference(name, value, source=PreferenceSource.CALIBRATION)
+        if any(value is not None for _, value in measured):
+            # Read back rather than applied from ``result``: what the service runs on is then
+            # exactly what the database holds, and what a restart will read.
+            self._take_the_preferences(self.store.load_preferences())
         async with self._lock:
             master = self.master
             if master is not None:

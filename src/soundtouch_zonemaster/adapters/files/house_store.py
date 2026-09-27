@@ -13,6 +13,7 @@ switch is the exception by design - a read that fails is ON, as it was for the s
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -23,6 +24,7 @@ from ...domain.state import ZoneState
 from .channel_file import ChannelFileError, channels_json, load_channels
 from .house_channels import read_channels, write_channels
 from .house_db import HouseDatabase, reason_for
+from .house_preferences import delete_preference, read_preferences, write_preference
 from .house_state import read_state, write_state
 from .house_switch import DbSwitch, read_switch, write_switch
 from .legacy_import import import_legacy
@@ -34,13 +36,14 @@ if TYPE_CHECKING:
     from ...application.options import LegacyFiles
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
+    from ...domain.preferences import PreferenceName, PreferenceRow, PreferenceSource, PreferenceValue
     from ...domain.secret import Secret
 
 __all__ = ["SqlHouseStore"]
 
 
 class SqlHouseStore:
-    """The state, the channel list and the switch, in one SQLite file or PostgreSQL database."""
+    """The state, the channel list, the switch and the preferences, in one SQLite file or PostgreSQL database."""
 
     def __init__(self, database: str, *, password: Secret | None = None, log: LogFn) -> None:
         self.database = database
@@ -141,6 +144,20 @@ class SqlHouseStore:
 
     def switch(self, *, poll_s: float, ignored_file: Path | None) -> DbSwitch:
         return DbSwitch(self.is_on, where=self.where, log=self.log, poll_s=poll_s, ignored_file=ignored_file)
+
+    def load_preferences(self) -> tuple[PreferenceRow, ...]:
+        with self._guarded(), self._db.reading() as connection:
+            return read_preferences(connection)
+
+    def set_preference(
+        self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
+    ) -> PreferenceRow | None:
+        with self._guarded(), self._db.writing() as connection:
+            return write_preference(connection, name, value, source=source, changed_at=datetime.now(UTC).isoformat())
+
+    def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
+        with self._guarded(), self._db.writing() as connection:
+            return delete_preference(connection, name)
 
     def _require_exclusive(self, *, what: str) -> None:
         """Refuse an action that writes over what an unrelated reader might be reading right now."""

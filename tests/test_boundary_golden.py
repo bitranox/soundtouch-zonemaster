@@ -93,7 +93,7 @@ from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, clear_confi
 from soundtouch_zonemaster.adapters.config.overrides import apply_set_overrides
 from soundtouch_zonemaster.adapters.config.settings_map import service_settings, unknown_settings
 from soundtouch_zonemaster.adapters.files.channel_file import ChannelFileError, load_channels, save_channels
-from soundtouch_zonemaster.adapters.files.state_file import load_state, save_state
+from soundtouch_zonemaster.adapters.files.state_file import LegacyState, load_state, save_state
 from soundtouch_zonemaster.adapters.soundtouch.http_api import HttpApi, Request, key_press, parse_request
 from soundtouch_zonemaster.adapters.soundtouch.observer import parse_frame, parse_now_playing
 from soundtouch_zonemaster.adapters.soundtouch.wire import encryption_type
@@ -116,6 +116,7 @@ from soundtouch_zonemaster.domain.channellist import (
 from soundtouch_zonemaster.domain.dialling import Dialler, DigitIgnored
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, FrameKind, SourceName
 from soundtouch_zonemaster.domain.events import SpeakerEvent
+from soundtouch_zonemaster.domain.preferences import PreferenceRow
 from soundtouch_zonemaster.domain.speakers import ProtectedSpeaker, Speaker
 from soundtouch_zonemaster.domain.state import Place, ZoneState
 from soundtouch_zonemaster.domain.station import StationRequest
@@ -127,6 +128,7 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.application.ports import AddressOf, MpdControlPort
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.mpd import MpdStatus
+    from soundtouch_zonemaster.domain.preferences import PreferenceName, PreferenceSource, PreferenceValue
     from soundtouch_zonemaster.domain.secret import Secret
     from soundtouch_zonemaster.domain.station import Station
 
@@ -315,15 +317,29 @@ def said(work: Path, recorded: list[list[str]]) -> list[tuple[str, str]]:
     return [(kind, text.replace("<WORK>", str(work))) for kind, text in recorded]
 
 
-def state_of(fields: dict[str, Any]) -> ZoneState:
-    """A ``ZoneState`` from the corpus's recorded field values."""
-    return ZoneState(
-        channel=cast("str | None", fields["channel"]),
-        members=tuple(cast("list[str]", fields["members"])),
-        muted=dict(cast("dict[str, int]", fields["muted"])),
-        out_of_multiroom=tuple(cast("list[str]", fields["out_of_multiroom"])),
+def state_of(fields: dict[str, Any]) -> LegacyState:
+    """An old state, and the calibration beside it, from the corpus's recorded field values."""
+    return LegacyState(
+        state=ZoneState(
+            channel=cast("str | None", fields["channel"]),
+            members=tuple(cast("list[str]", fields["members"])),
+            muted=dict(cast("dict[str, int]", fields["muted"])),
+            out_of_multiroom=tuple(cast("list[str]", fields["out_of_multiroom"])),
+        ),
         dial_window_s=cast("float | None", fields["dial_window_s"]),
+        hold_threshold_s=cast("float | None", fields.get("hold_threshold_s")),
     )
+
+
+def canonical_legacy(legacy: LegacyState) -> object:
+    """A loaded old state in the shape the corpus recorded it: one ZoneState carrying both calibrated numbers."""
+    recorded = cast("dict[str, Any]", canonical(legacy.state))
+    fields = {
+        **cast("dict[str, Any]", recorded["fields"]),
+        "dial_window_s": legacy.dial_window_s,
+        "hold_threshold_s": legacy.hold_threshold_s,
+    }
+    return {"type": "ZoneState", "fields": fields}
 
 
 def channel_of(fields: dict[str, Any]) -> Channel:
@@ -371,7 +387,7 @@ def test_the_state_file_behaves_as_the_old_one_did(case: dict[str, Any], tmp_pat
         # document is meant - it is the old answer, and this asserts it is no longer given.
         assert expect["raises"]["type"] == "UnicodeDecodeError"
         loaded = load_state(path, log=logged(lines))
-        assert loaded == ZoneState()
+        assert loaded == LegacyState()
         assert lines == [("state", f"{path}: could not be read (UnicodeDecodeError); starting empty")]
         return
 
@@ -382,17 +398,17 @@ def test_the_state_file_behaves_as_the_old_one_did(case: dict[str, Any], tmp_pat
         # The bytes are decoded as utf-8-sig now, which is the same codec plus the rule that a
         # leading mark belongs to the encoding. The recorded empty start is asserted first, so the
         # case still proves WHICH document is meant; what follows is that it is no longer given.
-        assert expect["value"] == canonical(ZoneState())
+        assert expect["value"] == canonical_legacy(LegacyState())
         assert said(tmp_path, cast("list[list[str]]", expect["logs"])) == [
             ("state", f"{path}: unusable, starting empty (1 problem(s))")
         ]
         loaded = load_state(path, log=logged(lines))
-        assert loaded == ZoneState(channel="1")
+        assert loaded == LegacyState(state=ZoneState(channel="1"))
         assert lines == []
         return
 
     loaded = load_state(path, log=logged(lines))
-    assert canonical(loaded) == expect["value"]
+    assert canonical_legacy(loaded) == expect["value"]
     assert lines == said(tmp_path, cast("list[list[str]]", expect["logs"]))
 
 
@@ -911,6 +927,10 @@ def playing_its_own_radio(speaker: Speaker) -> SpeakerEvent:
     )
 
 
+FAKE_CHANGED_AT = "2026-01-01T00:00:00+00:00"
+"""The time every preference the fake store is handed is said to have been set at."""
+
+
 class FakeStore:
     """The house store as the corpus needs it: empty, always on, and silent.
 
@@ -919,6 +939,9 @@ class FakeStore:
     """
 
     where = "<fake>"
+
+    def __init__(self) -> None:
+        self._preferences: dict[PreferenceName, PreferenceRow] = {}
 
     def open(self, *, exclusive: bool) -> None: ...
 
@@ -950,6 +973,21 @@ class FakeStore:
 
     def switch(self, *, poll_s: float, ignored_file: Path | None) -> FakeSwitch:
         return FakeSwitch()
+
+    def load_preferences(self) -> tuple[PreferenceRow, ...]:
+        return tuple(sorted(self._preferences.values(), key=lambda row: row.name))
+
+    def set_preference(
+        self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
+    ) -> PreferenceRow | None:
+        before = self._preferences.get(name)
+        self._preferences[name] = PreferenceRow(
+            name=name.value, text=json.dumps(value), source=source.value, changed_at=FAKE_CHANGED_AT
+        )
+        return before
+
+    def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
+        return self._preferences.pop(name, None)
 
 
 def wired_service(

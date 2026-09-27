@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from ..domain.events import SpeakerEvent
     from ..domain.logfn import LogFn
     from ..domain.mpd import MpdStatus
+    from ..domain.preferences import PreferenceName, PreferenceRow, PreferenceSource, PreferenceValue
     from ..domain.secret import Secret
     from ..domain.speakers import Speaker
     from ..domain.state import Place, ZoneState
@@ -87,12 +88,12 @@ class SwitchReader(Protocol):
 
 
 class HouseStore(Protocol):
-    """The house database: the state, the channel list and the switch, in one database - a SQLite
-    file, or PostgreSQL.
+    """The house database: the state, the channel list, the switch and the preferences, in one
+    database - a SQLite file, or PostgreSQL.
 
     ``open`` comes first and ``close`` last. ``exclusive`` takes the one-writer lock: the service
-    and a channel import take it, a switch flip and an export do not. Every method refuses with
-    ``StoreError`` while the store is not open.
+    and a channel import take it, a switch flip, an export and a preference change do not. Every
+    method refuses with ``StoreError`` while the store is not open.
     """
 
     where: str
@@ -123,6 +124,14 @@ class HouseStore(Protocol):
     def set_switch(self, *, on: bool) -> bool: ...
 
     def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader: ...
+
+    def load_preferences(self) -> tuple[PreferenceRow, ...]: ...
+
+    def set_preference(
+        self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
+    ) -> PreferenceRow | None: ...
+
+    def unset_preference(self, name: PreferenceName) -> PreferenceRow | None: ...
 
 
 class OpenHouseStore(Protocol):

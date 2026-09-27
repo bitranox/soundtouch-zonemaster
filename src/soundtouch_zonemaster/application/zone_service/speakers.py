@@ -62,7 +62,7 @@ class SpeakerBook(ChannelBook):
             return
         self._note_the_skipped(skipped)
         for speaker in speakers:
-            if speaker.is_console and speaker.device_id not in self.options.consoles_allowed:
+            if speaker.is_console and speaker.device_id not in self._preferences.consoles_allowed:
                 continue
             self._remember(speaker)
 

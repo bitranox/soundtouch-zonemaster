@@ -6,8 +6,12 @@ themselves, because a fact that can be re-derived is a fact that cannot go stale
 
 The record only. Reading and writing it - including the rule that a document this cannot make
 sense of starts the service EMPTY rather than raising - is ``adapters/files/state_file.py``, which
-keeps a pydantic model over exactly these fields so the bytes on disk and the problem counts in
-the log do not change.
+keeps a pydantic model over these fields so the bytes on disk and the problem counts in the log do
+not change.
+
+What a calibration measured is not here: it is a house preference (``preferences.py``), kept in
+the house database's preference table, which is also where an old state file's two calibrated
+numbers are carried when it is imported.
 """
 
 from __future__ import annotations
@@ -118,22 +122,6 @@ class ZoneState:
     reports no position at all, and recording that as 0.0 would put the start of the book over a
     real place in it with nothing to report. The same rule covers the file: a status that names no
     ``song`` is not a status that names the first one."""
-
-    dial_window_s: float | None = None
-    """What a calibration measured, or nothing while none has run.
-
-    It is here rather than in the options because it is measured on a person in this house, and a
-    number that had to be re-measured after every restart would be worth less than the option it
-    replaces. Nothing means the option decides, which is what a first start looks like.
-    """
-
-    hold_threshold_s: float | None = None
-    """How long a key must stay down to be held, as the same calibration measured it, or nothing.
-
-    Its own field rather than the window's value because the two measure different things (user,
-    2026-09-24): the window the pause between two keys, this how long one key is down. A file
-    written before it existed carries a window and no threshold, and loads with the option deciding.
-    """
 
     owed_volume: dict[str, int] = field(default_factory=dict[str, int])
     """The house-volume steps each box missed while it was off, by device id, summed.

@@ -18,8 +18,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from soundtouch_zonemaster.adapters.files.state_file import load_state, save_state
+from soundtouch_zonemaster.adapters.files.state_file import LegacyState, load_state, save_state
 from soundtouch_zonemaster.adapters.files.switch_file import Switch
+from soundtouch_zonemaster.domain.preferences import PreferenceName
 from soundtouch_zonemaster.domain.state import Place, ZoneState
 
 if TYPE_CHECKING:
@@ -162,9 +163,23 @@ def test_the_state_file_round_trips(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     state = ZoneState(channel="3", members=("AABBCC000010", "AABBCC000011"))
 
-    save_state(path, state)
+    save_state(path, LegacyState(state=state))
 
-    assert load_state(path, log=_quiet) == state
+    assert load_state(path, log=_quiet).state == state
+
+
+def test_the_calibration_beside_the_state_round_trips_and_parts_from_it_as_preferences(tmp_path: Path) -> None:
+    """The old file kept the two calibrated numbers beside the state; the import hands them on as
+    preferences, so the one reader of the format is where they part - a missing one is skipped."""
+    path = tmp_path / "state.json"
+    legacy = LegacyState(state=ZoneState(channel="3"), dial_window_s=0.6, hold_threshold_s=1.4)
+
+    save_state(path, legacy)
+
+    assert load_state(path, log=_quiet) == legacy
+    assert legacy.calibration() == ((PreferenceName.WINDOW, 0.6), (PreferenceName.HOLD, 1.4))
+    assert LegacyState(hold_threshold_s=1.4).calibration() == ((PreferenceName.HOLD, 1.4),)
+    assert LegacyState().calibration() == ()
 
 
 def test_the_position_of_each_mpd_channel_round_trips(tmp_path: Path) -> None:
@@ -175,10 +190,10 @@ def test_the_position_of_each_mpd_channel_round_trips(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     state = ZoneState(channel="12", positions={"12": Place(track=2, seconds=61.5), "3": Place(track=0, seconds=0.0)})
 
-    save_state(path, state)
+    save_state(path, LegacyState(state=state))
 
-    assert load_state(path, log=_quiet) == state
-    assert load_state(path, log=_quiet).positions["3"].seconds == 0.0, "the very start is still a place"
+    assert load_state(path, log=_quiet).state == state
+    assert load_state(path, log=_quiet).state.positions["3"].seconds == 0.0, "the very start is still a place"
 
 
 def test_the_volume_steps_a_box_missed_round_trip(tmp_path: Path) -> None:
@@ -187,16 +202,16 @@ def test_the_volume_steps_a_box_missed_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     state = ZoneState(owed_volume={"AABBCC0000A2": -5, "AABBCC0000A4": 5})
 
-    save_state(path, state)
+    save_state(path, LegacyState(state=state))
 
-    assert load_state(path, log=_quiet) == state
+    assert load_state(path, log=_quiet).state == state
 
 
 def test_a_state_file_written_before_owed_volume_existed_loads_owing_nothing(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     path.write_text('{"channel": "3", "members": ["AABBCC000010"], "muted": {}}', encoding="utf-8")
 
-    assert load_state(path, log=_quiet).owed_volume == {}
+    assert load_state(path, log=_quiet).state.owed_volume == {}
 
 
 def test_a_state_file_that_remembers_only_the_offset_loads_as_the_first_track(tmp_path: Path) -> None:
@@ -208,7 +223,7 @@ def test_a_state_file_that_remembers_only_the_offset_loads_as_the_first_track(tm
     path = tmp_path / "state.json"
     path.write_text('{"channel": "11", "positions": {"11": 1.539}}', encoding="utf-8")
 
-    state = load_state(path, log=_quiet)
+    state = load_state(path, log=_quiet).state
 
     assert state.positions == {"11": Place(track=0, seconds=1.539)}
 
@@ -219,14 +234,14 @@ def test_a_state_file_written_before_positions_existed_loads_with_none(tmp_path:
     path = tmp_path / "state.json"
     path.write_text('{"channel": "3", "members": ["AABBCC000010"], "muted": {}}', encoding="utf-8")
 
-    state = load_state(path, log=_quiet)
+    state = load_state(path, log=_quiet).state
 
     assert state.channel == "3"
     assert state.positions == {}
 
 
 def test_a_missing_state_file_starts_empty(tmp_path: Path) -> None:
-    assert load_state(tmp_path / "nothing.json", log=_quiet) == ZoneState()
+    assert load_state(tmp_path / "nothing.json", log=_quiet) == LegacyState()
 
 
 def test_a_half_written_state_file_starts_empty_and_says_so(tmp_path: Path) -> None:
@@ -235,7 +250,7 @@ def test_a_half_written_state_file_starts_empty_and_says_so(tmp_path: Path) -> N
     path.write_text('{"channel": "3", "mem', encoding="utf-8")
     lines: list[str] = []
 
-    state = load_state(path, log=lambda _kind, text: lines.append(text))
+    state = load_state(path, log=lambda _kind, text: lines.append(text)).state
 
     assert state == ZoneState()
     assert any(str(path) in line for line in lines)
@@ -252,7 +267,7 @@ def test_a_state_file_that_is_not_utf_8_starts_empty_and_says_so(tmp_path: Path)
     path.write_bytes(b'{"channel": "\xff"}')
     lines: list[str] = []
 
-    state = load_state(path, log=lambda _kind, text: lines.append(text))
+    state = load_state(path, log=lambda _kind, text: lines.append(text)).state
 
     assert state == ZoneState()
     assert any(str(path) in line for line in lines)
@@ -269,7 +284,7 @@ def test_a_state_file_written_with_a_byte_order_mark_loads(tmp_path: Path) -> No
     path.write_bytes(b'\xef\xbb\xbf{"channel": "1"}')
     lines: list[str] = []
 
-    state = load_state(path, log=lambda _kind, text: lines.append(text))
+    state = load_state(path, log=lambda _kind, text: lines.append(text)).state
 
     assert state == ZoneState(channel="1")
     assert lines == []
@@ -279,7 +294,7 @@ def test_a_state_file_holding_the_wrong_shape_starts_empty(tmp_path: Path) -> No
     path = tmp_path / "state.json"
     path.write_text('{"channel": 3, "members": "not a list"}', encoding="utf-8")
 
-    assert load_state(path, log=_quiet) == ZoneState()
+    assert load_state(path, log=_quiet) == LegacyState()
 
 
 def test_saving_replaces_the_file_rather_than_writing_through_it(tmp_path: Path) -> None:
@@ -288,19 +303,19 @@ def test_saving_replaces_the_file_rather_than_writing_through_it(tmp_path: Path)
     Asserted on the inode, because that is the difference an in-place truncate would not make.
     """
     path = tmp_path / "state.json"
-    save_state(path, ZoneState(channel="1"))
+    save_state(path, LegacyState(state=ZoneState(channel="1")))
     before = path.stat().st_ino
 
-    save_state(path, ZoneState(channel="2"))
+    save_state(path, LegacyState(state=ZoneState(channel="2")))
 
     assert path.stat().st_ino != before
-    assert load_state(path, log=_quiet).channel == "2"
+    assert load_state(path, log=_quiet).state.channel == "2"
 
 
 def test_saving_leaves_no_temporary_file_behind(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
 
-    save_state(path, ZoneState(channel="1"))
+    save_state(path, LegacyState(state=ZoneState(channel="1")))
 
     assert [p.name for p in tmp_path.iterdir()] == ["state.json"]
 
@@ -308,17 +323,17 @@ def test_saving_leaves_no_temporary_file_behind(tmp_path: Path) -> None:
 def test_a_leftover_temporary_file_is_not_what_gets_loaded(tmp_path: Path) -> None:
     """A save killed halfway leaves its temporary behind; the real file must still be read."""
     path = tmp_path / "state.json"
-    save_state(path, ZoneState(channel="1"))
+    save_state(path, LegacyState(state=ZoneState(channel="1")))
     (tmp_path / "state.json.tmp").write_text("{ broken", encoding="utf-8")
 
-    assert load_state(path, log=_quiet).channel == "1"
+    assert load_state(path, log=_quiet).state.channel == "1"
 
 
 def test_the_saved_file_is_readable_by_a_person(tmp_path: Path) -> None:
     """It is a file somebody may have to repair at two in the morning."""
     path = tmp_path / "state.json"
 
-    save_state(path, ZoneState(channel="11", members=("AABBCC000010",)))
+    save_state(path, LegacyState(state=ZoneState(channel="11", members=("AABBCC000010",))))
 
     written = json.loads(path.read_text(encoding="utf-8"))
     assert written["channel"] == "11"
@@ -352,16 +367,16 @@ def test_a_place_remembers_the_file_by_name_and_round_trips(tmp_path: Path) -> N
     path = tmp_path / "state.json"
     state = ZoneState(positions={"21": Place(track=3, seconds=61.5, file="audiobooks/Buch/04.mp3")})
 
-    save_state(path, state)
+    save_state(path, LegacyState(state=state))
 
-    assert load_state(path, log=_quiet) == state
+    assert load_state(path, log=_quiet).state == state
 
 
 def test_a_place_written_before_the_file_name_was_kept_loads_without_one(tmp_path: Path) -> None:
     path = tmp_path / "state.json"
     path.write_text('{"positions": {"12": {"track": 2, "seconds": 61.5}}}', encoding="utf-8")
 
-    assert load_state(path, log=_quiet).positions["12"] == Place(track=2, seconds=61.5)
+    assert load_state(path, log=_quiet).state.positions["12"] == Place(track=2, seconds=61.5)
 
 
 def test_coming_back_keeps_the_file_name() -> None:

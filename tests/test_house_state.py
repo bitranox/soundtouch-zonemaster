@@ -19,8 +19,6 @@ EVERY_FIELD = ZoneState(
     muted={"AABBCC0000A2": 17},
     out_of_multiroom=("AABBCC0000A4", "AABBCC0000A5"),
     positions={"11": Place(track=4, seconds=93.5, file="Book/05.mp3"), "12": Place(track=0, seconds=0.0)},
-    dial_window_s=0.9,
-    hold_threshold_s=1.2,
     owed_volume={"AABBCC0000A5": 3},
 )
 

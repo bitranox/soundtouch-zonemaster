@@ -92,18 +92,9 @@ class ZoneService(KeyReading):
             # Said out loud at every start. A box that is out of multiroom looks exactly like one
             # the zone cannot reach, and the difference is a decision somebody made days ago.
             self.log("zone", f"out of multiroom, from the last run: {self._names(state.out_of_multiroom)}")
-        if state.dial_window_s is not None:
-            # A calibration was measured on a person in this house, so it outranks the option,
-            # which is a number somebody typed for a house rather than for anybody in it.
-            self._calibrated_window_s = state.dial_window_s
-            self._the_window_is_now(state.dial_window_s)
-            self.log("dial", f"the dialling window is {state.dial_window_s:.1f} s, calibrated in an earlier run")
-        if state.hold_threshold_s is not None:
-            # Measured by the same calibration on the same presses, and restored on its own: a
-            # house calibrated before the threshold was a number of its own has a window and no hold.
-            self._calibrated_hold_s = state.hold_threshold_s
-            self._the_hold_is_now(state.hold_threshold_s)
-            self.log("dial", f"a key is held after {state.hold_threshold_s:.1f} s, calibrated in an earlier run")
+        # Before the registry is read: which consoles may be watched is one of them, and the
+        # registry read is where that is decided.
+        self._take_the_preferences(self.store.load_preferences())
         self.policy.restore(state.members, at=time.time())
         self.log("state", f"{len(state.members)} member(s) remembered from the last run")
         # Before anything reads the registry: an unusable channel list must stop the service here,

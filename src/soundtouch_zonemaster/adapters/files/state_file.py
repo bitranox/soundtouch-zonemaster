@@ -17,10 +17,12 @@ counted. ``tests/test_boundary_golden.py`` replays the recorded old behaviour ag
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from ...domain.preferences import PreferenceName
 from ...domain.state import Place, ZoneState
 from .atomicfile import write_atomic
 
@@ -29,7 +31,32 @@ if TYPE_CHECKING:
 
     from ...domain.logfn import LogFn
 
-__all__ = ["PlaceDocument", "StateDocument", "StateFileError", "load_state", "load_state_strict", "save_state"]
+__all__ = [
+    "LegacyState",
+    "PlaceDocument",
+    "StateDocument",
+    "StateFileError",
+    "load_state",
+    "load_state_strict",
+    "save_state",
+]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LegacyState:
+    """What an old state file holds: the state, and the two numbers a calibration wrote beside it.
+
+    The file kept them together; the house database keeps the numbers as preferences
+    (``house_preferences``), so they part here, at the one reader of the old format."""
+
+    state: ZoneState = field(default_factory=ZoneState)
+    dial_window_s: float | None = None
+    hold_threshold_s: float | None = None
+
+    def calibration(self) -> tuple[tuple[PreferenceName, float], ...]:
+        """The calibrated numbers the file carries, as preferences, skipping the ones it does not."""
+        held = ((PreferenceName.WINDOW, self.dial_window_s), (PreferenceName.HOLD, self.hold_threshold_s))
+        return tuple((name, value) for name, value in held if value is not None)
 
 
 class PlaceDocument(BaseModel):
@@ -49,10 +76,11 @@ class PlaceDocument(BaseModel):
 
 
 class StateDocument(BaseModel):
-    """The state file as it is written and parsed, mapped to and from :class:`ZoneState`.
+    """The state file as it is written and parsed, mapped to and from :class:`LegacyState`.
 
-    Every field mirrors the record. The model is the one place that may coerce, so the record
-    itself never has to accept a string where it declares a number.
+    Every field mirrors the record or one of the two calibrated numbers beside it. The model is the
+    one place that may coerce, so the record itself never has to accept a string where it declares
+    a number.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -72,8 +100,9 @@ class StateDocument(BaseModel):
     owed_volume: dict[str, int] = {}
 
     @classmethod
-    def of(cls, state: ZoneState) -> StateDocument:
-        """The document for a record, which is what gets written."""
+    def of(cls, legacy: LegacyState) -> StateDocument:
+        """The document for a record and its calibration, which is what gets written."""
+        state = legacy.state
         return cls(
             channel=state.channel,
             members=state.members,
@@ -83,22 +112,24 @@ class StateDocument(BaseModel):
                 number: PlaceDocument(track=p.track, seconds=p.seconds, file=p.file)
                 for number, p in state.positions.items()
             },
-            dial_window_s=state.dial_window_s,
-            hold_threshold_s=state.hold_threshold_s,
+            dial_window_s=legacy.dial_window_s,
+            hold_threshold_s=legacy.hold_threshold_s,
             owed_volume=state.owed_volume,
         )
 
-    def to_state(self) -> ZoneState:
-        """The record for a parsed document, which is what the service is handed."""
-        return ZoneState(
-            channel=self.channel,
-            members=self.members,
-            muted=dict(self.muted),
-            out_of_multiroom=self.out_of_multiroom,
-            positions={number: _place(held) for number, held in self.positions.items()},
+    def to_legacy(self) -> LegacyState:
+        """The record and the calibration for a parsed document, which is what the import is handed."""
+        return LegacyState(
+            state=ZoneState(
+                channel=self.channel,
+                members=self.members,
+                muted=dict(self.muted),
+                out_of_multiroom=self.out_of_multiroom,
+                positions={number: _place(held) for number, held in self.positions.items()},
+                owed_volume=dict(self.owed_volume),
+            ),
             dial_window_s=self.dial_window_s,
             hold_threshold_s=self.hold_threshold_s,
-            owed_volume=dict(self.owed_volume),
         )
 
 
@@ -109,8 +140,13 @@ def _place(held: PlaceDocument | float) -> Place:
     return Place(track=0, seconds=held)
 
 
-def load_state(path: Path, *, log: LogFn) -> ZoneState:
+def load_state(path: Path, *, log: LogFn) -> LegacyState:
     """Read the state, or start empty and say why. Never raises.
+
+    Nothing in ``src/`` calls this: the service reads its state from the house database, and an old
+    file is read once, strictly, by the import (:func:`load_state_strict`). It is kept because the
+    golden corpus replays the old format through it, which is what holds the document both readers
+    share to the one the deployed service wrote.
 
     The bytes are decoded as ``utf-8-sig`` rather than ``utf-8``, which is the same codec plus one
     rule: a leading byte order mark belongs to the encoding and not to the document. Windows writes
@@ -129,27 +165,27 @@ def load_state(path: Path, *, log: LogFn) -> ZoneState:
     try:
         written = path.read_text(encoding="utf-8-sig")
     except FileNotFoundError:
-        return ZoneState()
+        return LegacyState()
     except (OSError, UnicodeDecodeError) as exc:
         log("state", f"{path}: could not be read ({type(exc).__name__}); starting empty")
-        return ZoneState()
+        return LegacyState()
     try:
-        return StateDocument.model_validate_json(written).to_state()
+        return StateDocument.model_validate_json(written).to_legacy()
     except ValidationError as exc:
         log("state", f"{path}: unusable, starting empty ({exc.error_count()} problem(s))")
-        return ZoneState()
+        return LegacyState()
 
 
-def save_state(path: Path, state: ZoneState) -> None:
+def save_state(path: Path, legacy: LegacyState) -> None:
     """Write the state so that no reader can ever see half of it."""
-    write_atomic(path, StateDocument.of(state).model_dump_json(indent=2) + "\n")
+    write_atomic(path, StateDocument.of(legacy).model_dump_json(indent=2) + "\n")
 
 
 class StateFileError(RuntimeError):
     """The state file exists and could not be read, in any of the ways that can happen.
 
-    ``load_state`` never raises this - a state a person never edits is always safe to start
-    empty, because everything in it can be asked again. The one-time import into the house
+    ``load_state`` never raises this, and nothing in the program calls it: it is kept for the golden
+    corpus, which replays the old format through it. The one-time import into the house
     database is a different reader with a different cost of being wrong: writing an empty state
     there looks exactly like a real, if empty, file, and the file that caused it is then renamed
     and never looked at again. So the import reads through :func:`load_state_strict` instead,
@@ -159,7 +195,7 @@ class StateFileError(RuntimeError):
     """
 
 
-def load_state_strict(path: Path) -> ZoneState:
+def load_state_strict(path: Path) -> LegacyState:
     """Read the state, or REFUSE naming the file. The caller checks the file exists first.
 
     Bytes are decoded as ``utf-8-sig``, the same rule ``load_state`` applies, so a file either
@@ -170,6 +206,6 @@ def load_state_strict(path: Path) -> ZoneState:
     except (OSError, UnicodeDecodeError) as exc:
         raise StateFileError(f"{path}: could not be read ({type(exc).__name__})") from exc
     try:
-        return StateDocument.model_validate_json(written).to_state()
+        return StateDocument.model_validate_json(written).to_legacy()
     except ValidationError as exc:
         raise StateFileError(f"{path}: unusable ({exc.error_count()} problem(s))") from exc

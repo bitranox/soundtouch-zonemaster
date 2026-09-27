@@ -12,23 +12,32 @@ speakers would find out at 04:00 rather than here.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import os
 import shutil
+import socket
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
 from lib_layered_config import REDACTED_PLACEHOLDER
 
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, clear_config_cache, defaults_from
+from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
+from soundtouch_zonemaster.application.zone_service.service import ZoneService
+from soundtouch_zonemaster.composition import build_production
+from soundtouch_zonemaster.domain.preferences import PreferenceName, PreferenceSource
 from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ServiceOptions
     from soundtouch_zonemaster.application.ports import RunService
+    from soundtouch_zonemaster.domain.preferences import PreferenceValue
 
 DEPLOYED_ARGV = (
     "--bind-ip",
@@ -980,3 +989,172 @@ def test_a_console_that_is_not_a_device_id_is_refused_by_name(
     assert main(run_service=run) == 1
     assert seen == []
     assert "which is not a device id" in json.loads(capsys.readouterr().out)["message"]
+
+
+@dataclass(frozen=True)
+class _Given:
+    """One preference given in every place it can be given, each with a different value."""
+
+    name: PreferenceName
+    field: str
+    """The ``ServiceOptions`` field the layers fill, which is the control that a layer arrived."""
+    section: str
+    key: str
+    file: str
+    env: str
+    command_line: str
+    """The three layered values as TOML / JSON text; the value each is expected to arrive as follows."""
+    arrives_as: dict[str, object]
+    row: PreferenceValue
+    said: str
+    """What the service says at start once the row decides - the value only the row holds."""
+
+
+_GIVEN = (
+    _Given(
+        name=PreferenceName.WINDOW,
+        field="dial_window_s",
+        section="dialling",
+        key="window_s",
+        file="0.6",
+        env="0.7",
+        command_line="0.8",
+        arrives_as={"file": 0.6, "env": 0.7, "command line": 0.8},
+        row=1.9,
+        said="the dialling window is 1.9 s, set by cli at ",
+    ),
+    _Given(
+        name=PreferenceName.HOLD,
+        field="hold_threshold_s",
+        section="dialling",
+        key="hold_threshold_s",
+        file="1.1",
+        env="1.2",
+        command_line="1.3",
+        arrives_as={"file": 1.1, "env": 1.2, "command line": 1.3},
+        row=1.9,
+        said="a key is held after 1.9 s, set by cli at ",
+    ),
+    _Given(
+        name=PreferenceName.REWIND,
+        field="mpd_rewind_s",
+        section="mpd",
+        key="rewind_s",
+        file="5.0",
+        env="6.0",
+        command_line="7.0",
+        arrives_as={"file": 5.0, "env": 6.0, "command line": 7.0},
+        row=42.0,
+        said="an MPD channel starts 42 s back, set by cli at ",
+    ),
+    _Given(
+        name=PreferenceName.FADE,
+        field="fade_s",
+        section="volume",
+        key="fade_s",
+        file="1.1",
+        env="1.2",
+        command_line="1.3",
+        arrives_as={"file": 1.1, "env": 1.2, "command line": 1.3},
+        row=4.5,
+        said="a joining box fades in over 4.5 s, set by cli at ",
+    ),
+    _Given(
+        name=PreferenceName.CONSOLES,
+        field="consoles_allowed",
+        section="membership",
+        key="consoles_allowed",
+        file='["AABBCC000001"]',
+        env='["AABBCC000002"]',
+        command_line='["AABBCC000003"]',
+        arrives_as={"file": ("AABBCC000001",), "env": ("AABBCC000002",), "command line": ("AABBCC000003",)},
+        row=("AABBCC000004",),
+        said="consoles allowed into the zone: AABBCC000004, set by cli at ",
+    ),
+)
+
+
+def _given_in(layer: str, given: _Given, monkeypatch: pytest.MonkeyPatch) -> tuple[str, list[str]]:
+    """Put the preference in ONE layer: the user file's extra sections, and the argv, for that layer."""
+    if layer == "env":
+        monkeypatch.setenv(f"{ENV_PREFIX}{given.section.upper()}__{given.key.upper()}", given.env)
+    if layer == "file":
+        return f"[{given.section}]\n{given.key} = {given.file}\n", []
+    if layer == "command line":
+        return "", ["--set", f"{given.section}.{given.key}={given.command_line}"]
+    return "", []
+
+
+@contextlib.contextmanager
+def _a_registry_that_never_answers() -> Generator[str]:
+    """A registry address that takes the connection and never answers.
+
+    The start-up says its preferences BEFORE it reads the registry, and waits on that read, so the
+    service is held there while a test listens - and never goes on to bind the zone's ports, which
+    the loopback suite owns, or to talk to whatever holds the default registry port on this machine.
+    """
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        yield f"http://127.0.0.1:{listener.getsockname()[1]}"
+
+
+def _start_and_listen(until: str, heard: list[str], seen: list[ServiceOptions]) -> RunService:
+    """A run that starts the REAL service on the options it is handed, and stops it once it said ``until``.
+
+    What the service says at start is written from the values it then runs on, so the line is the
+    service's own account of which value won. Cancelled the way the unit's SIGINT cancels it, and
+    waited for with ``asyncio.wait``, which never re-raises: a service that stopped on its own is
+    written into ``heard`` instead, so a failing case names what the service did rather than an
+    exit code.
+    """
+
+    async def run(options: ServiceOptions) -> int:
+        seen.append(options)
+        service = ZoneService(
+            options, log=lambda kind, text: heard.append(f"{kind}: {text}"), ports=build_production().zone_ports
+        )
+        task = asyncio.create_task(service.run())
+        deadline = asyncio.get_running_loop().time() + 5.0
+        while not any(until in line for line in heard) and not task.done():
+            if asyncio.get_running_loop().time() > deadline:
+                heard.append("(the test stopped waiting)")
+                break
+            await asyncio.sleep(0.02)
+        task.cancel()
+        await asyncio.wait({task})
+        if not task.cancelled() and task.exception() is not None:
+            heard.append(f"(the service stopped on its own: {task.exception()!r})")
+        return 0
+
+    return run
+
+
+@pytest.mark.parametrize("layer", ["file", "env", "command line"])
+@pytest.mark.parametrize("given", _GIVEN, ids=lambda given: given.name.value)
+def test_a_stored_preference_beats_every_layer_it_could_have_come_from(
+    given: _Given, layer: str, monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The top of the precedence (user, 2026-09-27): a row in the house database wins over the
+    config file, the environment and the command line alike, for each of the five preferences.
+
+    Each layer is proved to have ARRIVED first - the option holds that layer's value - so the row
+    is shown beating a value that was really there, not a default nobody set."""
+    store = SqlHouseStore(str(tmp_path / "zonemaster.sqlite"), log=lambda _kind, _text: None)
+    store.open(exclusive=False)
+    try:
+        store.set_preference(given.name, given.row, source=PreferenceSource.CLI)
+    finally:
+        store.close()
+    sections, argv = _given_in(layer, given, monkeypatch)
+    heard: list[str] = []
+    seen: list[ServiceOptions] = []
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv])
+
+    with _a_registry_that_never_answers() as registry:
+        extra = f'[registry]\nurl = "{registry}"\n{sections}'
+        _user_config(isolated_config_layers, _house(tmp_path, zone='device_id = "AABBCC001122"\n', extra=extra))
+        assert main(run_service=_start_and_listen(given.said, heard, seen)) == 0
+
+    assert getattr(seen[0], given.field) == given.arrives_as[layer], f"the control: the {layer} value arrived"
+    assert any(given.said in line for line in heard), heard

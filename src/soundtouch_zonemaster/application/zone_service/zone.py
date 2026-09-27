@@ -545,7 +545,7 @@ class ZoneReconcile(VolumeGuard):
         place = self._positions.get(number)
         if place is not None and files is not None:
             place = place.found_in(files)
-        return place.resumed(rewind_s=self.options.mpd_rewind_s) if place is not None else None
+        return place.resumed(rewind_s=self._preferences.rewind_s) if place is not None else None
 
     async def _step_inside_the_channel(self, channel: Channel, steps: int, *, by_directory: bool = False) -> None:
         """Move by whole files INSIDE an MPD channel, which is what next and previous mean there.
