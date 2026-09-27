@@ -655,6 +655,47 @@ def test_a_downgrade_to_0001_puts_the_calibration_back_on_the_zone_row(house_dat
     assert "preference" not in tables
 
 
+@pytest.mark.parametrize(
+    "bad_value",
+    ["not json at all", '"0.7"', "true"],
+    ids=["not-json", "json-string", "json-boolean"],
+)
+def test_a_downgrade_refuses_a_window_row_that_is_not_a_json_number(house_database: str, bad_value: str) -> None:
+    """Drives the downgrade the way the alembic CLI does: a plain ``engine.begin()``, the same
+    mechanism ``test_a_downgrade_to_0001_puts_the_calibration_back_on_the_zone_row`` uses. A window
+    row that is not a JSON number must refuse the downgrade before any DDL runs, leaving the
+    database exactly as it was - a valid 0002 database - so a second attempt after fixing the row
+    succeeds instead of hitting a duplicate column from a half-applied downgrade."""
+    _database_at_0001(house_database, zone=("3", 0.7, 1.4))
+    _after_the_migration(house_database)
+    engine = create_engine(database_url(house_database))
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS))
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE preference SET value = :v WHERE name = 'dialling.window_s'"), {"v": bad_value})
+
+    with pytest.raises(Exception), engine.begin() as connection:  # noqa: B017 - json.loads or _number's ValueError
+        config.attributes["connection"] = connection
+        command.downgrade(config, "0001")
+
+    with engine.begin() as connection:
+        columns = {str(column["name"]) for column in inspect(connection).get_columns("zone")}
+        version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+    assert columns == {"id", "channel"}, "the two columns must not have been added by the refused downgrade"
+    assert version == "0002"
+
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE preference SET value = '0.7' WHERE name = 'dialling.window_s'"))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.downgrade(config, "0001")
+        zone = connection.execute(text("SELECT channel, dial_window_s, hold_threshold_s FROM zone")).one()
+        tables = set(inspect(connection).get_table_names())
+    engine.dispose()
+    assert tuple(zone) == ("3", 0.7, 1.4)
+    assert "preference" not in tables
+
+
 def test_dropping_the_calibrated_columns_keeps_zone_strict(tmp_path: Path) -> None:
     """SQLite only: STRICT is a SQLite table option. 0002 drops the two columns with SQLite's own
     ``ALTER TABLE ... DROP COLUMN``, which alters ``zone`` in place rather than rebuilding it, so

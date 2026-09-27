@@ -67,26 +67,38 @@ def downgrade() -> None:
     - the source is not kept: a ``cli`` or ``app`` row goes down exactly as a calibration would,
       because the old columns were only ever written by one;
     - the other three preferences have no column in 0001 and are dropped;
-    - a window or hold row whose text is not a JSON number a float can hold (hand-edited, say)
-      makes the downgrade raise. Inside a transaction that covers DDL - the store's own
-      ``BEGIN IMMEDIATE`` on SQLite, or PostgreSQL, whose DDL is transactional - everything rolls
-      back. Through a plain SQLAlchemy engine on SQLite it does not: pysqlite opens its transaction
-      only at the first data statement, so the two columns just added to ``zone`` stay while the
-      version stays 0002 (measured 2026-09-27). Remove or fix the row before downgrading.
+    - both rows are read and converted with :func:`_number` BEFORE either column is added: a
+      window or hold row whose text is not a JSON number (a JSON string, a JSON boolean, or
+      anything ``json.loads`` cannot parse) makes the downgrade refuse before any DDL runs, so the
+      database is left exactly as it was - a valid 0002 database - on every engine, the alembic
+      CLI's plain ``engine.begin()`` on SQLite included. A number outside the bounds the
+      application itself enforces on write goes down unchecked; this migration only guards the
+      JSON type, not the application's value range.
     """
+    bind = op.get_bind()
+    window_text = bind.execute(_READ_BACK, {"name": "dialling.window_s"}).scalar_one_or_none()
+    window = _number(window_text, name="dialling.window_s") if window_text is not None else None
+    hold_text = bind.execute(_READ_BACK, {"name": "dialling.hold_threshold_s"}).scalar_one_or_none()
+    hold = _number(hold_text, name="dialling.hold_threshold_s") if hold_text is not None else None
     op.add_column("zone", sa.Column("dial_window_s", _REAL))
     op.add_column("zone", sa.Column("hold_threshold_s", _REAL))
-    bind = op.get_bind()
-    window = bind.execute(_READ_BACK, {"name": "dialling.window_s"}).scalar_one_or_none()
     if window is not None:
-        bind.execute(sa.text("UPDATE zone SET dial_window_s = :value WHERE id = 1"), {"value": _number(window)})
-    hold = bind.execute(_READ_BACK, {"name": "dialling.hold_threshold_s"}).scalar_one_or_none()
+        bind.execute(sa.text("UPDATE zone SET dial_window_s = :value WHERE id = 1"), {"value": window})
     if hold is not None:
-        bind.execute(sa.text("UPDATE zone SET hold_threshold_s = :value WHERE id = 1"), {"value": _number(hold)})
+        bind.execute(sa.text("UPDATE zone SET hold_threshold_s = :value WHERE id = 1"), {"value": hold})
     op.drop_table("preference")
 
 
-def _number(text: object) -> float:
-    """A stored JSON number back as the float the old column held."""
-    decoded: float = json.loads(str(text))
+def _number(text: object, *, name: str) -> float:
+    """A stored JSON number back as the float the old column held.
+
+    Refuses anything that is not a JSON number: ``float()`` alone accepts a JSON string
+    (``'"0.7"'`` becomes ``0.7``) and a JSON boolean (``true`` becomes ``1.0``, since ``bool`` is
+    an ``int`` subclass in Python), so both are rejected explicitly before reaching ``float()``. A
+    number outside the bounds the application enforces on write is not checked here.
+    """
+    decoded = json.loads(str(text))
+    if isinstance(decoded, bool) or not isinstance(decoded, int | float):
+        message = f"preference row {name!r} is not a JSON number ({text!r}); fix or delete it before downgrading"
+        raise ValueError(message)
     return float(decoded)
