@@ -198,23 +198,46 @@ def test_the_clock_sweep_does_not_get_slower_as_the_table_grows() -> None:
     that scanned the whole table cost the same in each and the ratio stayed at one. The sizes are
     asserted rather than assumed - an arm whose independent variable never moved still produces a
     number, and that number reads exactly like a pass.
+
+    The table size is also the ONLY thing allowed to differ, so both tables are filled first,
+    untimed, and each timed round then sends the same number of packets from addresses neither
+    table holds: every one admits a record and evicts the oldest, the tables keep their sizes, and
+    the two timed windows are the same length and allocate the same. Timing the fill instead made
+    the large arm eight times longer than the small one and the only one that kept what it
+    allocated, so it alone paid the garbage collections and the scheduler slices of a busy host -
+    and under a full suite on a loaded machine that crossed the bound five times with nothing wrong
+    in the sweep. The rounds alternate between the arms and each arm keeps its fastest, the round
+    least disturbed by anything but the sweep itself.
     """
     packet = _sync_request(1)
+    packets_per_round = 2000
 
-    def cost_per_packet(count: int, *, max_clients: int) -> tuple[float, int]:
-        proto = ClockSyncProtocol(lambda _k, _t: None, clock=lambda: 1_000_000, max_clients=max_clients)
+    def filled(size: int) -> ClockSyncProtocol:
+        proto = ClockSyncProtocol(lambda _k, _t: None, clock=lambda: 1_000_000, max_clients=size)
         proto.transport = _Transport()
-        start = time.perf_counter()
-        for port in range(count):
-            proto.datagram_received(packet, ("10.0.0.9", port % 65536))
-        return (time.perf_counter() - start) / count, proto.client_count
+        for port in range(size):
+            proto.datagram_received(packet, ("10.0.0.9", port))
+        return proto
 
-    small, small_table = cost_per_packet(2000, max_clients=MAX_CLIENTS)
-    large, large_table = cost_per_packet(16000, max_clients=16000)
-    assert (small_table, large_table) == (MAX_CLIENTS, 16000), (
-        f"the arms must differ in the size of the table: {small_table} and {large_table}"
+    def cost_per_packet(proto: ClockSyncProtocol, round_no: int) -> float:
+        host = f"10.0.1.{round_no}"
+        start = time.perf_counter()
+        for port in range(packets_per_round):
+            proto.datagram_received(packet, (host, port))
+        return (time.perf_counter() - start) / packets_per_round
+
+    small_table, large_table = filled(MAX_CLIENTS), filled(16000)
+    small: list[float] = []
+    large: list[float] = []
+    for round_no in range(7):
+        small.append(cost_per_packet(small_table, round_no))
+        large.append(cost_per_packet(large_table, round_no))
+    sizes = (small_table.client_count, large_table.client_count)
+    assert sizes == (MAX_CLIENTS, 16000), f"the arms must differ in the size of the table: {sizes}"
+    best_small, best_large = min(small), min(large)
+    assert best_large < best_small * 4, (
+        f"per-packet cost grew from {best_small * 1e6:.1f}us to {best_large * 1e6:.1f}us"
     )
-    assert large < small * 4, f"per-packet cost grew from {small * 1e6:.1f}us to {large * 1e6:.1f}us"
 
 
 def test_a_negative_byte_count_cannot_ask_for_a_zero_length_chunk() -> None:
