@@ -28,6 +28,7 @@ from soundtouch_zonemaster.composition import open_house_store
 from soundtouch_zonemaster.domain.state import ZoneState
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+import service_venv
 from service_venv import main
 
 if TYPE_CHECKING:
@@ -138,6 +139,59 @@ def test_the_configured_database_is_the_one_written(
     assert document["data"]["database"] == str(configured)
     assert _switch_row(configured) == "off"
     assert not default.exists(), "the default is only for a machine that configures no database"
+
+
+def test_a_seed_cut_off_before_its_switch_is_written_leaves_a_database_the_next_run_seeds(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The schema and the switch go in together, or neither does.
+
+    A seed that committed the schema and was then cut off - a Ctrl-C, a dropped ``pct exec``
+    session, a full disk - used to leave a house database with no switch row. The next run found
+    the schema, took the database for one somebody had been using, and left it reading ON: the
+    first start then took the house. The interrupt is injected at the switch write, the one line a
+    power cut would have to land on; nothing else stands in for it.
+    """
+    default = tmp_path / "zonemaster.sqlite"
+
+    def cut_off(_connection: object, *, on: bool) -> bool:
+        del on
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patched:
+        patched.setattr(service_venv, "write_switch", cut_off)
+        with pytest.raises(KeyboardInterrupt):
+            service_venv.seed_switch(default=default, legacy_switch_file=None)
+
+    code, document = _drive(["seed-switch", "--default", str(default)], capsys)
+
+    assert code == 0
+    assert document["data"]["created"] is True, "a schema without its switch was never a house database"
+    assert document["data"]["switch"] == "off"
+    assert _switch_row(default) == "off"
+
+
+def test_a_schema_created_between_the_probe_and_the_open_still_gets_the_owed_switch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The probe said new, but by the time the seed opened it the schema was at head.
+
+    ``open()`` then migrates nothing, so no transaction of its own carries the switch, and the seed
+    has to write it in one of its own. The race is staged by the probe's answer, because two
+    processes cannot be made to interleave at that line on demand.
+    """
+    database = created_by_the_service(tmp_path / "zonemaster.sqlite")
+
+    def probed_too_early(_setting: str, _password: object) -> bool:
+        return False
+
+    monkeypatch.setattr(service_venv, "house_schema_exists", probed_too_early)
+
+    code, document = _drive(["seed-switch", "--default", str(database)], capsys)
+
+    assert code == 0
+    assert document["data"]["written"] is True
+    assert _switch_row(database) == "off"
 
 
 @pytest.mark.parametrize("word", ["on", "off"])

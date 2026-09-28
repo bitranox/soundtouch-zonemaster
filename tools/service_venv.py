@@ -42,11 +42,11 @@ from __future__ import annotations
 
 import sqlite3
 import sys
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import rich_click as click
 from _click import argument, current_context, option, run_cli
@@ -66,7 +66,9 @@ from soundtouch_zonemaster.composition import open_house_store
 from soundtouch_zonemaster.domain.database_url import masked
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Generator, Sequence
+
+    from sqlalchemy.engine import Connection
 
     from soundtouch_zonemaster.domain.secret import Secret
 
@@ -173,6 +175,42 @@ def seed_word(*, schema_existed: bool, legacy_switch: bool | None) -> bool | Non
     return False if legacy_switch is None else legacy_switch
 
 
+class _CreatedWithItsSwitch(HouseDatabase):
+    """A house database whose FIRST write transaction also carries the switch a seed owes it.
+
+    On a database this run creates, that first transaction is the one ``open()`` brings the schema
+    to head in, so the schema and the switch are committed together or not at all. Two
+    transactions left a window: a seed cut off between them - a Ctrl-C, a dropped ``pct exec``
+    session, a full disk - left a schema with no switch row, the next run took that for a database
+    somebody had been using and left it alone, and the first start read it as ON and took the
+    house. An interrupted run now leaves no schema, so the next one still sees a new database.
+
+    When the schema was already there (another process created it between the freshness probe and
+    ``open()``), the first write transaction is the seed's own, and the owed switch is written
+    there only if that transaction did not write one itself.
+    """
+
+    def __init__(self, setting: str, *, password: Secret | None, owed: bool | None) -> None:
+        super().__init__(setting, password=password)
+        self._owed = owed
+        self.written = False
+
+    @property
+    def owes_a_switch(self) -> bool:
+        return self._owed is not None
+
+    @override
+    @contextmanager
+    def writing(self) -> Generator[Connection]:
+        with super().writing() as connection:
+            yield connection
+            if self._owed is not None:
+                if read_switch(connection) is None:
+                    write_switch(connection, on=self._owed)
+                    self.written = True
+                self._owed = None
+
+
 def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport:
     setting, password = configured_database(default=default)
     existed = house_schema_exists(setting, password)
@@ -180,22 +218,23 @@ def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport
     if legacy_switch_file is not None and legacy_switch_file.exists():
         legacy = Switch(legacy_switch_file, log=_narrate).is_on()
     word = seed_word(schema_existed=existed, legacy_switch=legacy)
-    house = HouseDatabase(setting, password=password)
+    house = _CreatedWithItsSwitch(setting, password=password, owed=word)
     house.open(exclusive=False, create=True)
     try:
-        with house.writing() as connection:
+        if house.owes_a_switch:
+            # open() found the schema already at head and wrote nothing, so no transaction has
+            # carried the switch yet: an empty one of the seed's own does, as it ends.
+            with house.writing():
+                pass
+        with house.reading() as connection:
             held = read_switch(connection)
-            written = held is None and word is not None
-            if held is None and word is not None:
-                write_switch(connection, on=word)
-                held = word
     except SQLAlchemyError as exc:
         message = f"{house.where}: {reason_for(exc)}"
         raise StoreError(message) from exc
     finally:
         house.close()
     shown = "unset" if held is None else ("on" if held else "off")
-    return SeedReport(database=house.where, created=not existed, switch=shown, written=written)
+    return SeedReport(database=house.where, created=not existed, switch=shown, written=house.written)
 
 
 def show(*, default: Path) -> ShowReport:
