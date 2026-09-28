@@ -16,9 +16,17 @@ CI sees.
 
 The second half is the template's, and it is about where this tree LIVES: coverage.py keeps its
 trace data in a SQLite database, SQLite wants POSIX locking, and this checkout sits on a network
-share or a filesystem without POSIX locking. The database goes to a local temp directory instead,
-and a journal left behind by a crashed run is removed rather than left to make the next one report
-"database is locked".
+share or a filesystem without POSIX locking. Redirecting that database to local disk needs
+``COVERAGE_FILE`` set in the process environment BEFORE pytest starts: pytest-cov's own plugin
+builds its ``coverage.Coverage()`` in a ``tryfirst`` hook on ``pytest_load_initial_conftests``,
+which runs before ANY conftest.py is even imported, so nothing a conftest does - a hook, or even
+this module's own top level - can still redirect it (measured against pytest-cov 7.1.0 / coverage
+7.16.2). The two ways this suite is actually run both already set it early enough:
+``default_cicd_public.yml`` at the job-step level, and ``bmk``'s own stage runner in the
+subprocess environment it launches pytest with. A bare ``pytest --cov`` on this checkout,
+bypassing both, writes its database wherever ``pyproject.toml``'s ``[tool.coverage.run]`` defaults
+it to - on the network share this paragraph exists to keep it off - so export ``COVERAGE_FILE``
+yourself first if you run it that way.
 
 What is deliberately NOT here: a ``sys.path`` block, because ``pythonpath = ["src"]`` in
 ``pyproject.toml`` does that, and ``.env`` loading, because a checkout's ``.env`` is exactly what the
@@ -28,11 +36,9 @@ first half exists to keep out. The hardware tests read their own settings throug
 
 from __future__ import annotations
 
-import contextlib
 import os
 import shutil
 import socket
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -54,8 +60,6 @@ if TYPE_CHECKING:
 
     from sqlalchemy.engine import Engine
 
-_COVERAGE_BASENAME = ".coverage.soundtouch_zonemaster"
-
 _LAYER_ROOTS = (
     # Linux: the app and host layers hang off /etc, the user layer off $XDG_CONFIG_HOME.
     ("LIB_LAYERED_CONFIG_ETC", "etc"),
@@ -69,42 +73,17 @@ _LAYER_ROOTS = (
 )
 
 
-def _purge_stale_coverage_files(cov_path: Path) -> None:
-    """Delete the SQLite sidecars a crashed run leaves behind.
-
-    An explicit suffix list rather than a glob: a glob on the same prefix could match an unrelated
-    file, while these three sidecar names are SQLite's own and stable.
-    """
-    for suffix in ("", "-journal", "-wal", "-shm"):
-        with contextlib.suppress(FileNotFoundError):
-            Path(str(cov_path) + suffix).unlink()
-
-
 def pytest_configure(config: pytest.Config) -> None:
-    """Point a *later* coverage reader at local disk; pytest-cov's own run has already begun.
+    """Arm the hang watchdog. This hook cannot redirect pytest-cov's data file; see the module docstring.
 
     ``config`` is unread: pytest matches this hook by NAME and passes what the hook spec declares.
-
-    Measured against pytest-cov 7.1.0 / coverage 7.16.2: pytest-cov does NOT build its
-    ``Coverage()`` in ``pytest_sessionstart``. Its ``CovPlugin.__init__`` - registered
-    ``tryfirst`` on ``pytest_load_initial_conftests``, which runs before ANY conftest.py is
-    imported - calls ``start()`` synchronously, and that is where ``coverage.Coverage()`` is
-    constructed. So by the time this hook (or even this module's own top level) could set
-    ``COVERAGE_FILE``, pytest-cov's main run has already opened its database wherever the
-    environment or ``pyproject.toml`` said to at that earlier moment; setting the variable here
-    changes nothing for it. Confirmed by moving the same assignment to module import time and
-    watching the data file still land at coverage's default location.
-
-    What this still does: it purges a crashed run's SQLite sidecars, and it leaves
-    ``COVERAGE_FILE`` set in the process environment for anything that reads it AFTER this point
-    (a subprocess coverage.py invocation, ``coverage combine``, a manual run). CI does not depend
-    on it - ``default_cicd_public.yml`` sets ``COVERAGE_FILE`` at the job-step level, before pytest
-    starts, which is the only place early enough to redirect pytest-cov's own file.
+    An earlier version of this hook tried to set ``COVERAGE_FILE`` here when it was still unset,
+    on the theory that a later reader would pick it up; measured against pytest-cov 7.1.0 /
+    coverage 7.16.2, pytest-cov had already opened its ``Coverage()`` before this hook - or even
+    this module's own top level - could run, so the assignment changed nothing for it (confirmed
+    by moving it to import time and watching the data file still land at coverage's default
+    location). It is gone rather than kept as a no-op.
     """
-    if "COVERAGE_FILE" not in os.environ:
-        cov_path = Path(tempfile.gettempdir()) / _COVERAGE_BASENAME
-        _purge_stale_coverage_files(cov_path)
-        os.environ["COVERAGE_FILE"] = str(cov_path)
     # A hang in CI otherwise burns the job's six hours and reports nothing (OPEN-WORK rank 223).
     hang_watchdog.arm_in_ci(config)
 
