@@ -64,6 +64,16 @@ the database there before any start."""
 HELPER = Path(__file__).with_name("service_venv.py")
 """The script the new venv's python runs to reach the house database; shipped beside this one."""
 
+COMMAND_TIMEOUT_S = 300.0
+"""The bound on one command: the longest here is a ``systemctl stop``, which waits out the unit's
+own stop timeout (60 s on the house's machine) and the kill after it. A command that has not
+answered by then is not going to, and a deploy stuck on it cannot be told from a hung one."""
+
+INSTALL_TIMEOUT_S = 1800.0
+"""The bound on ``uv venv`` and ``uv pip install``, which may fetch an interpreter and a whole
+dependency tree over a slow uplink: generous, because killing a good install half way is worse
+than waiting, but still a bound."""
+
 EXIT_OK, EXIT_ERROR = 0, 2
 """There is no "nothing to do" here, so the house's middle code is one this command cannot return.
 
@@ -141,6 +151,10 @@ Runner = Callable[[list[str]], Ran]
 """The process seam: every command this runs goes through one of these."""
 
 
+class CommandTimedOutError(RuntimeError):
+    """A command ran past its bound and was killed. Named, so a caller can say so rather than hang."""
+
+
 class Report(BaseModel):
     """What an install did, for the person or the script that ran it."""
 
@@ -162,9 +176,25 @@ def plan(install: Install) -> Steps:
     )
 
 
-def run_command(argv: list[str]) -> Ran:
-    """The real runner: a subprocess, its streams captured apart, never raising for a non-zero exit."""
-    finished = subprocess.run(argv, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace")
+def timeout_for(argv: Sequence[str]) -> float:
+    """The bound a command runs under: the installer's own two uv steps get the long one. Pure."""
+    return INSTALL_TIMEOUT_S if argv[:1] == ["uv"] and argv[1:2] in (["pip"], ["venv"]) else COMMAND_TIMEOUT_S
+
+
+def run_command(argv: list[str], *, timeout_s: float | None = None) -> Ran:
+    """The real runner: a subprocess, its streams captured apart, never raising for a non-zero exit.
+
+    Every command runs under a bound (``timeout_for``, unless ``timeout_s`` names one); past it the
+    process is killed and :class:`CommandTimedOutError` names it.
+    """
+    bound = timeout_for(argv) if timeout_s is None else timeout_s
+    try:
+        finished = subprocess.run(
+            argv, capture_output=True, text=True, check=False, encoding="utf-8", errors="replace", timeout=bound
+        )
+    except subprocess.TimeoutExpired as exc:
+        message = f"{' '.join(argv[:3])} did not finish within {bound:g} s and was killed"
+        raise CommandTimedOutError(message) from exc
     return Ran(code=finished.returncode, stdout=finished.stdout, stderr=finished.stderr)
 
 

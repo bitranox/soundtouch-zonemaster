@@ -23,6 +23,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -32,7 +33,18 @@ from service_database import created_by_the_service
 from soundtouch_zonemaster.composition import open_house_store
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from install_service import Install, Ran, apply, main, plan
+from install_service import (
+    COMMAND_TIMEOUT_S,
+    INSTALL_TIMEOUT_S,
+    CommandTimedOutError,
+    Install,
+    Ran,
+    apply,
+    main,
+    plan,
+    run_command,
+    timeout_for,
+)
 
 _DATABASE_URL_ENV = "SOUNDTOUCH_ZONEMASTER___DATABASE__URL"
 _DATABASE_PASSWORD_ENV = "SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD"
@@ -320,3 +332,26 @@ def test_a_deploy_that_cannot_write_prints_a_refusal_a_caller_can_read(
     assert document["error"] == "FileExistsError", "the class a caller branches on, not a traceback"
     assert str(install.state_dir) in document["message"]
     assert not install.venv.exists(), "and it refused before it had changed anything"
+
+
+def test_a_command_that_does_not_finish_is_killed_and_named() -> None:
+    """A deploy stuck on one command cannot be told from a hung one, so every command has a bound."""
+    started = time.monotonic()
+
+    with pytest.raises(CommandTimedOutError, match=r"did not finish within 0\.5 s"):
+        run_command([sys.executable, "-c", "import time; time.sleep(5)"], timeout_s=0.5)
+
+    assert time.monotonic() - started < 4, "refused at the bound, not when the command chose to end"
+
+
+@pytest.mark.parametrize(
+    ("argv", "bound"),
+    [
+        (["uv", "pip", "install", "--python", "p", "w.whl"], INSTALL_TIMEOUT_S),
+        (["uv", "venv", "/opt/zonemaster/.venv"], INSTALL_TIMEOUT_S),
+        (["uv", "--version"], COMMAND_TIMEOUT_S),
+        (["systemctl", "stop", "soundtouch-multiroom.service"], COMMAND_TIMEOUT_S),
+    ],
+)
+def test_only_the_install_itself_gets_the_long_bound(argv: list[str], bound: float) -> None:
+    assert timeout_for(argv) == bound

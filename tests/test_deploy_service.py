@@ -37,6 +37,7 @@ from deploy_service import (
     Situation,
     Step,
     StepFailedError,
+    StepTimedOutError,
     Target,
     UnitMissingError,
     UnitNotActiveError,
@@ -53,7 +54,7 @@ from deploy_service import (
     unit_verdict,
     venv_findings,
 )
-from install_service import Install, Ran
+from install_service import CommandTimedOutError, Install, Ran
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -100,6 +101,7 @@ class FakeSystemd:
         restart_counts: tuple[int, ...] = (0,),
         restart_sec: str = "10s",
         stop_fails: bool = False,
+        stop_hangs: bool = False,
     ) -> None:
         self.loaded = loaded
         self.state = "active" if active else "inactive"
@@ -107,6 +109,7 @@ class FakeSystemd:
         self.restart_counts = list(restart_counts)
         self.restart_sec = restart_sec
         self.stop_fails = stop_fails
+        self.stop_hangs = stop_hangs
         self.uv = uv
         self.on_stop = on_stop
         self.calls: list[list[str]] = []
@@ -130,6 +133,9 @@ class FakeSystemd:
             shown = self._after_start() if self.state == "starting" else self.state
             return Ran(code=0 if shown == "active" else 3, stdout=f"{shown}\n", stderr="")
         if args[0] == "stop":
+            if self.stop_hangs:
+                message = "systemctl stop soundtouch-multiroom.service did not finish within 300 s and was killed"
+                raise CommandTimedOutError(message)
             if self.stop_fails:
                 return Ran(code=1, stdout="", stderr="Job for the unit failed; it may be half stopped.")
             if self.on_stop is not None:
@@ -299,6 +305,16 @@ def test_a_stop_that_fails_leaves_the_house_off_and_installs_nothing(tmp_path: P
     assert house.switched == [False]
     assert "install" not in systemd.verbs()
     assert "done: backup, switch_off, drain" in str(caught.value)
+
+
+def test_a_stop_that_hangs_is_refused_by_name_with_the_house_left_off(tmp_path: Path) -> None:
+    systemd, house = FakeSystemd(stop_hangs=True), FakeHouse()
+
+    with pytest.raises(StepTimedOutError, match="did not finish"):
+        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    assert house.on is False
+    assert "install" not in systemd.verbs()
 
 
 def test_activating_is_not_ready(tmp_path: Path) -> None:

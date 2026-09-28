@@ -56,7 +56,18 @@ from typing import TYPE_CHECKING, Protocol
 
 import rich_click as click
 from _click import current_context, option, run_cli
-from install_service import HELPER, PREFIX, STATE_DIR, Install, Ran, Runner, apply, plan, run_command
+from install_service import (
+    HELPER,
+    PREFIX,
+    STATE_DIR,
+    CommandTimedOutError,
+    Install,
+    Ran,
+    Runner,
+    apply,
+    plan,
+    run_command,
+)
 from install_service import Report as InstallReport
 from pydantic import BaseModel, ValidationError
 
@@ -139,6 +150,10 @@ class ZoneStillHeldError(DeployRefusedError):
 
 class StepFailedError(DeployRefusedError):
     """A command the deploy ran (a stop, a start, the install) failed."""
+
+
+class StepTimedOutError(DeployRefusedError):
+    """A command the deploy ran did not finish within its bound and was killed."""
 
 
 class VenvNotCleanError(DeployRefusedError):
@@ -371,11 +386,16 @@ class VenvHouse:
 
 
 def _ran(run: Runner, argv: list[str]) -> Ran:
-    """Run one command; a program that is not there at all is an answer (127), not a traceback."""
+    """Run one command; a program that is not there at all is an answer (127), not a traceback.
+
+    A command that ran past its bound is a refusal by name: nothing it would have answered is known.
+    """
     try:
         return run(argv)
     except OSError as exc:
         return Ran(code=127, stdout="", stderr=f"{argv[0]}: {exc}")
+    except CommandTimedOutError as exc:
+        raise StepTimedOutError(str(exc)) from exc
 
 
 def poll_until[T](
@@ -512,6 +532,8 @@ class _Run:
         install = self.target.install
         try:
             self.report.install = apply(install, plan(install), run=self.run)
+        except CommandTimedOutError as exc:
+            raise StepTimedOutError(f"install: {exc}") from exc
         except (OSError, RuntimeError) as exc:
             raise StepFailedError(f"install: {exc}") from exc
 
