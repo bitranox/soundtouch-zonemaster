@@ -299,7 +299,8 @@ def test_the_export_is_what_the_import_reads(house_database: str, tmp_path: Path
     store.open(exclusive=True)
     store.save_channels(LIST)
     exported = tmp_path / "out.json"
-    exported.write_text(store.export_channels(), encoding="utf-8")
+    report = store.export_channels(exported)
+    assert report.count == len(LIST.channels)
     store.save_channels(ChannelList())
     assert store.import_channels(exported) == LIST
     store.close()

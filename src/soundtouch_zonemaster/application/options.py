@@ -145,6 +145,19 @@ class Options:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ChannelsExport:
+    """A channel list export, both faces of the same parse.
+
+    One read of the store produces both fields, so ``count`` can never disagree with ``text``: a
+    caller that read the count from a SECOND store read could see a different list than the one it
+    just wrote, if a writer changed the store between the two.
+    """
+
+    text: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class LegacyFiles:
     """The three files the service kept before the house database, read once each and set aside.
 

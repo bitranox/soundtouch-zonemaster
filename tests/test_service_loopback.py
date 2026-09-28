@@ -80,7 +80,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
     from pathlib import Path
 
-    from soundtouch_zonemaster.application.options import LegacyFiles
+    from soundtouch_zonemaster.application.options import ChannelsExport, LegacyFiles
     from soundtouch_zonemaster.application.ports import HouseStore, SwitchReader
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.preferences import PreferenceRow, PreferenceValue
@@ -3740,8 +3740,8 @@ class _StoreThatCanFail:
     def save_channels(self, channels: ChannelList) -> None:
         self._real.save_channels(channels)
 
-    def export_channels(self) -> str:
-        return self._real.export_channels()
+    def export_channels(self, path: Path) -> ChannelsExport:
+        return self._real.export_channels(path)
 
     def import_channels(self, path: Path) -> ChannelList:
         return self._real.import_channels(path)

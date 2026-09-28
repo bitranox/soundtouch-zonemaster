@@ -14,6 +14,8 @@ import pytest
 from service_database import created_by_the_service
 
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
+from soundtouch_zonemaster.adapters.files import house_store
+from soundtouch_zonemaster.adapters.files.atomicfile import TEMP_SUFFIX
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
@@ -23,6 +25,7 @@ from soundtouch_zonemaster.entry import service_main as main
 
 if TYPE_CHECKING:
     from conftest import PostgresLogin
+    from sqlalchemy.engine import Connection
 
     from soundtouch_zonemaster.application.options import ServiceOptions
 
@@ -104,6 +107,48 @@ def test_export_then_import_round_trips_the_list(
         _run(monkeypatch, "--json", "--database", str(database), "channels", "export", "--output", str(exported)) == 0
     )
     assert exported.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
+
+
+def test_channels_export_reads_the_store_only_once(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The count in the envelope must come from the SAME read as the exported text: a second read
+    could see a different list if a writer changed the store in between (OPEN-WORK rank 202)."""
+    database = created_by_the_service(tmp_path / "db.sqlite")
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    assert _run(monkeypatch, "--json", "--database", str(database), "channels", "import", str(source)) == 0
+    capsys.readouterr()
+    calls = 0
+    real_read_channels = house_store.read_channels
+
+    def _counting(connection: Connection, *, where: str) -> ChannelList:
+        nonlocal calls
+        calls += 1
+        return real_read_channels(connection, where=where)
+
+    monkeypatch.setattr(house_store, "read_channels", _counting)
+    exported = tmp_path / "out.json"
+    rc = _run(monkeypatch, "--json", "--database", str(database), "channels", "export", "--output", str(exported))
+    assert rc == 0
+    assert calls == 1
+    assert _envelope(capsys)["data"] == {"database": str(database), "channels": 1, "path": str(exported)}
+
+
+def test_channels_export_writes_atomically(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Written through :func:`atomicfile.write_atomic`, so no partial file and no leftover temp file."""
+    database = created_by_the_service(tmp_path / "db.sqlite")
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    assert _run(monkeypatch, "--json", "--database", str(database), "channels", "import", str(source)) == 0
+    exported = tmp_path / "out.json"
+    assert (
+        _run(monkeypatch, "--json", "--database", str(database), "channels", "export", "--output", str(exported)) == 0
+    )
+    assert exported.exists()
+    assert not exported.with_name(exported.name + TEMP_SUFFIX).exists()
 
 
 def test_an_unusable_import_is_could_not_run_and_names_the_file(

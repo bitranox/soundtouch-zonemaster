@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from ..domain.speakers import Speaker
     from ..domain.state import Place, ZoneState
     from ..domain.station import Station, StationRequest
-    from .options import ChannelPolicy, LegacyFiles, Options, ServiceOptions
+    from .options import ChannelPolicy, ChannelsExport, LegacyFiles, Options, ServiceOptions
 
 __all__ = [
     "AddressOf",
@@ -120,7 +120,7 @@ class HouseStore(Protocol):
 
     def save_channels(self, channels: ChannelList) -> None: ...
 
-    def export_channels(self) -> str: ...
+    def export_channels(self, path: Path) -> ChannelsExport: ...
 
     def import_channels(self, path: Path) -> ChannelList: ...
 

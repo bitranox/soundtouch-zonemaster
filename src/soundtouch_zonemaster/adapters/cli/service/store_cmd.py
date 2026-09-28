@@ -113,20 +113,19 @@ def cli_channels_export(ctx: click.Context, *, output: str) -> None:
     command = f"{service_command} channels export"
     store = open_store_or_exit(ctx, shared, exclusive=False, command=command)
     try:
-        text = store.export_channels()
-        count = len(store.load_channels().channels)
+        exported = store.export_channels(Path(output))
         where = store.where
     except StoreError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
-    finally:
-        store.close()
-    try:
-        Path(output).write_text(text, encoding="utf-8")
     except OSError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
-    _report_channels(shared, command=command, report=ChannelsReport(database=where, channels=count, path=output))
+    finally:
+        store.close()
+    _report_channels(
+        shared, command=command, report=ChannelsReport(database=where, channels=exported.count, path=output)
+    )
 
 
 @cli_channels.command("import", context_settings={"help_option_names": ["-h", "--help"]})

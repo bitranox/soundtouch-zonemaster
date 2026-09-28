@@ -19,8 +19,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy.exc import SQLAlchemyError
 
 from ...application.errors import StoreError
+from ...application.options import ChannelsExport
 from ...domain.database_url import masked
 from ...domain.state import ZoneState
+from .atomicfile import write_atomic
 from .channel_file import ChannelFileError, channels_json, load_channels
 from .house_channels import read_channels, write_channels
 from .house_db import HouseDatabase, reason_for
@@ -115,9 +117,17 @@ class SqlHouseStore:
         with self._guarded(), self._db.writing() as connection:
             write_channels(connection, channels, where=self.where)
 
-    def export_channels(self) -> str:
+    def export_channels(self, path: Path) -> ChannelsExport:
+        """Read the list ONCE and write it atomically; the count reported is from that same read.
+
+        A second store read for the count could disagree with the text already on its way to
+        disk if a writer changed the store in between; there is only one read here, so it cannot.
+        """
         with self._guarded(), self._db.reading() as connection:
-            return channels_json(read_channels(connection, where=self.where))
+            channels = read_channels(connection, where=self.where)
+        text = channels_json(channels)
+        write_atomic(path, text)
+        return ChannelsExport(text=text, count=len(channels.channels))
 
     def import_channels(self, path: Path) -> ChannelList:
         """Replace the list with a file's, under the writer lock, or refuse naming what is wrong."""

@@ -102,7 +102,7 @@ from soundtouch_zonemaster.adapters.soundtouch.http_api import HttpApi, Request,
 from soundtouch_zonemaster.adapters.soundtouch.observer import parse_frame, parse_now_playing
 from soundtouch_zonemaster.adapters.soundtouch.wire import encryption_type
 from soundtouch_zonemaster.application.errors import RegistryError
-from soundtouch_zonemaster.application.options import Options, ServiceOptions, default_device_id
+from soundtouch_zonemaster.application.options import ChannelsExport, Options, ServiceOptions, default_device_id
 from soundtouch_zonemaster.application.outcome import OptionsError
 from soundtouch_zonemaster.application.ports import ZoneServicePorts
 from soundtouch_zonemaster.application.zone_service import ZoneService
@@ -968,8 +968,8 @@ class FakeStore:
 
     def save_channels(self, channels: ChannelList) -> None: ...
 
-    def export_channels(self) -> str:
-        return ""
+    def export_channels(self, path: Path) -> ChannelsExport:
+        return ChannelsExport(text="", count=0)
 
     def import_channels(self, path: Path) -> ChannelList:
         return ChannelList()

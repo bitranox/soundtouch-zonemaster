@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `channels export` now reads the house database once and writes the file atomically, so the
+  reported channel count can no longer disagree with the exported text (it used to read the store
+  twice in two separate transactions).
+
 ### Changed
 
 - `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
