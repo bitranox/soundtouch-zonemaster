@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from lib_cli_exit_tools import SigIntInterrupt
 from service_database import created_by_the_service
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -32,6 +35,8 @@ from deploy_service import (
     CONSOLE_SCRIPTS,
     POLL_S,
     BackupView,
+    DeployInterruptedError,
+    HangupError,
     HouseUnreadableError,
     HouseView,
     Situation,
@@ -48,6 +53,7 @@ from deploy_service import (
     WheelMissingError,
     ZoneStillHeldError,
     deploy,
+    hangups_raise,
     main,
     plan_steps,
     settle_window,
@@ -99,6 +105,7 @@ class FakeSystemd:
         start_states: tuple[str, ...] = ("active",),
         uv: bool = True,
         on_stop: Callable[[], None] | None = None,
+        on_install: Callable[[], None] | None = None,
         restart_counts: tuple[int, ...] = (0,),
         restart_sec: str = "10s",
         stop_fails: bool = False,
@@ -113,6 +120,7 @@ class FakeSystemd:
         self.stop_hangs = stop_hangs
         self.uv = uv
         self.on_stop = on_stop
+        self.on_install = on_install
         self.calls: list[list[str]] = []
 
     def __call__(self, argv: list[str]) -> Ran:
@@ -125,6 +133,8 @@ class FakeSystemd:
             return self._systemctl(argv[1:])
         if "seed-switch" in argv:
             return Ran(code=0, stdout=_SEEDED, stderr="")
+        if argv[:3] == ["uv", "pip", "install"] and self.on_install is not None:
+            self.on_install()
         return Ran(code=0, stdout="", stderr="")
 
     def _systemctl(self, args: list[str]) -> Ran:
@@ -187,6 +197,7 @@ class FakeHouse:
         exists: bool = True,
         distributions: tuple[str, ...] = ("pydantic", "soundtouch-zonemaster"),
         clock: FakeClock | None = None,
+        interrupted_while_off: BaseException | None = None,
     ) -> None:
         self.on = on
         self.members = list(members)
@@ -196,10 +207,13 @@ class FakeHouse:
         self.reads_while_off = 0
         self.switched: list[bool] = []
         self.clock = clock
+        self.interrupted_while_off = interrupted_while_off
         self.switched_at: list[tuple[bool, float]] = []
         self.backups: list[Path] = []
 
     def show(self) -> HouseView:
+        if not self.on and self.interrupted_while_off is not None:
+            raise self.interrupted_while_off
         if not self.on and self.drain_after is not None:
             self.reads_while_off += 1
             if self.reads_while_off > self.drain_after:
@@ -316,6 +330,52 @@ def test_a_stop_that_hangs_is_refused_by_name_with_the_house_left_off(tmp_path: 
 
     assert house.on is False
     assert "install" not in systemd.verbs()
+
+
+def test_an_interrupt_during_the_drain_says_where_it_left_the_house(tmp_path: Path) -> None:
+    """Ctrl-C (or a dropped session) mid-deploy used to end in a traceback and an empty stdout.
+
+    The person who pressed it then had to work out for themselves that the switch was off and the
+    unit still running. The refusal says so, and names the command that turns the house back on.
+    """
+    systemd, house = FakeSystemd(), FakeHouse(interrupted_while_off=SigIntInterrupt())
+
+    with pytest.raises(DeployInterruptedError) as caught:
+        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    message = str(caught.value)
+    assert "SIGINT during drain" in message
+    assert "the switch is OFF" in message
+    assert "the unit was not stopped" in message
+    assert "switch on" in message
+    assert systemd.verbs() == []
+    assert caught.value.exit_code == 2
+
+
+def test_an_interrupt_during_the_install_is_not_reported_as_a_failed_install(tmp_path: Path) -> None:
+    """The library's signal exceptions are RuntimeErrors, which the install step turns into a failure."""
+
+    def hang_up() -> None:
+        raise HangupError
+
+    systemd, house = FakeSystemd(on_install=hang_up), FakeHouse()
+
+    with pytest.raises(DeployInterruptedError, match="SIGHUP during install") as caught:
+        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    assert "the unit is stopped" in str(caught.value)
+    assert "the switch is OFF" in str(caught.value)
+
+
+def test_a_hangup_raises_instead_of_ending_the_process_where_it_stands() -> None:
+    """A dropped ``pct exec`` session sends SIGHUP, whose default ends the process mid-step."""
+    before = signal.getsignal(signal.SIGHUP)
+
+    with hangups_raise(), pytest.raises(HangupError):
+        os.kill(os.getpid(), signal.SIGHUP)
+        time.sleep(1)
+
+    assert signal.getsignal(signal.SIGHUP) == before
 
 
 def test_activating_is_not_ready(tmp_path: Path) -> None:

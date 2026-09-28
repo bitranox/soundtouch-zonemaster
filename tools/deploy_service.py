@@ -48,12 +48,14 @@ printed on stdout; progress goes to stderr.
 from __future__ import annotations
 
 import re
+import signal
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, TextIO
 
 import rich_click as click
 from _click import current_context, option, run_cli
@@ -70,10 +72,12 @@ from install_service import (
     run_command,
 )
 from install_service import Report as InstallReport
+from lib_cli_exit_tools import CliSignalError, SigIntInterrupt, SigTermInterrupt
 from pydantic import BaseModel, ValidationError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Generator, Sequence
+    from types import FrameType
 
 COMMAND = "deploy_service"
 
@@ -167,6 +171,44 @@ class VenvUnreadableError(DeployRefusedError):
 
 class UnitNotActiveError(DeployRefusedError):
     """The unit did not reach ``active`` in time, or failed on the way."""
+
+
+class DeployInterruptedError(DeployRefusedError):
+    """A signal ended the deploy part way. The message says where that left the switch and the unit."""
+
+
+class HangupError(CliSignalError):
+    """SIGHUP, which a dropped ``pct exec`` or ssh session sends. See :func:`hangups_raise`."""
+
+
+_INTERRUPTS = (KeyboardInterrupt, CliSignalError)
+"""What a signal arrives as: ``KeyboardInterrupt`` bare, the library's exceptions under ``run_cli``."""
+
+_SIGNAL_NAMES: dict[type[BaseException], str] = {
+    KeyboardInterrupt: "SIGINT",
+    SigIntInterrupt: "SIGINT",
+    SigTermInterrupt: "SIGTERM",
+    HangupError: "SIGHUP",
+}
+
+
+@contextmanager
+def hangups_raise() -> Generator[None]:
+    """Turn SIGHUP into :class:`HangupError` for the length of the block, then put the old handler back.
+
+    Its default ends the process where it stands - after the switch went off, part way through an
+    install - with nothing said. Raised instead, it ends the deploy the way Ctrl-C does: with a
+    refusal saying where the house was left.
+    """
+
+    def _raise(_signum: int, _frame: FrameType | None) -> None:
+        raise HangupError
+
+    previous = signal.signal(signal.SIGHUP, _raise)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGHUP, previous)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -575,6 +617,9 @@ class _Run:
         install = self.target.install
         try:
             self.report.install = apply(install, plan(install), run=self.run)
+        except CliSignalError:
+            # A RuntimeError too, but a person stopping the deploy, not the install failing.
+            raise
         except CommandTimedOutError as exc:
             raise StepTimedOutError(f"install: {exc}") from exc
         except (OSError, RuntimeError) as exc:
@@ -664,7 +709,35 @@ def deploy(target: Target, *, run: Runner, house: House, clock: Clock, dry_run: 
             _recover(progress, failed=step)
             done = ", ".join(report.done) or "nothing"
             raise type(exc)(f"{exc} (done: {done})") from exc
+        except _INTERRUPTS as exc:
+            name = _SIGNAL_NAMES.get(type(exc), type(exc).__name__)
+            done = ", ".join(report.done) or "nothing"
+            message = f"{name} during {step}: {where_it_stands(report.done, interrupted=step)} (done: {done})"
+            raise DeployInterruptedError(message) from exc
     return report
+
+
+def where_it_stands(done: Sequence[Step], *, interrupted: Step) -> str:
+    """Where a deploy stopped part way left the switch and the unit, as a sentence. Pure.
+
+    Nothing is put back after an interrupt: the person who pressed Ctrl-C asked for the deploy to
+    stop acting, so it says what they have to do instead.
+    """
+    if interrupted in (Step.SWITCH_OFF, Step.RESTORE_SWITCH):
+        switch = "the switch may or may not have changed"
+    elif Step.SWITCH_OFF in done and Step.RESTORE_SWITCH not in done:
+        switch = "the switch is OFF (soundtouch-zonemaster-service switch on turns the house back on)"
+    else:
+        switch = "the switch was not changed"
+    if interrupted in (Step.STOP, Step.START):
+        unit = f"the unit may be part way through its {interrupted}"
+    elif Step.START in done:
+        unit = "the unit was started"
+    elif Step.STOP in done:
+        unit = "the unit is stopped"
+    else:
+        unit = "the unit was not stopped"
+    return f"{switch}; {unit}"
 
 
 def _recover(progress: _Run, *, failed: Step) -> None:
@@ -750,14 +823,24 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list
     )
     house = VenvHouse(install, run=run_command)
     try:
-        report = deploy(target, run=run_command, house=house, clock=RealClock(), dry_run=dry_run)
+        with hangups_raise():
+            report = deploy(target, run=run_command, house=house, clock=RealClock(), dry_run=dry_run)
     except DeployRefusedError as exc:
-        sys.stderr.write(f"{exc}\n")
+        _emit(f"{exc}\n", stream=sys.stderr)
         refusal = ErrorEnvelope(command=COMMAND, error=type(exc).__name__, message=str(exc))
-        sys.stdout.write(refusal.model_dump_json(indent=indent) + "\n")
+        _emit(refusal.model_dump_json(indent=indent) + "\n", stream=sys.stdout)
         ctx.exit(exc.exit_code)
     sys.stdout.write(Envelope(command=COMMAND, data=report).model_dump_json(indent=indent) + "\n")
     ctx.exit(EXIT_OK)
+
+
+def _emit(text: str, *, stream: TextIO) -> None:
+    """Write a refusal; a stream that went with a dropped session must not turn it into a traceback."""
+    try:
+        stream.write(text)
+        stream.flush()
+    except OSError:
+        return
 
 
 def main(argv: Sequence[str] | None = None) -> int:
