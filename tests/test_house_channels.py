@@ -17,6 +17,7 @@ from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 HOUSE = ChannelList(
@@ -37,10 +38,17 @@ HOUSE = ChannelList(
 )
 
 
-def _opened(house_database: str) -> HouseDatabase:
-    database = HouseDatabase(house_database)
-    database.open(exclusive=False)
-    return database
+@pytest.fixture
+def database(house_database: str) -> Iterator[HouseDatabase]:
+    """Opened once per test and closed in teardown, so a failing assertion cannot leak it -
+    unlike calling a bare ``_opened()`` helper and closing by hand at the end of the test, which a
+    failure before that line skips entirely (OPEN-WORK rank 205)."""
+    opened = HouseDatabase(house_database)
+    opened.open(exclusive=False)
+    try:
+        yield opened
+    finally:
+        opened.close()
 
 
 def _radio(number: str) -> Channel:
@@ -49,26 +57,21 @@ def _radio(number: str) -> Channel:
     )
 
 
-def test_the_list_comes_back_in_the_order_it_was_written(house_database: str) -> None:
-    database = _opened(house_database)
+def test_the_list_comes_back_in_the_order_it_was_written(house_database: str, database: HouseDatabase) -> None:
     with database.writing() as connection:
         write_channels(connection, HOUSE, where=house_database)
     with database.reading() as connection:
         assert read_channels(connection, where=house_database) == HOUSE
         assert channel_count(connection) == 3
-    database.close()
 
 
-def test_an_empty_database_holds_an_empty_list(house_database: str) -> None:
-    database = _opened(house_database)
+def test_an_empty_database_holds_an_empty_list(house_database: str, database: HouseDatabase) -> None:
     with database.reading() as connection:
         assert read_channels(connection, where=house_database) == ChannelList()
         assert channel_count(connection) == 0
-    database.close()
 
 
-def test_a_row_the_channel_rules_refuse_is_refused_with_its_count(house_database: str) -> None:
-    database = _opened(house_database)
+def test_a_row_the_channel_rules_refuse_is_refused_with_its_count(house_database: str, database: HouseDatabase) -> None:
     with database.writing() as connection:
         connection.execute(
             insert(CHANNEL).values(
@@ -90,7 +93,6 @@ def test_a_row_the_channel_rules_refuse_is_refused_with_its_count(house_database
         ),
     ):
         read_channels(connection, where=house_database)
-    database.close()
 
 
 def test_the_export_is_the_channel_file_byte_for_byte(tmp_path: Path) -> None:
@@ -99,8 +101,7 @@ def test_the_export_is_the_channel_file_byte_for_byte(tmp_path: Path) -> None:
     assert channels_json(HOUSE) == written.read_text(encoding="utf-8")
 
 
-def test_a_duplicate_channel_number_is_a_named_refusal(house_database: str) -> None:
-    database = _opened(house_database)
+def test_a_duplicate_channel_number_is_a_named_refusal(house_database: str, database: HouseDatabase) -> None:
     with database.writing() as connection:
         write_channels(connection, HOUSE, where=house_database)
     duplicated = ChannelList(
@@ -118,17 +119,16 @@ def test_a_duplicate_channel_number_is_a_named_refusal(house_database: str) -> N
     with database.reading() as connection:
         assert read_channels(connection, where=house_database) == HOUSE
         assert channel_count(connection) == 3
-    database.close()
 
 
-def test_the_list_order_is_kept_even_when_the_numbers_sort_otherwise(house_database: str) -> None:
+def test_the_list_order_is_kept_even_when_the_numbers_sort_otherwise(
+    house_database: str, database: HouseDatabase
+) -> None:
     # "10" is not a channel number a preset key can press (the alphabet is 1-6, no 0), so "16" is
     # used instead: it still sorts as text ("1" < "16" < "2") ahead of where it stands here (last).
     channels = ChannelList(channels=tuple(_radio(number) for number in ("2", "16", "1")))
-    database = _opened(house_database)
     with database.writing() as connection:
         write_channels(connection, channels, where=house_database)
     with database.reading() as connection:
         numbers = [one.number for one in read_channels(connection, where=house_database).channels]
-    database.close()
     assert numbers == ["2", "16", "1"]
