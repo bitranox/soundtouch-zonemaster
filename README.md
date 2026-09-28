@@ -317,8 +317,12 @@ src/soundtouch_zonemaster/    the master, in the layered package: clock (UDP 400
   composition/          the one module naming both sides: build_production() wires one adapter per port
 tests/                  framing against captured bytes; a loopback run with a fake slave; the golden
                         corpus that pins every converted boundary to the old code's bytes
-tools/                  install_service.py (installs the service on the machine that runs it),
-                        export_public.py (the anonymized export) and the private name list's example
+tools/                  the deploy (the first three are shipped to the service's machine and run there)
+  deploy_service.py     one deploy: backup, switch off and wait for the zone to empty, stop, install,
+                        a one-distribution check, start and watch the unit stay up, switch back on
+  install_service.py    the venv, the wheel, and a new house database seeded with the switch OFF
+  service_venv.py       run by the service venv's python: the switch, the members, a backup
+  export_public.py      the anonymized export; beside it, the private name list's example
 ```
 
 ## Development
