@@ -96,7 +96,8 @@ class HouseStore(Protocol):
     method refuses with ``StoreError`` while the store is not open.
 
     ``create=False`` refuses a SQLite file that is not there with ``StoreMissingError`` instead of
-    creating it, for a caller that only reads (``config``). A PostgreSQL server never creates a
+    creating it. Every caller but the service passes it - ``config`` and all the store verbs -
+    because only the service creates the house database. A PostgreSQL server never creates a
     database on connect, so there it changes nothing.
     """
 

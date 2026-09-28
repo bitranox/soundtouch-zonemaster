@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from service_database import created_by_the_service
 
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
@@ -41,18 +42,19 @@ def _envelope(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
     return json.loads(capsys.readouterr().out)
 
 
-def test_the_switch_reads_on_in_a_new_database(
+def test_the_switch_reads_on_in_a_database_nobody_has_switched(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    rc = _run(monkeypatch, "--json", "--database", str(tmp_path / "db.sqlite"), "switch")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
+    rc = _run(monkeypatch, "--json", "--database", database, "switch")
     assert rc == 0
-    assert _envelope(capsys)["data"] == {"database": str(tmp_path / "db.sqlite"), "on": True, "changed": False}
+    assert _envelope(capsys)["data"] == {"database": database, "on": True, "changed": False}
 
 
 def test_switching_off_is_read_back_and_reports_the_change(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    database = str(tmp_path / "db.sqlite")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
     assert _run(monkeypatch, "--json", "--database", database, "switch", "off") == 0
     assert _envelope(capsys)["data"] == {"database": database, "on": False, "changed": True}
     assert _run(monkeypatch, "--json", "--database", database, "switch") == 0
@@ -92,7 +94,7 @@ def test_an_import_is_refused_while_the_service_runs_and_changes_nothing(
 def test_export_then_import_round_trips_the_list(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    database = tmp_path / "db.sqlite"
+    database = created_by_the_service(tmp_path / "db.sqlite")
     source = tmp_path / "edited.json"
     save_channels(source, LIST)
     assert _run(monkeypatch, "--json", "--database", str(database), "channels", "import", str(source)) == 0
@@ -109,7 +111,8 @@ def test_an_unusable_import_is_could_not_run_and_names_the_file(
 ) -> None:
     source = tmp_path / "broken.json"
     source.write_text('{"channels": [{"number": "x"}]}', encoding="utf-8")
-    rc = _run(monkeypatch, "--json", "--database", str(tmp_path / "db.sqlite"), "channels", "import", str(source))
+    database = created_by_the_service(tmp_path / "db.sqlite")
+    rc = _run(monkeypatch, "--json", "--database", str(database), "channels", "import", str(source))
     envelope = _envelope(capsys)
     assert rc == 2
     assert envelope["error"] == "StoreError"
@@ -120,9 +123,8 @@ def test_an_export_to_a_missing_directory_is_could_not_run_and_names_the_path(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     output = tmp_path / "nonexistent-dir" / "out.json"
-    rc = _run(
-        monkeypatch, "--json", "--database", str(tmp_path / "db.sqlite"), "channels", "export", "--output", str(output)
-    )
+    database = created_by_the_service(tmp_path / "db.sqlite")
+    rc = _run(monkeypatch, "--json", "--database", str(database), "channels", "export", "--output", str(output))
     envelope = _envelope(capsys)
     assert rc == 2
     assert envelope["error"] == "FileNotFoundError"
@@ -133,7 +135,7 @@ def test_the_switchs_human_output_names_the_database(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     """A mistyped ``--database`` must be visible in the human line, not only in the JSON envelope."""
-    database = str(tmp_path / "db.sqlite")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
     assert _run(monkeypatch, "--database", database, "switch") == 0
     assert database in capsys.readouterr().out
 
@@ -144,7 +146,7 @@ def test_channels_exports_human_output_names_the_database(
     """The FINAL line - the answer, as opposed to the narration ``load_channels`` logs on its own
     way to answering it - must itself name the database, so a mistyped ``--database`` is visible
     even with narration silenced (``--quiet``, a systemd unit's own log level, and so on)."""
-    database = tmp_path / "db.sqlite"
+    database = created_by_the_service(tmp_path / "db.sqlite")
     source = tmp_path / "edited.json"
     save_channels(source, LIST)
     assert _run(monkeypatch, "--json", "--database", str(database), "channels", "import", str(source)) == 0
@@ -163,7 +165,7 @@ def _url_setting_and_its_where(tmp_path: Path) -> tuple[str, str]:
     is built), and the mask shows such a setting exactly as typed. So the envelope and the human
     line can only name the setting itself; a URL rather than a plain path keeps the URL branch of
     the display rule the one exercised."""
-    setting = f"sqlite:///{tmp_path / 'db.sqlite'}"
+    setting = f"sqlite:///{created_by_the_service(tmp_path / 'db.sqlite')}"
     where = masked(setting)
     assert where == setting, "a setting the store opens is shown as typed"
     return setting, where
@@ -211,6 +213,42 @@ def test_no_database_anywhere_is_refused_by_name(
     rc = _run(monkeypatch, "--json", "switch")
     assert rc == 2
     assert "database" in str(_envelope(capsys)["message"])
+
+
+@pytest.mark.parametrize(
+    "verb",
+    [
+        pytest.param(("switch",), id="switch"),
+        pytest.param(("switch", "off"), id="switch-off"),
+        pytest.param(("channels", "export", "--output", "{out}"), id="channels-export"),
+        pytest.param(("channels", "import", "{source}"), id="channels-import"),
+        pytest.param(("prefs",), id="prefs"),
+        pytest.param(("prefs", "set", "volume.fade_s", "1.5"), id="prefs-set"),
+        pytest.param(("prefs", "unset", "volume.fade_s"), id="prefs-unset"),
+    ],
+)
+def test_a_store_verb_never_creates_the_database_it_is_pointed_at(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    verb: tuple[str, ...],
+) -> None:
+    """Only the service creates the house database. A mistyped ``--database`` used to get a new,
+    empty database and ``switch off (changed)`` while the service went on reading the real one - and
+    run as root before the first start, it left root-owned files the service could not open."""
+    missing = tmp_path / "typo.sqlite"
+    source = tmp_path / "edited.json"
+    save_channels(source, LIST)
+    argv = [part.format(out=tmp_path / "out.json", source=source) for part in verb]
+    rc = _run(monkeypatch, "--json", "--database", str(missing), *argv)
+    envelope = _envelope(capsys)
+    assert not missing.exists()
+    assert rc == 2
+    assert envelope["error"] == "StoreMissingError"
+    assert str(missing) in str(envelope["message"])
+    assert "start the service" in str(envelope["message"])
 
 
 @pytest.mark.parametrize(

@@ -8,6 +8,7 @@ import sqlite3
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
+from service_database import created_by_the_service
 
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.entry import service_main as main
@@ -63,7 +64,7 @@ def _stored_by_hand(database: str, name: str, text: str) -> None:
 def test_prefs_lists_all_five_from_the_configuration_on_a_new_database(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
-    assert _run(monkeypatch, "--json", "--database", str(tmp_path / "db.sqlite"), "prefs") == 0
+    assert _run(monkeypatch, "--json", "--database", str(created_by_the_service(tmp_path / "db.sqlite")), "prefs") == 0
     data = _envelope(capsys)["data"]
     assert isinstance(data, dict)
     preferences = cast("list[dict[str, Any]]", data["preferences"])
@@ -79,7 +80,7 @@ def test_prefs_lists_all_five_from_the_configuration_on_a_new_database(
 def test_set_then_unset_report_before_and_after(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
-    database = str(tmp_path / "db.sqlite")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
     assert _run(monkeypatch, "--json", "--database", database, "prefs", "set", "volume.fade_s", "1.5") == 0
     change = _envelope(capsys)["data"]
     assert isinstance(change, dict)
@@ -101,7 +102,7 @@ def test_set_then_unset_report_before_and_after(
 def test_a_list_is_written_as_json(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
-    database = str(tmp_path / "db.sqlite")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
     argv = ("--json", "--database", database, "prefs", "set", "membership.consoles_allowed", '["AABBCC000012"]')
     assert _run(monkeypatch, *argv) == 0
     change = _envelope(capsys)["data"]
@@ -113,7 +114,7 @@ def test_a_list_is_written_as_json(
 def test_a_lower_case_console_id_is_stored_and_shown_upper_case(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
-    database = str(tmp_path / "db.sqlite")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
     argv = ("--json", "--database", database, "prefs", "set", "membership.consoles_allowed", '["a1b2c3d4e5f6"]')
     assert _run(monkeypatch, *argv) == 0
     change = _envelope(capsys)["data"]
@@ -173,7 +174,7 @@ def test_prefs_set_works_while_the_service_holds_the_database(
 def test_the_human_listing_names_each_source(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
-    database = str(tmp_path / "db.sqlite")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
     assert _run(monkeypatch, "--database", database, "prefs", "set", "dialling.window_s", "0.7") == 0
     capsys.readouterr()
     assert _run(monkeypatch, "--database", database, "prefs") == 0
@@ -261,7 +262,7 @@ def test_the_note_says_when_a_running_service_acts_on_the_change(
 ) -> None:
     """A console put on the list is not taken in "within about a second": it waits for the next
     registry read, and for its next wake. The note promises only what the service does."""
-    database = str(tmp_path / "db.sqlite")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
     assert _run(monkeypatch, "--json", "--database", database, "prefs", *argv) == 0
     change = _envelope(capsys)["data"]
     assert isinstance(change, dict)

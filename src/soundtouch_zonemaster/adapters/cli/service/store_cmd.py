@@ -16,7 +16,7 @@ import rich_click as click
 from pydantic import BaseModel
 
 from ....__init__conf__ import service_command
-from ....application.errors import StoreBusyError, StoreError
+from ....application.errors import StoreBusyError, StoreError, StoreMissingError
 from ....application.outcome import ExitCode, OptionsError
 from ...config.errors import ConfigInputError
 from ...logging.narration import log
@@ -49,11 +49,17 @@ class ChannelsReport(BaseModel):
 
 
 def open_store_or_exit(ctx: click.Context, shared: Shared, *, exclusive: bool, command: str) -> HouseStore:
-    """The store for this invocation, opened, or the refusal reported and the context exited."""
+    """The store for this invocation, opened, or the refusal reported and the context exited.
+
+    Never created: only the service creates the house database. A verb that created one would answer
+    a mistyped path with a new, empty database - ``switch off (changed)`` while the service reads
+    the real one - and run as root before the first start it would leave files the service cannot
+    open.
+    """
     try:
         choice = database_for(shared)
         store = store_opener_of(ctx)(choice.setting, password=choice.password, log=log)
-        store.open(exclusive=exclusive)
+        store.open(exclusive=exclusive, create=False)
     except ConfigInputError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
@@ -63,6 +69,10 @@ def open_store_or_exit(ctx: click.Context, shared: Shared, *, exclusive: bool, c
     except StoreBusyError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(ExitCode.REFUSED)
+    except StoreMissingError as exc:
+        remedy = f"{exc}; only the service creates the house database - start the service once, or check the setting"
+        report_failure(StoreMissingError(remedy), command=command, mode=shared.mode)
+        ctx.exit(ExitCode.ERROR)
     except StoreError as exc:
         report_failure(exc, command=command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)

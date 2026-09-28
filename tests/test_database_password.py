@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from nothing_typed import NOTHING_TYPED
+from service_database import created_by_the_service
 
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
 from soundtouch_zonemaster.adapters.config import loader
@@ -366,7 +367,7 @@ def _recording_opener(tmp_path: Path) -> tuple[list[tuple[str, Secret | None]], 
 
     def open_store(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
         handed.append((database, password))
-        return open_house_store(str(tmp_path / "stand-in.sqlite"), password=None, log=log)
+        return open_house_store(str(created_by_the_service(tmp_path / "stand-in.sqlite")), password=None, log=log)
 
     return handed, open_store
 
@@ -386,11 +387,12 @@ def test_a_typed_sqlite_database_opens_on_a_host_with_a_configured_password(
     """The configured password belongs to the configured PostgreSQL database; a SQLite file typed
     for one command is opened without it rather than refused for having been handed one."""
     _configured_house(monkeypatch)
-    database = tmp_path / "copy.sqlite"
+    database = created_by_the_service(tmp_path / "copy.sqlite")
     assert _switch(monkeypatch, "--database", str(database)) == 0
     captured = capsys.readouterr()
-    assert json.loads(captured.out)["ok"] is True
-    assert database.exists(), "the typed database was opened"
+    envelope = json.loads(captured.out)
+    assert envelope["ok"] is True
+    assert envelope["data"]["database"] == str(database), "the typed database was opened"
     assert NOT_USED in captured.err
     assert FAKE not in captured.out + captured.err
 

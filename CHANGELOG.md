@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `switch`, `channels export`, `channels import`, `prefs`, `prefs set` and `prefs unset` no longer
+  create the house database when the one they are given is not there. They refuse with exit 2 and
+  `StoreMissingError`, naming the path: only the service creates the database. Before, a mistyped
+  `--database` got a new, empty database and `switch off (changed)` while the service went on
+  reading the real one, and a verb run as root before the first start left files the service could
+  not open. A fresh install is unaffected: the installer's switch file is imported on the first
+  start, which is what creates the database.
+
 ## [0.5.0] 2026-09-28 01:25:05
 
 ### Added

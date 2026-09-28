@@ -92,5 +92,6 @@ class StoreMissingError(StoreError):
 
     Its own type because for a caller that only reads - ``config`` - it is not a fault but an
     answer: nothing is stored in a database that does not exist. Opening would have created an
-    empty one at whatever path was typed, which is the last thing a view should leave behind.
+    empty one at whatever path was typed, which is the last thing a view should leave behind. The
+    store verbs refuse on it instead, because only the service creates the house database.
     """
