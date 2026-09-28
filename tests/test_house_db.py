@@ -28,9 +28,11 @@ from soundtouch_zonemaster.adapters.files.house_db import (
     FileLock,
     HouseDatabase,
     database_url,
+    schema_exists,
 )
 from soundtouch_zonemaster.adapters.files.house_schema import MEMBER, METADATA
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
+from soundtouch_zonemaster.adapters.files.house_switch import read_switch, write_switch
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError, StoreMissingError
 from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.secret import Secret
@@ -39,6 +41,7 @@ if TYPE_CHECKING:
     import sqlite3
 
     from conftest import PostgresLogin
+    from sqlalchemy.engine import Connection
 
 HEAD = ScriptDirectory(str(MIGRATIONS)).get_current_head()
 
@@ -190,6 +193,98 @@ def test_a_database_asked_not_to_be_created_opens_when_it_is_there(house_databas
         assert store.load_preferences() == ()
     finally:
         store.close()
+
+
+def test_probe_of_a_database_that_was_never_created_reports_no_schema(house_database: str) -> None:
+    """A SQLite file not there yet, or the fixture's freshly emptied server database: a probe
+    leaves either exactly as it found it, and answers that neither holds a house schema."""
+    database = HouseDatabase(house_database)
+    with database.probe() as connection:
+        if database.url.get_backend_name() == "sqlite":
+            assert connection is None
+        else:
+            assert connection is not None
+            assert not schema_exists(connection)
+    if database.url.get_backend_name() == "sqlite":
+        assert not Path(str(database.url.database)).exists(), "a probe of a missing file must not create it"
+    else:
+        engine = create_engine(house_database)
+        try:
+            with engine.connect() as raw:
+                assert not inspect(raw).has_table("alembic_version"), "a probe must not migrate an empty database"
+        finally:
+            engine.dispose()
+
+
+def test_probe_of_a_migrated_database_reports_its_schema(house_database: str) -> None:
+    _opened(house_database).close()
+    database = HouseDatabase(house_database)
+    with database.probe() as connection:
+        assert connection is not None
+        assert schema_exists(connection)
+
+
+def test_probe_refuses_a_read_it_cannot_make_rather_than_reporting_no_schema(tmp_path: Path) -> None:
+    """A read failure must be loud, never fold into "not there", which a caller would read as
+    safe to create."""
+    database = tmp_path / "house.sqlite"
+    database.write_bytes(b"this is not a database, it is a sentence " * 100)
+    with pytest.raises(StoreError, match=str(database)), HouseDatabase(str(database)).probe():
+        pass
+
+
+def test_open_with_a_seed_writes_it_in_the_transaction_that_creates_the_schema(house_database: str) -> None:
+    """The seed runs inside the migration that brings a schema-less database to head, on both backends."""
+    seen: list[str] = []
+
+    def seed(connection: Connection) -> None:
+        seen.append("seeded")
+        write_switch(connection, on=False)
+
+    database = HouseDatabase(house_database)
+    database.open(exclusive=False, create=True, seed=seed)
+    try:
+        with database.reading() as connection:
+            held = read_switch(connection)
+    finally:
+        database.close()
+    assert seen == ["seeded"]
+    assert held is False
+
+
+def test_open_never_seeds_a_database_that_already_had_a_schema(house_database: str) -> None:
+    """A seed is only ever owed to a database this call creates from nothing."""
+    _opened(house_database).close()
+    seen: list[str] = []
+
+    def seed(connection: Connection) -> None:
+        del connection
+        seen.append("seeded")
+
+    database = HouseDatabase(house_database)
+    database.open(exclusive=False, create=True, seed=seed)
+    database.close()
+    assert seen == []
+
+
+def test_seed_is_only_valid_together_with_create(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="create=True"):
+        HouseDatabase(str(tmp_path / "house.sqlite")).open(exclusive=False, create=False, seed=lambda _c: None)
+
+
+def test_a_seed_that_is_interrupted_leaves_no_schema_behind(tmp_path: Path) -> None:
+    """The schema and the seed commit together or not at all: an interrupt inside the seed rolls
+    the whole migration back, so the next call still sees a database that was never created."""
+    setting = str(tmp_path / "house.sqlite")
+
+    def cut_off(_connection: Connection) -> None:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        HouseDatabase(setting).open(exclusive=False, create=True, seed=cut_off)
+
+    with HouseDatabase(setting).probe() as connection:
+        assert connection is None or not schema_exists(connection)
 
 
 def test_a_failed_write_leaves_nothing_behind(house_database: str) -> None:

@@ -44,7 +44,7 @@ from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from alembic.util.exc import CommandError
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError, DBAPIError, NoSuchModuleError, SQLAlchemyError
 
@@ -71,6 +71,7 @@ __all__ = [
     "HouseDatabase",
     "database_url",
     "reason_for",
+    "schema_exists",
 ]
 
 LOCK_SUFFIX = ".lock"
@@ -134,6 +135,18 @@ def database_url(setting: str) -> URL:
 def _sqlalchemy_reads_a_password(url: URL) -> bool:
     """Whether the parsed URL hands the driver a password: its userinfo, or a password query key."""
     return url.password is not None or any(is_a_password_key(key) for key in url.query)
+
+
+def schema_exists(connection: Connection) -> bool:
+    """Whether the house schema is there at all: Alembic's own version table.
+
+    Every version of this program writes it inside the same transaction that creates the rest of
+    the schema, so its presence is the one backend-independent way to tell a database that has
+    never been brought up by this program from one that has, without assuming any table of its
+    own is there yet - which is exactly what a caller reading a database before it is known to
+    hold a house at all must not do.
+    """
+    return inspect(connection).has_table("alembic_version")
 
 
 class _WriterLock(Protocol):
@@ -253,7 +266,7 @@ class HouseDatabase:
         self._lock: _WriterLock | None = None
         self._locked = False
 
-    def open(self, *, exclusive: bool, create: bool = True) -> None:
+    def open(self, *, exclusive: bool, create: bool = True, seed: Callable[[Connection], None] | None = None) -> None:
         """Connect, take the writer lock when asked, and bring the schema to head. Nothing is held on a refusal.
 
         Building the engine is inside its own guard: an unknown dialect+driver combination raises
@@ -267,7 +280,19 @@ class HouseDatabase:
         Without ``create``, a SQLite file that is not there is refused as missing BEFORE anything
         connects, because the first connection is what creates it. A PostgreSQL server never
         creates a database on connect, so there it changes nothing.
+
+        ``seed`` runs once, inside the SAME transaction that brings a database with no schema at
+        all up to head, so the schema and whatever the seed writes commit together or roll back
+        together: an interrupt anywhere in between - a Ctrl-C, a dropped session, a full disk -
+        leaves no schema behind rather than a schema missing the seed's writes, so the next call
+        still finds a database that was never created and seeds it again. It is never called for
+        a database that already had a schema, at head or behind it: only a database this call
+        creates from nothing owes anything to a seed, and a caller that passes one without
+        ``create=True`` has nothing in mind for it to seed, so that is refused outright.
         """
+        if seed is not None and not create:
+            message = "seed is only valid together with create=True"
+            raise ValueError(message)
         if not create and self.url.get_backend_name() == "sqlite" and not Path(str(self.url.database)).exists():
             message = f"{self.where}: does not exist"
             raise StoreMissingError(message)
@@ -283,7 +308,7 @@ class HouseDatabase:
             if exclusive:
                 self._lock.acquire()
                 self._locked = True
-            self._bring_up_to_date(self._lock)
+            self._bring_up_to_date(self._lock, seed=seed)
         except SQLAlchemyError as exc:
             self._refuse(exc)
         except BaseException:
@@ -345,6 +370,30 @@ class HouseDatabase:
         with self._require().execution_options(**{_WRITE: True}).begin() as connection:
             yield connection
 
+    @contextmanager
+    def probe(self) -> Generator[Connection | None]:
+        """A connection that migrates nothing and creates no file; ``None`` for a SQLite file not there.
+
+        Built with the same engine settings :meth:`open` would use (the SQLite version check, the
+        PostgreSQL connect and statement timeouts, the password), so a caller asking whether a
+        database is already there, and what it holds, sees exactly what the store would see -
+        without ever bringing a schema-less one up to head, which on PostgreSQL, where no file
+        tells an empty database from a missing one, ``open`` would do. Never takes the writer
+        lock, never touches this instance's own engine, and disposes its own before returning.
+        """
+        if self.url.get_backend_name() == "sqlite" and not Path(str(self.url.database)).exists():
+            yield None
+            return
+        engine = self._build_engine()
+        try:
+            with engine.connect() as connection:
+                yield connection
+        except SQLAlchemyError as exc:
+            message = f"{self.where}: could not be read ({reason_for(exc)})"
+            raise StoreError(message) from exc
+        finally:
+            engine.dispose()
+
     def _require(self) -> Engine:
         if self._engine is None:
             message = f"{self.where}: the house database was used before open()"
@@ -379,17 +428,17 @@ class HouseDatabase:
             return FileLock(Path(str(self.url.database)))
         return AdvisoryLock(engine, where=self.where)
 
-    def _bring_up_to_date(self, lock: _WriterLock) -> None:
+    def _bring_up_to_date(self, lock: _WriterLock, *, seed: Callable[[Connection], None] | None = None) -> None:
         """Migrate a database behind head, and only under the writer lock."""
         script = ScriptDirectory(str(MIGRATIONS))
         if self._current(script) == script.get_current_head():
             return
         if self._locked:
-            self._upgrade()
+            self._upgrade(seed=seed)
             return
         lock.acquire()
         try:
-            self._upgrade()
+            self._upgrade(seed=seed)
         finally:
             lock.release()
 
@@ -408,21 +457,30 @@ class HouseDatabase:
             raise StoreError(message) from exc
         return current
 
-    def _upgrade(self) -> None:
+    def _upgrade(self, *, seed: Callable[[Connection], None] | None = None) -> None:
         """Bring the schema to head, with the ordinary statement timeout lifted for the run.
 
         The connect-time ``statement_timeout`` exists to bound an ordinary query against a server
         that stopped answering; a real migration may legitimately touch more rows than that
         allows. ``SET LOCAL`` only lasts this one transaction, so every OTHER statement on this
         connection keeps the connect-time bound once the migration commits.
+
+        ``seed`` runs here, inside this same transaction, but only when this connection had no
+        revision at all before the upgrade ran: a database being carried forward from an earlier
+        version already has whatever a seed exists to write, and must never have it overwritten.
+        Read on this connection, under the lock this method is always called holding, so it
+        reflects reality at this exact moment rather than a caller's earlier, possibly stale guess.
         """
         config = Config()
         config.set_main_option("script_location", str(MIGRATIONS))
         with self.writing() as connection:
             if connection.dialect.name == "postgresql":
                 connection.execute(text("SET LOCAL statement_timeout = 0"))
+            fresh = MigrationContext.configure(connection).get_current_revision() is None
             config.attributes["connection"] = connection
             command.upgrade(config, "head")
+            if seed is not None and fresh:
+                seed(connection)
 
 
 def _sqlite_connect(dbapi_connection: sqlite3.Connection, _record: ConnectionPoolEntry) -> None:
