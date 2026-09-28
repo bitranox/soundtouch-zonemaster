@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import threading
 from typing import TYPE_CHECKING
 
 import pytest
@@ -277,6 +278,41 @@ def test_a_second_exclusive_open_is_refused_but_a_reader_is_not(house_database: 
     assert holder.is_on() is False
     reader.close()
     holder.close()
+
+
+def test_two_simultaneous_switch_writes_never_collide_on_a_unique_violation(house_database: str) -> None:
+    """``switch`` opens the store WITHOUT the writer lock (the whole point: turning the house off
+    is done to a running service), so two invocations really can write the row at the same
+    instant. A delete-then-insert races under PostgreSQL's READ COMMITTED: one writer's DELETE can
+    unblock and find the OTHER writer's just-committed row still there, then its own INSERT
+    duplicates that id. SQLite serialises every writer through one file lock and never shows
+    this, so this proves it only where it can happen (OPEN-WORK rank 204)."""
+    if not house_database.startswith("postgresql"):
+        pytest.skip("SQLite's own writer lock already serialises every write; nothing races there")
+    a = _store(house_database)
+    b = _store(house_database)
+    a.open(exclusive=False)
+    b.open(exclusive=False)
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(2)
+
+    def _flip(store: SqlHouseStore, *, on: bool) -> None:
+        barrier.wait()
+        try:
+            for _ in range(30):
+                store.set_switch(on=on)
+        except BaseException as exc:  # noqa: BLE001 - collected and asserted on below, not swallowed
+            errors.append(exc)
+
+    first = threading.Thread(target=_flip, args=(a,), kwargs={"on": True})
+    second = threading.Thread(target=_flip, args=(b,), kwargs={"on": False})
+    first.start()
+    second.start()
+    first.join()
+    second.join()
+    a.close()
+    b.close()
+    assert errors == []
 
 
 def test_an_import_of_channels_needs_the_writer_lock(house_database: str, tmp_path: Path) -> None:

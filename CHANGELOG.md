@@ -11,6 +11,10 @@ All notable changes to this project are documented here. The format follows
 - `channels export` now reads the house database once and writes the file atomically, so the
   reported channel count can no longer disagree with the exported text (it used to read the store
   twice in two separate transactions).
+- The switch row is now an upsert (`INSERT ... ON CONFLICT DO UPDATE`) instead of delete-then-
+  insert, on both backends. `switch` opens the store without the writer lock, so two invocations
+  really can write the row at the same instant; on PostgreSQL under READ COMMITTED that could end
+  in a unique-constraint violation instead of the switch simply landing on whichever value won.
 
 ### Changed
 

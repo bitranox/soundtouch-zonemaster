@@ -5,6 +5,12 @@ missing row, or a read that fails, means ON, so a lost database cannot silently 
 working, and turning the service off stays a deliberate act. The word and the poll interval are
 still the domain's (``domain/switch.py``).
 
+Every write is an UPSERT on the fixed row id, for the reason ``house_preferences.py`` gives:
+delete-then-insert under READ COMMITTED lets two writers collide on PostgreSQL (OPEN-WORK rank
+204), and ``switch`` is the one house-store write a running service does not serialise - it opens
+the store WITHOUT the writer lock precisely so a person can turn the house off while the service
+runs, which means two ``switch`` invocations really can land at the same moment.
+
 **The old file is watched too, for one reason.** Anybody who has operated this house writes
 ``off`` into ``zone.switch``, and after the move nothing reads it any more, so the house keeps
 playing with no sign of why. The watch says so once each time that file appears, naming it and
@@ -17,7 +23,8 @@ import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import select
+from sqlalchemy.dialects import postgresql, sqlite
 
 from ...domain.switch import OFF
 from .house_schema import SWITCH
@@ -46,10 +53,22 @@ def write_switch(connection: Connection, *, on: bool) -> bool:
 
     A switch never set already reads as on, so setting it on is no change even though a row
     appears: the answer is about the house, not about the table.
+
+    One statement, on both backends: two ``switch`` invocations landing at the same instant race
+    on the SELECT that decides ``changed``, never on the write itself, and each still leaves the
+    row holding exactly what it asked for.
     """
     before = read_switch(connection)
-    connection.execute(delete(SWITCH))
-    connection.execute(insert(SWITCH).values(id=1, word=ON if on else OFF, changed_at=datetime.now(UTC).isoformat()))
+    row = {"id": 1, "word": ON if on else OFF, "changed_at": datetime.now(UTC).isoformat()}
+    replaced = {"word": row["word"], "changed_at": row["changed_at"]}
+    if connection.dialect.name == "postgresql":
+        connection.execute(
+            postgresql.insert(SWITCH).values(**row).on_conflict_do_update(index_elements=["id"], set_=replaced)
+        )
+    else:
+        connection.execute(
+            sqlite.insert(SWITCH).values(**row).on_conflict_do_update(index_elements=["id"], set_=replaced)
+        )
     return (True if before is None else before) != on
 
 
