@@ -40,6 +40,7 @@ import sys
 import threading
 import time
 import traceback
+import types
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -98,6 +99,66 @@ def _loops() -> list[asyncio.AbstractEventLoop]:
     return found
 
 
+_FRAME_ATTRS = (("cr_frame", "cr_await"), ("ag_frame", "ag_await"), ("gi_frame", "gi_yieldfrom"))
+
+
+def _frame_and_next(obj: object) -> tuple[object, object] | None:
+    """The frame a coroutine, async generator or generator is suspended in, and what it awaits."""
+    for frame_attr, next_attr in _FRAME_ATTRS:
+        if hasattr(obj, frame_attr):
+            return getattr(obj, frame_attr), getattr(obj, next_attr, None)
+    return None
+
+
+def _unwrap(awaited: object) -> object | None:
+    """The coroutine or generator behind an awaitable that has no frame of its own.
+
+    ``anext(agen, default)`` and ``agen.__anext__()`` hand back builtin wrappers with no frame and
+    no attribute naming the generator; the garbage collector's referents are the only way through,
+    and ``anext`` is two wrappers deep (``anext_awaitable`` holds an ``async_generator_asend``,
+    which holds the generator), so this searches a few levels rather than one.
+    """
+    level = [awaited]
+    for _ in range(3):
+        following: list[object] = []
+        for obj in level:
+            for ref in gc.get_referents(obj):
+                if _frame_and_next(ref) is not None:
+                    return ref
+                following.append(ref)
+        level = following[:64]
+    return None
+
+
+def _await_chain(task: asyncio.Task[object]) -> list[str]:
+    """Every frame from the task's coroutine down to what it is really waiting on.
+
+    ``Task.print_stack`` shows ONE frame for a suspended coroutine, which named ``_fetch_once`` and
+    nothing inside it when the CI hang of 2026-09-28 needed the line the stop was lost on.
+    """
+    lines: list[str] = []
+    obj: object | None = task.get_coro()
+    for _ in range(64):
+        if obj is None:
+            break
+        found = _frame_and_next(obj)
+        if found is None:
+            inner = _unwrap(obj)
+            if inner is None:
+                lines.append(f"    awaiting {obj!r}")
+                break
+            lines.append(f"    via {type(obj).__qualname__}")
+            obj = inner
+            continue
+        frame, obj = found
+        if not isinstance(frame, types.FrameType):
+            lines.append("    (finished frame)")
+            break
+        code = frame.f_code
+        lines.append(f'    File "{code.co_filename}", line {frame.f_lineno}, in {code.co_name}')
+    return lines
+
+
 def _tasks_on_loop(loop: asyncio.AbstractEventLoop, out: io.TextIOBase) -> None:
     """Ask the loop itself for its tasks: safe from this thread, and it proves the loop turns."""
     done = threading.Event()
@@ -108,7 +169,8 @@ def _tasks_on_loop(loop: asyncio.AbstractEventLoop, out: io.TextIOBase) -> None:
             for task in asyncio.all_tasks(loop):
                 buf = io.StringIO()
                 task.print_stack(file=buf)
-                text.append(f"--- {task!r}\n{buf.getvalue()}")
+                chain = "\n".join(_await_chain(task))
+                text.append(f"--- {task!r}\n{buf.getvalue()}  await chain:\n{chain}\n")
         except BaseException:  # noqa: BLE001
             text.append(traceback.format_exc())
         finally:
