@@ -46,6 +46,8 @@ from deploy_service import (
     deploy,
     main,
     plan_steps,
+    settle_window,
+    timespan_s,
     unit_verdict,
     venv_findings,
 )
@@ -78,7 +80,11 @@ class FakeSystemd:
     """The runner: a unit with a state, uv that answers, and the installer's commands recorded.
 
     ``start_states`` is what ``is-active`` reports after a start, one entry per poll, the last one
-    repeated for ever - ``["activating", "active"]`` is a unit that takes one poll to come up.
+    repeated for ever - ``["activating", "active"]`` is a unit that takes one poll to come up, and
+    ``["active", "active", "failed"]`` one that exits two polls after systemd called it started.
+    ``restart_counts`` is what ``NRestarts`` reads, the same way: a unit that systemd restarts
+    between two polls is ``active`` at both, and only the count shows it. ``restart_sec`` is the
+    unit's ``RestartSec`` as ``systemctl show`` prints it.
     """
 
     def __init__(
@@ -89,10 +95,14 @@ class FakeSystemd:
         start_states: tuple[str, ...] = ("active",),
         uv: bool = True,
         on_stop: Callable[[], None] | None = None,
+        restart_counts: tuple[int, ...] = (0,),
+        restart_sec: str = "10s",
     ) -> None:
         self.loaded = loaded
         self.state = "active" if active else "inactive"
         self.start_states = list(start_states)
+        self.restart_counts = list(restart_counts)
+        self.restart_sec = restart_sec
         self.uv = uv
         self.on_stop = on_stop
         self.calls: list[list[str]] = []
@@ -111,7 +121,7 @@ class FakeSystemd:
 
     def _systemctl(self, args: list[str]) -> Ran:
         if args[:2] == ["show", "-p"]:
-            return Ran(code=0, stdout="loaded\n" if self.loaded else "not-found\n", stderr="")
+            return Ran(code=0, stdout=f"{self._property(args[2])}\n", stderr="")
         if args[0] == "is-active":
             shown = self._after_start() if self.state == "starting" else self.state
             return Ran(code=0 if shown == "active" else 3, stdout=f"{shown}\n", stderr="")
@@ -125,6 +135,17 @@ class FakeSystemd:
 
     def _after_start(self) -> str:
         return self.start_states.pop(0) if len(self.start_states) > 1 else self.start_states[0]
+
+    def _property(self, name: str) -> str:
+        if name == "LoadState":
+            return "loaded" if self.loaded else "not-found"
+        if name == "RestartUSec":
+            return self.restart_sec
+        if name == "NRestarts":
+            counts = self.restart_counts
+            return str(counts.pop(0) if len(counts) > 1 else counts[0])
+        message = f"the fake systemd has no property {name}"
+        raise AssertionError(message)
 
     def verbs(self) -> list[str]:
         """The state-changing commands in the order they ran: what a person would have seen happen."""
@@ -152,6 +173,7 @@ class FakeHouse:
         drain_after: int | None = 1,
         exists: bool = True,
         distributions: tuple[str, ...] = ("pydantic", "soundtouch-zonemaster"),
+        clock: FakeClock | None = None,
     ) -> None:
         self.on = on
         self.members = list(members)
@@ -160,6 +182,8 @@ class FakeHouse:
         self.dists = list(distributions)
         self.reads_while_off = 0
         self.switched: list[bool] = []
+        self.clock = clock
+        self.switched_at: list[tuple[bool, float]] = []
         self.backups: list[Path] = []
 
     def show(self) -> HouseView:
@@ -172,6 +196,8 @@ class FakeHouse:
     def set_switch(self, *, on: bool) -> None:
         self.on = on
         self.switched.append(on)
+        if self.clock is not None:
+            self.switched_at.append((on, self.clock.t))
 
     def backup(self, to: Path) -> BackupView:
         self.backups.append(to)
@@ -277,6 +303,48 @@ def test_a_unit_that_fails_to_start_leaves_the_house_off(tmp_path: Path) -> None
     assert house.on is False
     assert house.switched == [False]
     assert "install" in str(caught.value), "the refusal says how far the deploy got"
+
+
+def test_a_unit_that_exits_after_it_became_active_is_not_deployed(tmp_path: Path) -> None:
+    """``active`` proves only that the program was exec'd (the unit is ``Type=exec``).
+
+    A service that refuses its configuration exits a moment later, and with ``Restart=on-failure``
+    systemd starts it again and again. Handing the house back to that is handing it to nothing, so
+    the unit has to stay active for a while first.
+    """
+    systemd, house = FakeSystemd(start_states=("activating", "active", "active", "failed")), FakeHouse()
+
+    with pytest.raises(UnitNotActiveError, match="failed"):
+        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    assert house.on is False, "the switch is not handed back to a unit that did not stay up"
+    assert house.switched == [False]
+
+
+def test_a_restart_between_two_polls_is_caught_by_the_restart_count(tmp_path: Path) -> None:
+    """With a short RestartSec a crashing unit can read ``active`` at every poll; NRestarts cannot hide it."""
+    systemd = FakeSystemd(start_states=("active",), restart_counts=(0, 0, 0, 1), restart_sec="100ms")
+    house = FakeHouse()
+
+    with pytest.raises(UnitNotActiveError, match="restart"):
+        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    assert house.on is False
+
+
+def test_the_unit_stays_active_for_longer_than_its_restart_delay_before_the_house_is_handed_back(
+    tmp_path: Path,
+) -> None:
+    """A crash inside the window is seen only if the window outlasts one RestartSec; twice it is."""
+    clock = FakeClock()
+    house = FakeHouse(clock=clock)
+
+    deploy(_target(tmp_path), run=FakeSystemd(restart_sec="30s"), house=house, clock=clock)
+
+    restored_at = [at for on, at in house.switched_at if on]
+    assert house.on is True
+    assert restored_at, "the switch was handed back"
+    assert restored_at[0] >= 2 * 30, "not before the unit outlived two restart delays"
 
 
 def test_a_unit_that_stays_activating_is_refused_when_the_wait_runs_out(tmp_path: Path) -> None:
@@ -394,6 +462,35 @@ def test_the_plan_follows_from_what_was_read(situation: Situation, expected: lis
 )
 def test_only_active_is_ready_and_only_failed_ends_the_wait(state: str, verdict: bool | None) -> None:
     assert unit_verdict(state) is verdict
+
+
+@pytest.mark.parametrize(
+    ("printed", "seconds"),
+    [
+        ("10s", 10.0),
+        ("100ms", 0.1),
+        ("1min 30s", 90.0),
+        ("2h", 7200.0),
+        ("500us", 0.0005),
+        ("0", 0.0),
+        ("infinity", None),
+        ("", None),
+        ("10 parsecs", None),
+    ],
+)
+def test_a_restart_delay_is_read_as_systemctl_prints_it(printed: str, seconds: float | None) -> None:
+    read = timespan_s(printed)
+    if seconds is None:
+        assert read is None
+    else:
+        assert read == pytest.approx(seconds)
+
+
+@pytest.mark.parametrize(("restart_s", "window"), [(None, 15.0), (0.1, 15.0), (10.0, 20.0), (30.0, 60.0)])
+def test_the_settle_window_outlasts_two_restart_delays_and_never_falls_below_its_floor(
+    restart_s: float | None, window: float
+) -> None:
+    assert settle_window(restart_s) == window
 
 
 def test_a_clean_venv_has_no_findings() -> None:

@@ -28,7 +28,11 @@ The steps, in the order that matters:
    scripts an earlier name left behind: a new wheel never removes the old distribution, and a unit
    naming a superseded script starts cleanly on the OLD code while the deploy reports success.
 7. **Start** the unit and wait - bounded - until systemd says ``active``. ``activating`` is not
-   ready, and ``failed`` ends the wait at once.
+   ready, and ``failed`` ends the wait at once. Then it has to STAY active: the unit is
+   ``Type=exec``, so ``active`` proves only that the program was started, and a service that
+   refuses its configuration exits a second later and is restarted by ``Restart=on-failure``
+   again and again. It must stay active, with systemd's restart count unchanged, for twice the
+   unit's ``RestartSec`` (at least ``--settle`` seconds) before the house is handed back to it.
 8. **Restore the switch** to what it was before step 3.
 
 A failure after the stop leaves the unit stopped and the switch OFF, and says which steps were
@@ -42,6 +46,7 @@ printed on stdout; progress goes to stderr.
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -72,6 +77,11 @@ dissolve, each box with an 8 s HTTP timeout; this is that plus the service notic
 
 START_TIMEOUT_S = 60.0
 POLL_S = 1.0
+
+SETTLE_MIN_S = 15.0
+"""The least time a started unit must stay active. The window is twice the unit's ``RestartSec``
+when that is longer: a crash inside the window shows as a state other than ``active`` or as a
+restart counted, and a restart delay shorter than the window cannot hide one between two polls."""
 
 PROGRAM = "soundtouch-zonemaster"
 """The distribution this deploys. Any other installed distribution of ours is a superseded one."""
@@ -206,6 +216,45 @@ def unit_verdict(state: str) -> bool | None:
     if state == "failed":
         return False
     return None
+
+
+_SPAN_UNITS = {
+    "us": 1e-6,
+    "usec": 1e-6,
+    "ms": 1e-3,
+    "msec": 1e-3,
+    "s": 1.0,
+    "sec": 1.0,
+    "m": 60.0,
+    "min": 60.0,
+    "h": 3600.0,
+    "hr": 3600.0,
+    "d": 86400.0,
+}
+_SPAN_PART = re.compile(r"(\d+(?:\.\d+)?)([a-z]*)")
+
+
+def timespan_s(text: str) -> float | None:
+    """A systemd time span as ``systemctl show`` prints it (``10s``, ``100ms``, ``1min 30s``), in seconds. Pure.
+
+    ``None`` for anything else - ``infinity``, an empty value, a unit this does not know - so the
+    caller falls back to its own bound rather than to a number made up from half a reading.
+    """
+    parts = text.split()
+    if not parts:
+        return None
+    total = 0.0
+    for part in parts:
+        match = _SPAN_PART.fullmatch(part)
+        if match is None or (match.group(2) or "s") not in _SPAN_UNITS:
+            return None
+        total += float(match.group(1)) * _SPAN_UNITS[match.group(2) or "s"]
+    return total
+
+
+def settle_window(restart_s: float | None, *, least_s: float = SETTLE_MIN_S) -> float:
+    """How long a started unit must stay active: twice its restart delay, and never less than ``least_s``. Pure."""
+    return least_s if restart_s is None else max(least_s, 2 * restart_s)
 
 
 def _ours(name: str) -> bool:
@@ -360,6 +409,7 @@ class Target:
     backup_dir: Path = BACKUP_DIR
     drain_timeout_s: float = DRAIN_TIMEOUT_S
     start_timeout_s: float = START_TIMEOUT_S
+    settle_min_s: float = SETTLE_MIN_S
 
 
 class DeployReport(BaseModel):
@@ -374,6 +424,8 @@ class DeployReport(BaseModel):
     backup: BackupView | None = None
     install: InstallReport | None = None
     unit_state: str | None = None
+    settled_s: float | None = None
+    """How long the started unit was watched staying active before the house was handed back."""
 
 
 def _say(text: str) -> None:
@@ -398,6 +450,11 @@ def check_preconditions(target: Target, *, run: Runner) -> None:
 def unit_state(unit: str, *, run: Runner) -> str:
     """What ``systemctl is-active`` prints. Its exit code is non-zero for every state but active."""
     return _ran(run, ["systemctl", "is-active", unit]).stdout.strip() or "unknown"
+
+
+def unit_property(unit: str, name: str, *, run: Runner) -> str:
+    """One property as ``systemctl show -p NAME --value`` prints it; empty when it cannot be read."""
+    return _ran(run, ["systemctl", "show", "-p", name, "--value", unit]).stdout.strip()
 
 
 def read_situation(target: Target, *, run: Runner, house: House) -> Situation:
@@ -466,17 +523,47 @@ class _Run:
             raise VenvNotCleanError("; ".join(findings))
 
     def _start(self) -> None:
-        self._must(["systemctl", "start", self.target.unit])
+        unit = self.target.unit
+        self._must(["systemctl", "start", unit])
+        # Read once the start job has finished: an explicit start is where systemd resets the
+        # count, so a restart counted after this is one of THIS start's.
+        restarts = self._restarts()
         verdict, state = poll_until(
-            lambda: unit_state(self.target.unit, run=self.run),
+            lambda: unit_state(unit, run=self.run),
             unit_verdict,
             timeout_s=self.target.start_timeout_s,
             clock=self.clock,
         )
         self.report.unit_state = state
         if verdict is not True:
-            message = f"{self.target.unit} is {state}, not active (waited up to {self.target.start_timeout_s:g} s)"
+            message = f"{unit} is {state}, not active (waited up to {self.target.start_timeout_s:g} s)"
             raise UnitNotActiveError(message)
+        self._settle(restarts)
+
+    def _settle(self, restarts: str) -> None:
+        """Watch the started unit stay active, with no restart counted, for the whole window."""
+        unit = self.target.unit
+        restart_sec = unit_property(unit, "RestartUSec", run=self.run)
+        window = settle_window(timespan_s(restart_sec), least_s=self.target.settle_min_s)
+        deadline = self.clock.now() + window
+        while self.clock.now() < deadline:
+            self.clock.sleep(POLL_S)
+            state = unit_state(unit, run=self.run)
+            now_restarts = self._restarts()
+            self.report.unit_state = state
+            if state != "active":
+                message = f"{unit} was active and then {state} within {window:g} s (RestartSec {restart_sec or '?'})"
+                raise UnitNotActiveError(message)
+            if now_restarts != restarts:
+                message = (
+                    f"{unit} was restarted by systemd within {window:g} s of starting "
+                    f"(NRestarts {restarts} -> {now_restarts}): it exits after it starts"
+                )
+                raise UnitNotActiveError(message)
+        self.report.settled_s = window
+
+    def _restarts(self) -> str:
+        return unit_property(self.target.unit, "NRestarts", run=self.run)
 
     def _restore_switch(self) -> None:
         self.house.set_switch(on=True)
@@ -555,6 +642,13 @@ class ErrorEnvelope(BaseModel):
 @option("--json-bare", "as_json_bare", is_flag=True, help="the envelope on one line for jq")
 @option("--json", "as_json", is_flag=True, help="the envelope indented (it is always printed)")
 @option("--dry-run", "dry_run", is_flag=True, help="read the machine and print the plan; change nothing")
+@option(
+    "--settle",
+    default=SETTLE_MIN_S,
+    show_default=True,
+    type=float,
+    help="least seconds the unit must stay active (twice its RestartSec when longer)",
+)
 @option("--start-timeout", default=START_TIMEOUT_S, show_default=True, type=float, help="seconds to wait for active")
 @option("--drain-timeout", default=DRAIN_TIMEOUT_S, show_default=True, type=float, help="seconds for the zone to empty")
 @option("--backup-dir", default=str(BACKUP_DIR), show_default=True, help="where the database copy goes")
@@ -571,6 +665,7 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list
     backup_dir: str,
     drain_timeout: float,
     start_timeout: float,
+    settle: float,
     dry_run: bool,
     as_json: bool,
     as_json_bare: bool,
@@ -586,6 +681,7 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list
         backup_dir=Path(backup_dir),
         drain_timeout_s=drain_timeout,
         start_timeout_s=start_timeout,
+        settle_min_s=settle,
     )
     house = VenvHouse(install, run=run_command)
     try:
