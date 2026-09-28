@@ -1286,6 +1286,10 @@ async def test_a_first_start_takes_the_old_files_into_the_database_and_a_restart
         # The import is one synchronous step before any worker starts, so the line it writes is
         # also the moment the renames are done.
         await eventually(lambda: any("imported 2 channel(s)" in line for line in logs), "the channel import")
+        await eventually(
+            lambda: any("zone.switch" in line and "imported the switch" in line for line in logs),
+            "the switch import",
+        )
 
     assert not _channel_file(options).exists(), "the imported file is not left where it was read"
     assert _channel_file(options).with_name("channels.json.imported").exists()
@@ -1296,7 +1300,10 @@ async def test_a_first_start_takes_the_old_files_into_the_database_and_a_restart
     logs.clear()
 
     async with _running(options, logs):
-        await eventually(lambda: any("not imported" in line for line in logs), "the second start refusing the file")
+        await eventually(
+            lambda: any("zone.switch" in line and "not imported" in line for line in logs),
+            "the second start refusing the switch file BY NAME, not any 'not imported' line",
+        )
 
     assert _switch_of(options) is False, "a file written after the import changes nothing"
     assert _switch_file(options).exists(), "and it is left in place for a person to find"

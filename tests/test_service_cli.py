@@ -376,6 +376,11 @@ def test_an_old_channel_file_the_import_cannot_read_refuses_the_start_by_name(
     assert "channels.json" in envelope["message"]
     assert "Traceback" not in captured.err, "a refused start is an answer, not a crash"
     assert broken.exists(), "and the file is left where the person who has to fix it will look"
+    # The flock is released too (OPEN-WORK rank 205): import_legacy raises inside the run's own
+    # try/finally around store.close(), so a refused start must not leave the database held.
+    recovery = SqlHouseStore(str(tmp_path / "zonemaster.sqlite"), log=log)
+    recovery.open(exclusive=True)
+    recovery.close()
 
 
 def test_a_database_another_service_holds_refuses_the_start_as_busy(
