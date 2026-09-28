@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.1] 2026-09-28 15:08:20
+
 ### Changed
 
 - `switch`, `channels export`, `channels import`, `prefs`, `prefs set` and `prefs unset` no longer
