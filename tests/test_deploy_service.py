@@ -30,11 +30,13 @@ from service_database import created_by_the_service
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from deploy_service import (
     CONSOLE_SCRIPTS,
+    POLL_S,
     BackupView,
     HouseUnreadableError,
     HouseView,
     Situation,
     Step,
+    StepFailedError,
     Target,
     UnitMissingError,
     UnitNotActiveError,
@@ -97,12 +99,14 @@ class FakeSystemd:
         on_stop: Callable[[], None] | None = None,
         restart_counts: tuple[int, ...] = (0,),
         restart_sec: str = "10s",
+        stop_fails: bool = False,
     ) -> None:
         self.loaded = loaded
         self.state = "active" if active else "inactive"
         self.start_states = list(start_states)
         self.restart_counts = list(restart_counts)
         self.restart_sec = restart_sec
+        self.stop_fails = stop_fails
         self.uv = uv
         self.on_stop = on_stop
         self.calls: list[list[str]] = []
@@ -126,6 +130,8 @@ class FakeSystemd:
             shown = self._after_start() if self.state == "starting" else self.state
             return Ran(code=0 if shown == "active" else 3, stdout=f"{shown}\n", stderr="")
         if args[0] == "stop":
+            if self.stop_fails:
+                return Ran(code=1, stdout="", stderr="Job for the unit failed; it may be half stopped.")
             if self.on_stop is not None:
                 self.on_stop()
             self.state = "inactive"
@@ -269,15 +275,30 @@ def test_a_switch_that_was_off_stays_off_and_is_never_touched(tmp_path: Path) ->
 
 def test_a_zone_that_does_not_empty_changes_nothing_and_answers_no(tmp_path: Path) -> None:
     """Exit 1: the house is in use. The switch goes back on and the unit is never stopped."""
-    systemd, house = FakeSystemd(), FakeHouse(drain_after=None)
+    systemd, house, clock = FakeSystemd(), FakeHouse(drain_after=None), FakeClock()
 
     with pytest.raises(ZoneStillHeldError) as caught:
-        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+        deploy(_target(tmp_path), run=systemd, house=house, clock=clock)
 
     assert caught.value.exit_code == 1
+    assert 5 <= clock.t <= 5 + POLL_S, "the wait is --drain-timeout (5 s here) and one poll, not patience"
     assert systemd.verbs() == [], "nothing stopped, nothing installed"
     assert house.on is True
     assert "AABBCC0000A1" in str(caught.value)
+
+
+def test_a_stop_that_fails_leaves_the_house_off_and_installs_nothing(tmp_path: Path) -> None:
+    """A failed stop can leave the unit half stopped, and a half-stopped service is not one to hand
+    the house back to: the switch stays off, and nothing is installed over it."""
+    systemd, house = FakeSystemd(stop_fails=True), FakeHouse()
+
+    with pytest.raises(StepFailedError, match="stop") as caught:
+        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    assert house.on is False
+    assert house.switched == [False]
+    assert "install" not in systemd.verbs()
+    assert "done: backup, switch_off, drain" in str(caught.value)
 
 
 def test_activating_is_not_ready(tmp_path: Path) -> None:
