@@ -175,8 +175,7 @@ class ServiceState:
             consoles_allowed=options.consoles_allowed,
         )
         self._no_preference_read_yet(options)
-        self._speakers: dict[str, Speaker] = {}
-        self._observers: dict[str, asyncio.Task[None]] = {}
+        self._no_speaker_known_yet()
         self._joined: dict[str, str] = {}
         """Device id to the address it was joined at: what the zone HOLDS, not what it should."""
         self._refused: dict[str, float] = {}
@@ -239,6 +238,27 @@ class ServiceState:
         only because asyncio keeps a weak reference to a task, so one nobody holds can be
         collected while it is still fetching.
         """
+
+    def _no_speaker_known_yet(self) -> None:
+        """The speaker book at its empty start: who the boxes are, and what has been asked of them.
+
+        One group because they are one subject, ``SpeakerBook``'s: the registry fills the book, each
+        box in it gets an observer, and each is asked once what it is playing.
+        """
+        self._speakers: dict[str, Speaker] = {}
+        self._observers: dict[str, asyncio.Task[None]] = {}
+        self._not_asked_yet: set[str] = set()
+        """Boxes to be asked what they are playing: every box the registry lists for the first time.
+
+        Everything else the service knows arrives in a frame a box CHOSE to send, so a box it has
+        never asked reads its first frame after a wake as "playing its own radio" rather than as the
+        wake it is. At start that is every box; after it, a box added to the device list mid-run,
+        or a console a preference has just allowed and the registry read then lets in."""
+        self._registry_wanted = asyncio.Event()
+        """Set when the registry must be read before the next poll: a console has just been allowed.
+
+        The registry read is where a console is let into the speaker book, so without this one
+        allowed mid-run is not even watched until the poll comes round, 30 s in the house."""
 
     def _no_preference_read_yet(self, options: ServiceOptions) -> None:
         """The five preferences as the options give them, before the house database has been read.

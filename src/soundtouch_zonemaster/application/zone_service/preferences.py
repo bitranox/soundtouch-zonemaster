@@ -10,9 +10,10 @@ decides between a stored row and the configuration is the same for all of them.
 
 The house database is read again every switch poll, on a worker of its own, so a value set while
 the service runs is taken in without a restart. Each one lands at its natural point: the consoles
-at the next pass (one first allowed is watched from the next registry read, which is where that is
-decided), a fade at the next join, and a window or hold once nobody is dialling or holding a key -
-which is the dialling worker's to decide, so this only wakes it.
+at the next pass (one first allowed asks for a registry read at once, which is where watching it is
+decided, and is asked what it is playing), a fade at the next join, and a window or hold once
+nobody is dialling or holding a key - which is the dialling worker's to decide, so this only wakes
+it.
 """
 
 from __future__ import annotations
@@ -102,10 +103,11 @@ class PreferenceBook(ZoneReconcile):
         fade would be a pass for nothing. The window and the hold are not handed over here but asked
         for: the dialling worker hands them over once nobody is mid-gesture, so a number being
         typed finishes on the window it began with. The rewind and the fade are read where they are
-        used, and a fade reads its
-        length once, when it starts. A console taken off the list is let go at the next pass, and
-        stays watched until the next restart, because the speaker book never forgets a box; one put
-        on the list is watched from the next registry read.
+        used, and a fade reads its length once, when it starts. A console taken off the list is let
+        go at the next pass, and stays watched until the next restart, because the speaker book
+        never forgets a box. One put on the list asks for a registry read at once, which is where it
+        is let into the speaker book and watched, and is asked what it is playing: asleep, its next
+        wake takes it in; already on the house's stream, it belongs at once.
         """
         resolution = resolved(self.options.preferences, rows)
         for row, why in resolution.rejected:
@@ -130,6 +132,11 @@ class PreferenceBook(ZoneReconcile):
             # on that. Nothing else a preference moves is the pass's business: the rewind and the
             # fade are read where they are used, and the window and hold by the dialling worker.
             self._wanted.set()
+        if frozenset(self._preferences.consoles_allowed) - frozenset(before.consoles_allowed):
+            # Watched and placed now rather than at the next registry poll: without this a console
+            # allowed while asleep was taken in only on its second wake, and one already on the
+            # house's stream not until it next woke.
+            self._read_the_registry_now()
         for name in PreferenceName:
             moved = value_of(before, name) != value_of(self._preferences, name)
             if moved or before_set_by.get(name) != self._set_by.get(name):

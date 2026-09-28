@@ -245,8 +245,8 @@ def test_the_human_listing_keeps_a_multi_line_row_on_one_line(
         (
             ("set", "membership.consoles_allowed", '["AABBCC000012"]'),
             "a running service reads it within about a second; a console no longer allowed is let go at the "
-            "next pass, one newly allowed is watched from the next registry read (registry.poll_s) and taken in "
-            "when it next wakes",
+            "next pass, one newly allowed is asked what it is playing at once and taken in if it plays the "
+            "house's stream, or when it next wakes",
         ),
     ],
     ids=["fade", "consoles"],
@@ -260,8 +260,9 @@ def test_the_note_says_when_a_running_service_acts_on_the_change(
     argv: tuple[str, ...],
     note: str,
 ) -> None:
-    """A console put on the list is not taken in "within about a second": it waits for the next
-    registry read, and for its next wake. The note promises only what the service does."""
+    """A console put on the list is not always taken in "within about a second": only one already on
+    the house's stream is, and any other waits for its next wake. The note promises only what the
+    service does."""
     database = str(created_by_the_service(tmp_path / "db.sqlite"))
     assert _run(monkeypatch, "--json", "--database", database, "prefs", *argv) == 0
     change = _envelope(capsys)["data"]

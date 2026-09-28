@@ -55,10 +55,11 @@ TAKEN_IN = "a running service reads it within about a second"
 
 CONSOLE_TAKEN_IN = (
     "a running service reads it within about a second; a console no longer allowed is let go at the next pass, "
-    "one newly allowed is watched from the next registry read (registry.poll_s) and taken in when it next wakes"
+    "one newly allowed is asked what it is playing at once and taken in if it plays the house's stream, "
+    "or when it next wakes"
 )
-"""The console list is read as fast as the rest, but a console first allowed is not watched until the registry
-is read again, and one already awake is not taken in until it wakes again - so the note says so."""
+"""The console list is read as fast as the rest, but a console first allowed on its own station or asleep is
+taken in only when it next wakes, like any other box - so the note says so."""
 
 
 class PreferenceView(BaseModel):

@@ -291,9 +291,11 @@ decides it.
 
 **prefs set** `NAME VALUE`: parse `VALUE` as JSON, check it by the same rule a config file's value
 is, and write it to the house database as a row that beats every config layer; a running service
-reads it within about a second. A console added to `membership.consoles_allowed` is the exception
-to "at once": it is watched only from the next speaker-registry read (`registry.poll_s`) and taken
-in the next time it wakes. A refused value (out of bounds, not JSON, the wrong shape)
+reads it within about a second. A console added to `membership.consoles_allowed` makes the service
+read the speaker registry at once and ask the console what it is playing: one already playing the
+house's stream is taken in straight away, one asleep the next time it wakes, and one playing
+something of its own stays out, as any box on its own station does, until somebody switches it on
+or dials on it. A refused value (out of bounds, not JSON, the wrong shape)
 writes nothing and opens nothing; exit 1 for a refused value, exit 2 for an unknown name or
 unparseable JSON.
 

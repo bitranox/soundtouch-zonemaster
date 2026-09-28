@@ -30,6 +30,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A console added to `membership.consoles_allowed` while the service runs is watched at once rather
+  than from the next speaker-registry read (`registry.poll_s`, 30 s by default): the service reads
+  the registry straight away and asks the console what it is playing. One already playing the
+  house's stream is taken in at once, and one asleep is taken in on its next wake.
+- A speaker the registry lists for the first time while the service runs is asked what it is
+  playing, as every speaker is at start, so it is taken in on its first wake rather than its second.
 - `channels export` now reads the house database once and writes the file atomically, so the
   reported channel count can no longer disagree with the exported text (it used to read the store
   twice in two separate transactions).

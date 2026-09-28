@@ -49,6 +49,7 @@ from speaker_double import (
     user_activity_frame,
 )
 
+from soundtouch_zonemaster.adapters.aftertouch.registry import DEVICES_PATH
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
@@ -102,16 +103,13 @@ MASTER_ID = "5EB0CE000001"
 STUDIO_ID, STUDIO_IP = "AABBCC000010", "127.0.0.2"
 HALLWAY_ID, HALLWAY_IP = "AABBCC000011", "127.0.0.3"
 CONSOLE_ID, CONSOLE_IP = "AABBCC000012", "127.0.0.4"
-"""The speaker the channel list is seeded from, named the way the registry names it.
-
-A NAME and not an address, because the design picks one speaker deliberately rather than the first
-one to answer: the result must not depend on start order or on the radio.
-"""
+"""The three devices of the shipped fixture, moved onto addresses a test can reach. The third is
+the Lifestyle console, and the service must leave it alone without being told its address."""
+CONSOLE_NAME = "Bose Cinema"
+"""What the registry fixture calls the console, which is how the probe line names it."""
 
 MOVED_IP = "127.0.0.5"
 """Where the studio turns up after a reboot onto a new lease, in the one test that moves it."""
-"""The three devices of the shipped fixture, moved onto addresses a test can reach. The third is
-the Lifestyle console, and the service must leave it alone without being told its address."""
 
 AUX = "AUX"
 """What a box reports with somebody listening on the aux input. Never measured here, and nothing
@@ -4591,23 +4589,83 @@ async def test_a_console_put_on_the_list_while_the_house_runs_is_watched_and_joi
 ) -> None:
     """The other direction, without a restart: a console nobody allowed at start is not even watched.
 
-    It is watched from the first registry read after the row is set - the registry read is where
-    that is decided - and from then on a wake takes it in like any other box's. The wake is shown
-    from standby: a box first watched in the middle of a run was never asked what it was playing,
-    so a first frame saying "radio" alone would read as a box on its own station (the same for any
-    box the registry adds after the start).
+    The take that allows it asks for a registry read at once rather than at the next poll - the
+    registry read is where watching is decided - and the box is asked what it is playing, the
+    question every box is asked at start. So its FIRST frame after that is read against standby:
+    "radio" is a wake, and it is taken in, with no standby frame sent to it first. The poll is
+    pushed out past every wait, so it cannot be what found the console.
+
+    The probe line is the barrier before the wake, because a frame read before the answer lands
+    would be overwritten by it; in the house the wake comes long after the question.
     """
-    options = _options(world, tmp_path)
+    options = replace(_options(world, tmp_path), registry_poll_s=30.0)
+    within_s = 5.0
+    assert within_s < options.registry_poll_s, "the control: the registry poll cannot be what finds it"
     logs: list[str] = []
 
     async with _running(options, logs) as service:
         await eventually(lambda: _said(logs, f"({HALLWAY_ID}) at {HALLWAY_IP}"), "the start read the registry")
         assert not _said(logs, f"({CONSOLE_ID}) at {CONSOLE_IP}"), "the control: not watched while not allowed"
         _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
-        await eventually(lambda: _said(logs, f"({CONSOLE_ID}) at {CONSOLE_IP}"), "watched from the next registry read")
-        await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=SourceName.STANDBY))
+        await eventually(lambda: _said(logs, f"({CONSOLE_ID}) at {CONSOLE_IP}"), "watched at once", timeout=within_s)
+        await eventually(
+            lambda: _said(logs, f"{CONSOLE_NAME}: {SourceName.STANDBY}"),
+            "and asked what it is playing",
+            timeout=within_s,
+        )
         await world.console.notify(now_playing_frame(device_id=CONSOLE_ID, source=RADIO))
-        await eventually(lambda: CONSOLE_IP in _slaves(service), "and taken in when it woke")
+        await eventually(lambda: CONSOLE_IP in _slaves(service), "and taken in on its first wake", timeout=within_s)
+        reads = [path for path in world.registry.paths if path == DEVICES_PATH]
+        assert len(reads) == 2, f"one read at start and one for the take, not a read per loop turn: {len(reads)}"
+
+
+async def test_a_console_put_on_the_list_while_it_plays_the_house_stream_is_taken_in_at_once(
+    world: World, tmp_path: Path
+) -> None:
+    """Awake when it is allowed, and already playing the house's stream: taken in without a wake.
+
+    The answer to the question it is asked is what places it, exactly as at start, and a box
+    playing OUR stream belongs by the membership rule. Before a take asked for a registry read
+    and asked the box, it waited for the next poll to be watched at all and then for a frame it
+    had no reason to send. A console awake on a station of its own is NOT this case: it stays out
+    until it is switched on or dialled on, as any box on its own station does.
+    """
+    world.console.now_playing = now_playing_document(device_id=CONSOLE_ID, source=RADIO, owner=MASTER_ID)
+    options = replace(_options(world, tmp_path), registry_poll_s=30.0)
+    within_s = 5.0
+    assert within_s < options.registry_poll_s, "the control: the registry poll cannot be what finds it"
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await eventually(lambda: _said(logs, f"({HALLWAY_ID}) at {HALLWAY_IP}"), "the start read the registry")
+        assert not joins(world.console), "the control: not taken in while not allowed"
+        _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
+        await eventually(lambda: CONSOLE_IP in _slaves(service), "taken in at once", timeout=within_s)
+
+
+async def test_a_box_the_registry_adds_after_the_start_is_taken_in_on_its_first_wake(
+    world: World, tmp_path: Path
+) -> None:
+    """Any box first listed mid-run is asked what it is playing, as every box is at start.
+
+    Without the question its first frame is the first thing the service hears from it, and a
+    frame saying "radio" alone reads as a box on its own station rather than one just switched
+    on - so a box added to the registry mid-run was not taken in on its first wake, only on the
+    one after. No standby frame is sent to it here: its answer is what says it was asleep.
+    """
+    entries = json.loads(devices_at({STUDIO_ID: STUDIO_IP, HALLWAY_ID: HALLWAY_IP, CONSOLE_ID: CONSOLE_IP}))
+    world.registry.body = json.dumps([entry for entry in entries if entry["device_id"] != HALLWAY_ID])
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await eventually(lambda: _said(logs, f"({STUDIO_ID}) at {STUDIO_IP}"), "the start read the registry")
+        assert not _said(logs, f"({HALLWAY_ID}) at"), "the control: the hallway is not listed yet"
+        world.registry.body = json.dumps(entries)
+        await eventually(lambda: _said(logs, f"({HALLWAY_ID}) at {HALLWAY_IP}"), "watched from the next registry read")
+        await eventually(lambda: _said(logs, f"Bose Hallway: {SourceName.STANDBY}"), "and asked what it is playing")
+        await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
+        await eventually(lambda: HALLWAY_IP in _slaves(service), "and taken in on its first wake", timeout=5.0)
 
 
 async def test_a_stored_preference_that_is_not_usable_is_named_once_and_ignored(world: World, tmp_path: Path) -> None:

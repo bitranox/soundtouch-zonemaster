@@ -31,12 +31,43 @@ class SpeakerBook(ChannelBook):
     """The device list, the observers over it, and the names everything else logs by."""
 
     async def _poll_the_registry(self) -> None:
-        """Ask who the speakers are again, for ever: a new box must not need a restart."""
+        """Ask who the speakers are again, for ever: a new box must not need a restart.
+
+        Every poll period, or at once when a console has just been allowed. A box listed for the
+        first time is asked what it is playing here, as every box is at start, so that its first
+        wake reads as one.
+        """
         while True:
-            await asyncio.sleep(self.options.registry_poll_s)
+            await self._wait_for_the_next_registry_read()
             await self._read_the_registry()
             await self._seed_the_channels()
+            await self._ask_the_speakers_what_they_are_playing()
             self._wanted.set()
+
+    async def _wait_for_the_next_registry_read(self) -> None:
+        """Sleep out the poll period, unless a read is asked for sooner.
+
+        ``asyncio.wait`` rather than ``wait_for``: it never raises on its timeout, so there is no
+        TimeoutError handler here to swallow a cancel that races the deadline (the trap the
+        dialling worker's loop describes), and the waiter is cancelled on the way out either way.
+        """
+        asked = asyncio.ensure_future(self._registry_wanted.wait())
+        try:
+            await asyncio.wait({asked}, timeout=self.options.registry_poll_s)
+        finally:
+            asked.cancel()
+
+    def _read_the_registry_now(self) -> None:
+        """Have the registry read at once rather than at the next poll: a console has just been allowed.
+
+        The registry read is where a console is let into the speaker book and watched, and a box
+        new to the book is asked what it is playing right after it, which is what places it -
+        asleep, so its next frame is a wake, or already on the house's stream, so it belongs at
+        once. A console the book already holds (allowed earlier in the run, taken off, allowed
+        again) needs neither: it has been watched all along, and what it said while it was off the
+        list was recorded like anything else it says.
+        """
+        self._registry_wanted.set()
 
     def _heard_from(self, address: str) -> None:
         """A slave reported on its transport channel, so it is there. Liveness, never membership."""
@@ -52,6 +83,9 @@ class SpeakerBook(ChannelBook):
         from a later read is a gap in ITS view rather than evidence that a box has gone. Membership
         has its own reachability timeout, and that is the one allowed to drop a speaker.
         """
+        # Cleared BEFORE the read, so a console allowed while it is in flight asks for another one
+        # rather than being answered by a read that may have missed it.
+        self._registry_wanted.clear()
         skipped: list[str] = []
         try:
             speakers = await self.ports.fetch_speakers(
@@ -90,6 +124,7 @@ class SpeakerBook(ChannelBook):
         if known is None:
             self.log("registry", f"{speaker.name} ({speaker.device_id}) at {speaker.ip}")
             self._watch(speaker.device_id)
+            self._not_asked_yet.add(speaker.device_id)
         elif known.ip != speaker.ip:
             self.log("registry", f"{speaker.name} is at {speaker.ip} now")
 
@@ -117,14 +152,20 @@ class SpeakerBook(ChannelBook):
         self._observers.clear()
 
     async def _ask_the_speakers_what_they_are_playing(self) -> None:
-        """Ask every box once, at start, so that a wake later reads as a wake.
+        """Ask every box not asked yet, once, so that a wake later reads as a wake.
 
         Everything else the service knows arrives in a frame a box CHOSE to send. One that was
         already in standby has sent none, so without this its next frame - somebody switching it
         on - says "playing its own radio", which on its own is a reason to stay out. Asked once,
         they are all placed, and a box that does not answer keeps whatever is remembered about it.
+
+        At start that is every box. After it, it is a box the registry has just listed for the
+        first time, or a console just allowed: unasked, either would be watched with nothing known
+        about it, and taken in only on its SECOND wake.
         """
-        asked = list(self._speakers.values())
+        # In the order the registry listed them, which is the order the start has always asked in.
+        asked = [speaker for device_id, speaker in self._speakers.items() if device_id in self._not_asked_yet]
+        self._not_asked_yet.clear()
         answers: list[SpeakerEvent | None] = list(
             await asyncio.gather(*(self.ports.ask_now_playing(one.ip, one.device_id) for one in asked))
         )
