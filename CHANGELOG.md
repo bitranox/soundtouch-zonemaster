@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.2] 2026-09-28 21:03:10
+
 ### Fixed
 
 - A stop that arrived while `switch off` was still dissolving the zone - which is the order a
@@ -14,6 +16,11 @@ All notable changes to this project are documented here. The format follows
   to land while one box was answering. The stand-down now holds the master until it is down, and
   the service's own last stand-down finishes an interrupted one: every box is told, and the ports
   are closed.
+
+### Known issues
+
+- The rare stop that waits for ever on a station fetch, listed under 0.5.1, is still open: it has
+  not recurred since, in CI or locally, and its cause is not yet known.
 
 ## [0.5.1] 2026-09-28 15:08:20
 
