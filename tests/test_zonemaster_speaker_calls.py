@@ -87,8 +87,8 @@ async def _station_server(payload: bytes) -> tuple[asyncio.AbstractServer, str]:
     return server, f"http://127.0.0.1:{port}/stream"
 
 
-def _master(**kw: object) -> ZoneMaster:
-    return ZoneMaster(bind_ip="127.0.0.1", device_id="5EB0CE000001", log=lambda _k, _t: None, **kw)  # type: ignore[arg-type]
+def _master(*, slaves: dict[str, Slave] | None = None) -> ZoneMaster:
+    return ZoneMaster(bind_ip="127.0.0.1", device_id="5EB0CE000001", log=lambda _k, _t: None, slaves=slaves or {})
 
 
 async def test_taking_a_slave_on_reads_its_id_and_pushes_the_zone(speaker: FakeSpeaker) -> None:
