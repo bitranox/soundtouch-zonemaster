@@ -50,6 +50,21 @@ def _git(repo: Path, *args: str) -> bytes:
     return subprocess.run([GIT, *args], cwd=repo, check=True, capture_output=True).stdout  # noqa: S603 - argv list, literal args
 
 
+def _main_worktree_root(repo: Path) -> Path:
+    """The checkout git considers primary, resolved even from inside a linked worktree.
+
+    ``git rev-parse --git-common-dir`` names the one ``.git`` directory every worktree of a
+    repository shares - relative to the checkout it is run in for the main checkout itself,
+    absolute for a linked one. Its parent is the main checkout's own path, which is the path the
+    private redaction list actually names; a linked worktree's ``ep.ROOT`` sits somewhere else
+    entirely (``.claude/worktrees/<name>`` and similar) and no rule is meant to cover that.
+    """
+    common_dir = Path(_git(repo, "rev-parse", "--git-common-dir").decode("utf-8").strip())
+    if not common_dir.is_absolute():
+        common_dir = repo / common_dir
+    return common_dir.resolve().parent
+
+
 def _repo(path: Path) -> Path:
     """A real git repository, so the git-backed checks run against git."""
     path.mkdir(parents=True, exist_ok=True)
@@ -134,15 +149,19 @@ def test_every_capitalised_word_rule_covers_all_three_cases() -> None:
 @needs_private_list
 @pytest.mark.local_only
 def test_the_checkout_s_own_path_has_a_redaction_rule() -> None:
-    """A rule naming a path the checkout no longer sits at redacts nothing, and says nothing.
+    """A rule naming a path the MAIN checkout no longer sits at redacts nothing, and says nothing.
 
-    Renaming or moving the checkout fails here instead of quietly leaving the new path to whatever
-    the broader rules happen to catch. Marked local_only because the answer depends on where THIS
-    checkout sits, and a CI runner's path is no path the export will ever see.
+    Renaming or moving the main checkout fails here instead of quietly leaving the new path to
+    whatever the broader rules happen to catch. Keyed on ``_main_worktree_root``, not ``ep.ROOT``:
+    a linked worktree's ``ep.ROOT`` sits under its own path, which no rule is meant to name, so
+    asserting on it there would fail for a reason that has nothing to do with a renamed checkout.
+    Marked local_only because the answer depends on where THIS repository lives, and a CI runner's
+    path is no path the export will ever see.
     """
+    main_root = _main_worktree_root(ep.ROOT)
     patterns = {rule.pattern for rule in ep.rules()}
-    assert str(ep.ROOT) in patterns, (
-        f"the checkout sits at {ep.ROOT}, which no rule names; add it and keep the old spellings"
+    assert str(main_root) in patterns, (
+        f"the main checkout sits at {main_root}, which no rule names; add it and keep the old spellings"
     )
 
 
