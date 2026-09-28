@@ -3,24 +3,38 @@
 `tools/install_service.py` is shipped to the service host and run there, which is why its decisions are a
 record rather than a sequence of ssh commands: they can be read here, on a temporary directory,
 with real files. The steps it plans are proven by the state they leave behind - a venv path that
-exists, a switch file whose CONTENT is off - and never by a recorded call.
+exists, a house database whose switch row says off - and never by a recorded call alone.
 
 The rule that earns most of this file: an install must never flip the switch. Somebody may have
 turned the house on hours ago, and a deploy that quietly writes `off` over it stops the music
 without anybody touching a speaker; one that writes `on` over an `off` starts a zone in a flat
-where somebody deliberately stood it down.
+where somebody deliberately stood it down. And a first start must find it OFF: the switch lives in
+the database now, and the unit no longer names a switch file that could carry an `off` in.
+
+The switch step runs the real `tools/service_venv.py` in a subprocess, with this suite's own
+interpreter standing in for the service venv's python (it has the package installed, which is the
+one thing that script needs). Only `uv` is faked.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from service_database import created_by_the_service
+
+from soundtouch_zonemaster.composition import open_house_store
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from install_service import Install, apply, main, plan
+from install_service import Install, Ran, apply, main, plan
+
+_DATABASE_URL_ENV = "SOUNDTOUCH_ZONEMASTER___DATABASE__URL"
+_DATABASE_PASSWORD_ENV = "SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD"
 
 
 def _install(tmp_path: Path, *, wheel_exists: bool = True) -> Install:
@@ -30,18 +44,74 @@ def _install(tmp_path: Path, *, wheel_exists: bool = True) -> Install:
     return Install(prefix=tmp_path / "opt", state_dir=tmp_path / "state", wheel=wheel)
 
 
-class Recorder:
-    """The process seam: it records instead of running, and can be told to fail."""
+_SEEDED = {
+    "ok": True,
+    "command": "service_venv seed-switch",
+    "data": {"database": "x", "switch": "off", "written": True},
+}
 
-    def __init__(self, *, fails: str | None = None) -> None:
+
+class Recorder:
+    """The process seam: it records instead of running, and can be told to fail.
+
+    The seed's answer is a canned envelope here; the tests that care what the seed DOES use
+    :class:`RealSeed`, which runs it.
+    """
+
+    def __init__(self, *, fails: str | None = None, seed_stdout: str = json.dumps(_SEEDED)) -> None:
         self.calls: list[list[str]] = []
         self.fails = fails
+        self.seed_stdout = seed_stdout
 
-    def __call__(self, argv: list[str]) -> tuple[int, str]:
+    def __call__(self, argv: list[str]) -> Ran:
         self.calls.append(argv)
         if self.fails is not None and self.fails in " ".join(argv):
-            return 1, f"pretend failure of {self.fails}"
-        return 0, "ok"
+            return Ran(code=1, stdout="", stderr=f"pretend failure of {self.fails}")
+        if "seed-switch" in argv:
+            return Ran(code=0, stdout=self.seed_stdout, stderr="")
+        return Ran(code=0, stdout="ok", stderr="")
+
+
+class RealSeed(Recorder):
+    """``uv`` is recorded; the seed is RUN, by this interpreter in place of the venv's python.
+
+    Its environment is this process's, which the suite's conftest has already cut off from the
+    machine's config layers, and it starts in ``cwd`` so no checkout ``.env`` is found above it.
+    ``database.url`` and ``database.password`` are pinned in the ENV layer, which beats every file
+    layer, so a developer's private defaults file cannot move the database these tests look at: an
+    empty url means "no layer names one", and the installer's default applies.
+    """
+
+    def __init__(self, install: Install, *, cwd: Path, database_url: str = "") -> None:
+        super().__init__()
+        self.install = install
+        self.cwd = cwd
+        self.database_url = database_url
+
+    def __call__(self, argv: list[str]) -> Ran:
+        if argv[:1] != [str(self.install.python)]:
+            return super().__call__(argv)
+        self.calls.append(argv)
+        env = {**os.environ, _DATABASE_URL_ENV: self.database_url, _DATABASE_PASSWORD_ENV: ""}
+        finished = subprocess.run(  # noqa: S603 - argv list: this interpreter and the installer's own argv
+            [sys.executable, *argv[1:]], capture_output=True, text=True, check=False, cwd=self.cwd, env=env
+        )
+        return Ran(code=finished.returncode, stdout=finished.stdout, stderr=finished.stderr)
+
+
+def _switch_row(path: Path) -> str | None:
+    with sqlite3.connect(path) as connection:
+        row = connection.execute("SELECT word FROM switch WHERE id = 1").fetchone()
+    return None if row is None else str(row[0])
+
+
+def _set_switch(path: Path, *, on: bool) -> None:
+    store = open_house_store(str(path), password=None, log=lambda _kind, _text: None)
+    store.open(exclusive=False, create=False)
+    try:
+        store.set_switch(on=on)
+    finally:
+        store.close()
 
 
 def test_a_fresh_machine_gets_every_piece(tmp_path: Path) -> None:
@@ -49,7 +119,6 @@ def test_a_fresh_machine_gets_every_piece(tmp_path: Path) -> None:
 
     assert steps.create_venv
     assert steps.create_state_dir
-    assert steps.create_switch
 
 
 def test_a_venv_that_is_already_there_is_kept(tmp_path: Path) -> None:
@@ -61,29 +130,68 @@ def test_a_venv_that_is_already_there_is_kept(tmp_path: Path) -> None:
     assert not plan(install).create_venv
 
 
-def test_a_switch_that_says_on_is_never_written_over(tmp_path: Path) -> None:
-    """The failure this refuses: a deploy that stands the house down, or starts it up, silently."""
-    install = _install(tmp_path)
-    install.state_dir.mkdir(parents=True)
-    install.switch.write_text("on\n", encoding="utf-8")
-
-    steps = plan(install)
-    assert not steps.create_switch
-
-    report = apply(install, steps, run=Recorder())
-    assert install.switch.read_text(encoding="utf-8") == "on\n", "the switch is the operator's, not the install's"
-    assert "switch" not in report.changed
-
-
-def test_the_switch_a_fresh_install_writes_says_off(tmp_path: Path) -> None:
+def test_a_fresh_machine_starts_with_the_switch_off_in_the_database(tmp_path: Path) -> None:
     """A first start must not be able to take the house; turning it on stays a deliberate act."""
     install = _install(tmp_path)
 
-    report = apply(install, plan(install), run=Recorder())
+    report = apply(install, plan(install), run=RealSeed(install, cwd=tmp_path))
 
-    assert install.switch.read_text(encoding="utf-8").strip() == "off"
-    assert install.state_dir.is_dir()
+    assert _switch_row(install.database) == "off"
+    assert report.switch == "off"
+    assert report.database == str(install.database)
     assert "switch" in report.changed
+    assert not install.switch.exists(), "the switch file is gone: nothing would read it"
+
+
+def test_a_switch_that_says_on_is_never_written_over(tmp_path: Path) -> None:
+    """The failure this refuses: a deploy that stands the house down, or starts it up, silently."""
+    install = _install(tmp_path)
+    install.state_dir.mkdir()
+    created_by_the_service(install.database)
+    _set_switch(install.database, on=True)
+
+    report = apply(install, plan(install), run=RealSeed(install, cwd=tmp_path))
+
+    assert _switch_row(install.database) == "on", "the switch is the operator's, not the install's"
+    assert report.switch == "on"
+    assert "switch" not in report.changed
+
+
+def test_the_configured_database_is_the_one_written(tmp_path: Path) -> None:
+    """database.url in a config layer wins over the installer's default, as it does for the service."""
+    install = _install(tmp_path)
+    configured = tmp_path / "elsewhere" / "house.sqlite"
+    configured.parent.mkdir()
+
+    report = apply(install, plan(install), run=RealSeed(install, cwd=tmp_path, database_url=str(configured)))
+
+    assert _switch_row(configured) == "off"
+    assert report.database == str(configured)
+    assert not install.database.exists(), "the default path is only for a machine that names no database"
+
+
+def test_an_old_switch_file_that_says_on_is_what_a_new_database_starts_with(tmp_path: Path) -> None:
+    """An upgrade from before the database: writing OFF would override the operator's last word."""
+    install = _install(tmp_path)
+    install.state_dir.mkdir()
+    install.switch.write_text("on\n", encoding="utf-8")
+
+    report = apply(install, plan(install), run=RealSeed(install, cwd=tmp_path))
+
+    assert _switch_row(install.database) == "on"
+    assert report.switch == "on"
+
+
+def test_the_switch_is_seeded_by_the_new_venv_after_the_wheel_is_in(tmp_path: Path) -> None:
+    """Only the venv's own python has the package the database is read through, so it comes last."""
+    install = _install(tmp_path)
+    recorder = Recorder()
+
+    apply(install, plan(install), run=recorder)
+
+    assert recorder.calls[-1][0] == str(install.python)
+    assert recorder.calls[-1][2:4] == ["--json-bare", "seed-switch"]
+    assert recorder.calls[-2][1:3] == ["pip", "install"]
 
 
 def test_the_wheel_is_installed_into_this_prefix_s_own_interpreter(tmp_path: Path) -> None:
@@ -113,6 +221,18 @@ def test_a_wheel_that_is_not_there_is_refused_before_anything_is_touched(tmp_pat
     assert not install.state_dir.exists()
 
 
+def test_a_helper_that_was_not_shipped_is_refused_before_anything_is_touched(tmp_path: Path) -> None:
+    """Without it the switch cannot be seeded, and finding that out after the install is too late."""
+    install = _install(tmp_path)
+    recorder = Recorder()
+
+    with pytest.raises(FileNotFoundError, match="helper"):
+        apply(install, plan(install), run=recorder, helper=tmp_path / "service_venv.py")
+
+    assert recorder.calls == []
+    assert not install.state_dir.exists()
+
+
 def test_a_failing_install_says_which_command_failed(tmp_path: Path) -> None:
     install = _install(tmp_path)
 
@@ -120,16 +240,20 @@ def test_a_failing_install_says_which_command_failed(tmp_path: Path) -> None:
         apply(install, plan(install), run=Recorder(fails="pip install"))
 
 
-def test_an_upgraded_machine_gets_no_new_switch_file(tmp_path: Path) -> None:
+def test_a_seed_that_refuses_is_named_not_reported_as_an_install(tmp_path: Path) -> None:
     install = _install(tmp_path)
-    install.state_dir.mkdir()
-    install.database.write_bytes(b"")
-    assert plan(install).create_switch is False
+    refusal = {"ok": False, "command": "service_venv seed-switch", "error": "StoreError", "message": "db: locked"}
+
+    with pytest.raises(RuntimeError, match="StoreError: db: locked"):
+        apply(install, plan(install), run=Recorder(seed_stdout=json.dumps(refusal)))
 
 
-def test_a_fresh_machine_still_starts_switched_off(tmp_path: Path) -> None:
+def test_a_seed_that_prints_no_envelope_is_named(tmp_path: Path) -> None:
+    """A venv too old to run the helper answers a traceback, and that must not read as success."""
     install = _install(tmp_path)
-    assert plan(install).create_switch is True
+
+    with pytest.raises(RuntimeError, match="no envelope"):
+        apply(install, plan(install), run=Recorder(seed_stdout="Traceback (most recent call last):"))
 
 
 def test_the_report_is_json_a_caller_can_read(tmp_path: Path) -> None:
@@ -139,7 +263,7 @@ def test_the_report_is_json_a_caller_can_read(tmp_path: Path) -> None:
     document = json.loads(report.model_dump_json())
 
     assert document["prefix"] == str(install.prefix)
-    assert document["switch_file"] == str(install.switch)
+    assert document["switch"] == "off"
     assert sorted(document["changed"]) == ["state_dir", "switch", "venv", "wheel"]
 
 
@@ -163,7 +287,7 @@ def test_a_state_directory_that_cannot_be_made_stops_before_anything_is_installe
 
 
 def test_a_deploy_that_cannot_write_prints_a_refusal_a_caller_can_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The command driven into a RUNTIME failure, which is the only way to check its envelope.
 
@@ -174,11 +298,9 @@ def test_a_deploy_that_cannot_write_prints_a_refusal_a_caller_can_read(
     """
     install = _install(tmp_path)
     install.state_dir.write_text("a file where the directory should be", encoding="utf-8")
-    monkeypatch.setattr(
-        sys,
-        "argv",
+
+    code = main(
         [
-            "install_service",
             "--json",
             "--wheel",
             str(install.wheel),
@@ -186,10 +308,8 @@ def test_a_deploy_that_cannot_write_prints_a_refusal_a_caller_can_read(
             str(install.prefix),
             "--state-dir",
             str(install.state_dir),
-        ],
+        ]
     )
-
-    code = main()
 
     printed = capsys.readouterr()
     document = json.loads(printed.out)
