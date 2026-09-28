@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import re
+import sqlite3
 import tokenize
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -38,8 +39,6 @@ from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.secret import Secret
 
 if TYPE_CHECKING:
-    import sqlite3
-
     from conftest import PostgresLogin
     from sqlalchemy.engine import Connection
 
@@ -233,12 +232,96 @@ def test_probe_refuses_a_read_it_cannot_make_rather_than_reporting_no_schema(tmp
         pass
 
 
+def _journal_mode_of(path: Path) -> str:
+    """What the file itself says its journal mode is, read with nothing of the store in between."""
+    raw = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        return str(raw.execute("PRAGMA journal_mode").fetchone()[0])
+    finally:
+        raw.close()
+
+
+def test_probe_leaves_a_sqlite_file_in_its_own_journal_mode_byte_for_byte(tmp_path: Path) -> None:
+    """A probe is a question, so the file it asks must come back as it was.
+
+    The store's own connections switch every file they open to WAL, which is right for the
+    service and wrong for a read that exists to change nothing: a DELETE-mode file came back as a
+    WAL one, with its header rewritten, from a deploy that only wanted to know what it held.
+    """
+    database = tmp_path / "house.sqlite"
+    raw = sqlite3.connect(database)
+    raw.execute("PRAGMA journal_mode = DELETE")
+    raw.execute("CREATE TABLE kept (x INTEGER)")
+    raw.commit()
+    raw.close()
+    before = database.read_bytes()
+    with HouseDatabase(str(database)).probe() as connection:
+        assert connection is not None
+        assert not schema_exists(connection)
+    assert database.read_bytes() == before, "the probe rewrote the file it was asked about"
+    assert _journal_mode_of(database) == "delete"
+    assert not (tmp_path / "house.sqlite-wal").exists(), "a DELETE-mode file needs no WAL beside it"
+
+
+def test_probe_of_an_empty_file_leaves_it_empty(tmp_path: Path) -> None:
+    """A zero-byte file is a database with nothing in it, and a probe must not make it one with a header."""
+    database = tmp_path / "house.sqlite"
+    database.write_bytes(b"")
+    with HouseDatabase(str(database)).probe() as connection:
+        assert connection is not None
+        assert not schema_exists(connection)
+    assert database.stat().st_size == 0
+
+
+def test_probe_refuses_a_write_through_its_connection(tmp_path: Path) -> None:
+    """Read-only is the connection's own property, not a promise the caller keeps."""
+    database = tmp_path / "house.sqlite"
+    _opened(str(database)).close()
+    with (
+        pytest.raises(StoreError, match="readonly"),
+        HouseDatabase(str(database)).probe() as connection,
+    ):
+        assert connection is not None
+        connection.exec_driver_sql("CREATE TABLE intruder (x INTEGER)")
+
+
+@pytest.mark.parametrize(
+    ("setting", "reason"),
+    [
+        ("postgresql+nosuchdriver://zonemaster@db.example/zonemaster", r"NoSuchModuleError: Can't load plugin"),
+        ("postgresql+asyncpg://zonemaster@db.example/zonemaster", r"ModuleNotFoundError: No module named 'asyncpg'"),
+    ],
+    ids=["unknown-driver", "driver-not-installed"],
+)
+def test_probe_refuses_a_driver_it_cannot_load_as_a_store_error(setting: str, reason: str) -> None:
+    """The same two failures ``open()`` wraps, met while the probe builds its engine.
+
+    A caller of the probe catches one ``StoreError``, as a caller of ``open()`` does; a raw
+    ``NoSuchModuleError`` or ``ImportError`` leaving here would reach it as a crash instead.
+    """
+    if "asyncpg" in setting and importlib.util.find_spec("asyncpg") is not None:
+        pytest.skip("asyncpg is installed here, so its import cannot be made to fail")
+    with pytest.raises(StoreError, match=rf"db\.example.*{reason}"), HouseDatabase(setting).probe():
+        pass
+
+
+def _schema_seen_from_outside(setting: str) -> bool:
+    """Whether a connection of its own sees a house schema: only what is COMMITTED is visible to it."""
+    with HouseDatabase(setting).probe() as outside:
+        return outside is not None and schema_exists(outside)
+
+
 def test_open_with_a_seed_writes_it_in_the_transaction_that_creates_the_schema(house_database: str) -> None:
-    """The seed runs inside the migration that brings a schema-less database to head, on both backends."""
-    seen: list[str] = []
+    """The seed runs inside the migration that brings a schema-less database to head, on both backends.
+
+    Inside the seed the schema is already there on the seed's own connection and not yet there for
+    anybody else: that is what "the same transaction" means, and a seed run in a transaction of
+    its own after the migration committed would find the schema visible from outside as well.
+    """
+    seen: list[tuple[bool, bool, bool]] = []
 
     def seed(connection: Connection) -> None:
-        seen.append("seeded")
+        seen.append((connection.in_transaction(), schema_exists(connection), _schema_seen_from_outside(house_database)))
         write_switch(connection, on=False)
 
     database = HouseDatabase(house_database)
@@ -248,7 +331,7 @@ def test_open_with_a_seed_writes_it_in_the_transaction_that_creates_the_schema(h
             held = read_switch(connection)
     finally:
         database.close()
-    assert seen == ["seeded"]
+    assert seen == [(True, True, False)], "in a transaction, the schema its own, and nobody else's yet"
     assert held is False
 
 
@@ -272,19 +355,24 @@ def test_seed_is_only_valid_together_with_create(tmp_path: Path) -> None:
         HouseDatabase(str(tmp_path / "house.sqlite")).open(exclusive=False, create=False, seed=lambda _c: None)
 
 
-def test_a_seed_that_is_interrupted_leaves_no_schema_behind(tmp_path: Path) -> None:
+def test_a_seed_that_is_interrupted_leaves_no_schema_behind(house_database: str) -> None:
     """The schema and the seed commit together or not at all: an interrupt inside the seed rolls
-    the whole migration back, so the next call still sees a database that was never created."""
-    setting = str(tmp_path / "house.sqlite")
+    the whole migration back, so the next call still sees a database that was never created.
 
-    def cut_off(_connection: Connection) -> None:
+    On both backends, because they get there differently: SQLite rolls back a file it wrote in one
+    ``BEGIN IMMEDIATE``, PostgreSQL rolls back DDL it keeps in the transaction's own catalog rows.
+    """
+    reached: list[bool] = []
+
+    def cut_off(connection: Connection) -> None:
+        reached.append(schema_exists(connection))
         raise KeyboardInterrupt
 
     with pytest.raises(KeyboardInterrupt):
-        HouseDatabase(setting).open(exclusive=False, create=True, seed=cut_off)
+        HouseDatabase(house_database).open(exclusive=False, create=True, seed=cut_off)
 
-    with HouseDatabase(setting).probe() as connection:
-        assert connection is None or not schema_exists(connection)
+    assert reached == [True], "the control: the seed ran with the schema already built around it"
+    assert not _schema_seen_from_outside(house_database)
 
 
 def test_a_failed_write_leaves_nothing_behind(house_database: str) -> None:

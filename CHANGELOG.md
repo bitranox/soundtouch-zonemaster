@@ -43,6 +43,10 @@ All notable changes to this project are documented here. The format follows
   insert, on both backends. `switch` opens the store without the writer lock, so two invocations
   really can write the row at the same instant; on PostgreSQL under READ COMMITTED that could end
   in a unique-constraint violation instead of the switch simply landing on whichever value won.
+- The deploy helper's read of the house database (`service_venv.py show`, and the check before
+  the switch is seeded) opens a SQLite file read-only and changes nothing in it: it used to switch
+  a DELETE-mode file to WAL and grow an empty file to a page. A database driver it cannot load is
+  now refused as a store error naming the database, as opening the store already was.
 - `config` now masks the database's own location in anything the house store narrates on stderr
   under `--redact`, not only the values it prints. Nothing narrates on that path today, but a
   future line (a migration, an import) can no longer defeat `--redact` by naming it anyway.

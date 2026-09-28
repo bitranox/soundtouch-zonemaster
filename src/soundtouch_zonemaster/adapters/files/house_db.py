@@ -38,6 +38,7 @@ import sqlite3
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+from urllib.parse import quote
 
 from alembic import command
 from alembic.config import Config
@@ -372,21 +373,39 @@ class HouseDatabase:
 
     @contextmanager
     def probe(self) -> Generator[Connection | None]:
-        """A connection that migrates nothing and creates no file; ``None`` for a SQLite file not there.
+        """A read that migrates nothing and writes nothing; ``None`` for a SQLite file not there.
 
-        Built with the same engine settings :meth:`open` would use (the SQLite version check, the
-        PostgreSQL connect and statement timeouts, the password), so a caller asking whether a
-        database is already there, and what it holds, sees exactly what the store would see -
-        without ever bringing a schema-less one up to head, which on PostgreSQL, where no file
-        tells an empty database from a missing one, ``open`` would do. Never takes the writer
-        lock, never touches this instance's own engine, and disposes its own before returning.
+        On PostgreSQL it is built with the same engine settings :meth:`open` would use (the connect
+        and statement timeouts, the password), so a caller asking whether a database is already
+        there, and what it holds, sees exactly what the store would see - without ever bringing a
+        schema-less one up to head, which on PostgreSQL, where no file tells an empty database from
+        a missing one, ``open`` would do.
+
+        On SQLite it is the one connection that does NOT behave like the store's: it opens the
+        file READ-ONLY and sets nothing on it. The store's connect switches every file to WAL, and
+        on a probe that rewrote the header of a DELETE-mode file and grew a zero-byte one to a
+        page, from a caller that had only asked what the file held. A WAL file still gets the
+        ``-wal`` and ``-shm`` beside it that every reader of one needs; its contents do not change.
+
+        Never takes the writer lock, never touches this instance's own engine, and disposes its own
+        before returning. A driver it cannot load is the same ``StoreError`` :meth:`open` refuses
+        with, and so is any read the database library cannot make.
         """
         if self.url.get_backend_name() == "sqlite" and not Path(str(self.url.database)).exists():
             yield None
             return
-        engine = self._build_engine()
+        try:
+            engine = self._build_read_only_engine()
+        except (SQLAlchemyError, ImportError) as exc:
+            message = f"{self.where}: could not be read ({reason_for(exc)})"
+            raise StoreError(message) from exc
         try:
             with engine.connect() as connection:
+                if connection.dialect.name == "sqlite":
+                    # A read-only open touches nothing until the first statement, so a file that is
+                    # not a database would otherwise pass here and fail inside the caller's read -
+                    # or, for a caller that only asks whether a table exists, answer "no" for it.
+                    connection.exec_driver_sql("PRAGMA schema_version")
                 yield connection
         except SQLAlchemyError as exc:
             message = f"{self.where}: could not be read ({reason_for(exc)})"
@@ -400,13 +419,28 @@ class HouseDatabase:
             raise StoreError(message)
         return self._engine
 
+    def _build_read_only_engine(self) -> Engine:
+        """The probe's engine: PostgreSQL's is the store's own, SQLite's opens the file read-only.
+
+        The SQLite file is named as a URI (``mode=ro``) so the refusal to write is the library's
+        and not a convention: a statement that would write fails, whoever sends it. The path is
+        quoted because a URI gives ``?`` and ``#`` a meaning a file name does not.
+        """
+        if self.url.get_backend_name() != "sqlite":
+            return self._build_engine()
+        self._require_a_strict_sqlite()
+        uri = f"file:{quote(str(Path(str(self.url.database)).resolve()))}?mode=ro"
+        timeout = self._busy_timeout_s
+        return create_engine("sqlite://", creator=lambda: sqlite3.connect(uri, uri=True, timeout=timeout))
+
+    def _require_a_strict_sqlite(self) -> None:
+        if sqlite3.sqlite_version_info < MIN_SQLITE:
+            message = f"{self.where}: SQLite {sqlite3.sqlite_version} is older than 3.37.0, which STRICT tables need"
+            raise StoreError(message)
+
     def _build_engine(self) -> Engine:
         if self.url.get_backend_name() == "sqlite":
-            if sqlite3.sqlite_version_info < MIN_SQLITE:
-                message = (
-                    f"{self.where}: SQLite {sqlite3.sqlite_version} is older than 3.37.0, which STRICT tables need"
-                )
-                raise StoreError(message)
+            self._require_a_strict_sqlite()
             engine = create_engine(self.url, connect_args={"timeout": self._busy_timeout_s})
             event.listen(engine, "connect", _sqlite_connect)
             event.listen(engine, "begin", _sqlite_begin)
