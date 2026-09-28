@@ -272,6 +272,22 @@ def test_show_answers_a_database_that_is_not_there_without_creating_it(
     assert not missing.exists()
 
 
+def test_show_reads_a_house_with_no_switch_row_as_on(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """No row is what the service reads as ON and has run on, so the deploy must hand that house back ON.
+
+    Reading it as OFF would make a deploy plan neither the switch-off nor the restore for a house
+    that is playing, so the zone it waits on to empty never would.
+    """
+    database = created_by_the_service(tmp_path / "zonemaster.sqlite")
+
+    code, document = _drive(["show", "--default", str(database)], capsys)
+
+    assert code == 0
+    assert document["data"]["exists"] is True
+    assert document["data"]["on"] is True
+    assert _switch_row(database) is None, "a read writes no switch"
+
+
 def _schema_less(path: Path) -> Path:
     """A database file that holds something, but no house schema: what an empty server database is."""
     with closing(sqlite3.connect(path)) as connection:
