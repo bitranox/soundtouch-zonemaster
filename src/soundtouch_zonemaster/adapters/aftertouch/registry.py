@@ -13,6 +13,7 @@ person reading the log still needs to tell "the registry answered 500" from "the
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, cast
 
 import httpx
@@ -21,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from ...application.errors import RegistryError
 from ...application.options import DEFAULT_BASE_URL
 from ...domain.speakers import Speaker
+from ..http_client import client_without_deadline
 
 if TYPE_CHECKING:
     from ...domain.logfn import LogFn
@@ -106,13 +108,14 @@ async def fetch_speakers(base_url: str = DEFAULT_BASE_URL, *, log: LogFn | None 
     """
     url = f"{base_url.rstrip('/')}{DEVICES_PATH}"
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
+        # The deadline is asyncio's, never httpx's (adapters/http_client.py says why).
+        async with asyncio.timeout(TIMEOUT_S), client_without_deadline() as client:
             response = await client.get(url)
             response.raise_for_status()
             payload: object = response.json()
     except httpx.HTTPStatusError as exc:
         raise RegistryError(f"{url}: the registry answered {exc.response.status_code}") from exc
-    except httpx.RequestError as exc:
+    except (httpx.RequestError, TimeoutError) as exc:
         raise RegistryError(f"{url}: could not be reached ({exc.__class__.__name__})") from exc
     except ValueError as exc:
         raise RegistryError(f"{url}: the body is not JSON") from exc

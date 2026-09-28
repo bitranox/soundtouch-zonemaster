@@ -12,13 +12,13 @@ The document shapes they read are parsed elsewhere: a ``<ContentItem>`` by
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import TYPE_CHECKING
 
-import httpx
-
 from ...domain import zonexml
 from ...domain.enums import SpeakerPath
+from ..http_client import client_without_deadline
 from . import xmlmodels
 from .observer import parse_now_playing
 from .xmlread import parse, serialised_as
@@ -143,14 +143,18 @@ off answers by making the caller wait this out, so it is how long a JOIN can tak
 
 
 async def http_get(ip: str, path: str) -> str:
-    async with httpx.AsyncClient(timeout=SPEAKER_HTTP_TIMEOUT_S) as c:
+    # The deadline is asyncio's, never httpx's (adapters/http_client.py says why).
+    async with asyncio.timeout(SPEAKER_HTTP_TIMEOUT_S), client_without_deadline() as c:
         r = await c.get(f"http://{ip}:8090{path}")
         r.raise_for_status()
         return r.text
 
 
 async def http_post(ip: str, path: str, body: str) -> str:
-    async with httpx.AsyncClient(timeout=SPEAKER_HTTP_TIMEOUT_S, headers={"User-Agent": "Bose_Lisa/27.0.6"}) as c:
+    async with (
+        asyncio.timeout(SPEAKER_HTTP_TIMEOUT_S),
+        client_without_deadline(headers={"User-Agent": "Bose_Lisa/27.0.6"}) as c,
+    ):
         r = await c.post(f"http://{ip}:8090{path}", content=body.encode(), headers={"Content-Type": "text/plain"})
         r.raise_for_status()
         return r.text

@@ -769,6 +769,11 @@ async def test_the_registry_answers_what_the_old_code_answered(case: dict[str, A
             "instance of Speaker [",
         ):
             wanted = wanted.replace(names_the_model, names_the_model.replace("Speaker", "SpeakerRecord"))
+        # DELTA 6: a registry that never answers is now timed out by asyncio rather than by httpx,
+        # because httpx's anyio deadline can swallow a stop that lands on the same turn of the loop
+        # (tests/test_stop_meets_a_deadline.py). The failure is the same and so is the message; only
+        # the exception it names changed, from httpx's ReadTimeout to the builtin TimeoutError.
+        wanted = wanted.replace("could not be reached (ReadTimeout)", "could not be reached (TimeoutError)")
         assert str(caught.value) == wanted
         return
 

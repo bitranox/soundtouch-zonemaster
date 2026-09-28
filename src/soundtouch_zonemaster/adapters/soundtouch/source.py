@@ -15,19 +15,24 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ...domain.enums import ContentType
 from ...domain.frames import FrameIndex, find_frame
 from ...domain.timeline import FrameTimeline, ZoneTimeline
+from ..http_client import client_without_deadline
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    import httpx
+
     from ...domain.logfn import LogFn
     from ...domain.station import Station
     from .clock import Clock
 
 __all__ = [
+    "READ_TIMEOUT_S",
     "START_DELAY_US",
     "PlaybackDescriptor",
     "RingBuffer",
@@ -37,6 +42,12 @@ __all__ = [
 ]
 
 START_DELAY_US = 3_000_000
+
+READ_TIMEOUT_S = 30.0
+"""How long a station may send nothing before the fetch gives up on it and reconnects."""
+
+ANSWER_TIMEOUT_S = 45.0
+"""How long a request may take to answer with its headers: a connect budget plus one read's."""
 
 _EARLY_END_SECONDS = 5.0
 """A stream that ended sooner than this is a broken connection, not a finished station."""
@@ -149,6 +160,7 @@ class StreamSource:
     timeline: ZoneTimeline = field(default_factory=lambda: ZoneTimeline(t0_us=0))
     content_type: str = ""
     bytes_total: int = 0
+    read_timeout_s: float = READ_TIMEOUT_S
     _task: asyncio.Task[None] | None = field(default=None, repr=False)
     frames: FrameIndex = field(init=False, repr=False)
     frame_timeline: FrameTimeline | None = field(default=None, repr=False)
@@ -234,46 +246,60 @@ class StreamSource:
                 backoff = 1.0
 
     async def _fetch_once(self, clock_now_us: Clock) -> None:
-        timeout = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=15.0)
+        # Every deadline here is asyncio's, never httpx's: an anyio deadline that fires on the same
+        # turn as a stop takes the stop for its own timeout, the loop above reconnects, and the stop
+        # waits for ever (adapters/http_client.py says how).
         headers = {"User-Agent": "Bose_Lisa/27.0.6", "Icy-MetaData": "0"}
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout, headers=headers) as client:
-            url = await resolve_stream_url(client, self.station.playback_url, self.log)
-            async with client.stream("GET", url) as resp:
+        async with client_without_deadline(follow_redirects=True, headers=headers) as client:
+            async with asyncio.timeout(ANSWER_TIMEOUT_S):
+                url = await resolve_stream_url(client, self.station.playback_url, self.log)
+            async with asyncio.timeout(ANSWER_TIMEOUT_S):
+                resp = await client.send(client.build_request("GET", url), stream=True)
+            try:
                 resp.raise_for_status()
                 self.content_type = resp.headers.get("content-type", "")
                 self.log(
                     "source", f"url_id={self.station.url_id} {resp.status_code} {self.content_type} from {resp.url}"
                 )
+                await self._pump(resp.aiter_bytes(8192), clock_now_us)
+            finally:
+                await resp.aclose()
+
+    async def _pump(self, chunks: AsyncIterator[bytes], clock_now_us: Clock) -> None:
+        """Move the stream into the ring, each chunk within the read deadline, until it ends."""
+        last_report = time.monotonic()
+        while True:
+            async with asyncio.timeout(self.read_timeout_s):
+                chunk = await anext(chunks, None)
+            if chunk is None:
+                break
+            if self.t0_us is None:
+                self._first_bytes(chunk, clock_now_us)
+            self.bytes_total += len(chunk)
+            await self.ring.append(chunk)
+            if time.monotonic() - last_report >= _FETCH_REPORT_INTERVAL_SECONDS:
                 last_report = time.monotonic()
-                async for chunk in resp.aiter_bytes(8192):
-                    if self.t0_us is None:
-                        # Byte 0 is scheduled START_DELAY after it arrived: that delay IS the slaves'
-                        # buffer against the live edge. A real master has its own ~2 s of buffering
-                        # before it plays, and its slaves inherit that margin the same way.
-                        self.begin_at(clock_now_us() + START_DELAY_US)
-                        frame = find_frame(chunk, 0)
-                        head = (
-                            "no confirmed frame in the first chunk"
-                            if frame is None
-                            else "byte 0 is a frame start"
-                            if frame.start == 0
-                            else f"first frame start at byte {frame.start}"
-                        )
-                        self.log(
-                            "source",
-                            f"url_id={self.station.url_id} first bytes; t0_us={self.t0_us} "
-                            f"(+{START_DELAY_US // 1000} ms); {head}",
-                        )
-                    self.bytes_total += len(chunk)
-                    await self.ring.append(chunk)
-                    if time.monotonic() - last_report >= _FETCH_REPORT_INTERVAL_SECONDS:
-                        last_report = time.monotonic()
-                        ring = f"{self.ring.start_offset}..{self.ring.end_offset}"
-                        self.log(
-                            "source",
-                            f"url_id={self.station.url_id} fetched {self.bytes_total} B, ring {ring}",
-                        )
-                self.log("source", f"url_id={self.station.url_id} stream ended after {self.bytes_total} B")
+                ring = f"{self.ring.start_offset}..{self.ring.end_offset}"
+                self.log("source", f"url_id={self.station.url_id} fetched {self.bytes_total} B, ring {ring}")
+        self.log("source", f"url_id={self.station.url_id} stream ended after {self.bytes_total} B")
+
+    def _first_bytes(self, chunk: bytes, clock_now_us: Clock) -> None:
+        # Byte 0 is scheduled START_DELAY after it arrived: that delay IS the slaves' buffer against
+        # the live edge. A real master has its own ~2 s of buffering before it plays, and its slaves
+        # inherit that margin the same way.
+        self.begin_at(clock_now_us() + START_DELAY_US)
+        frame = find_frame(chunk, 0)
+        head = (
+            "no confirmed frame in the first chunk"
+            if frame is None
+            else "byte 0 is a frame start"
+            if frame.start == 0
+            else f"first frame start at byte {frame.start}"
+        )
+        self.log(
+            "source",
+            f"url_id={self.station.url_id} first bytes; t0_us={self.t0_us} (+{START_DELAY_US // 1000} ms); {head}",
+        )
 
 
 PLAYLIST_TYPES = frozenset(

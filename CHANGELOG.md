@@ -16,6 +16,20 @@ All notable changes to this project are documented here. The format follows
   not open. A fresh install is unaffected: the installer's switch file is imported on the first
   start, which is what creates the database.
 
+- A call to a speaker or to the speaker registry now has ONE deadline for the whole request (8 s,
+  as before) rather than 8 s per phase, so a box that accepts a connection and answers slowly fails
+  within 8 s instead of up to three times that. A registry that never answers is reported as
+  `could not be reached (TimeoutError)` rather than `(ReadTimeout)`.
+
+### Fixed
+
+- A stop could hang for ever. When the service was stopped on the same turn of its event loop as a
+  station's read timeout fired, the timeout (httpx's, run by anyio) took the stop for its own and
+  swallowed it: the fetch reconnected every 30 seconds and the stop, and with it the dissolve of the
+  zone, waited on it indefinitely. It needs only a loop that is late at the moment of a stop, which a
+  loaded host or a slow pass provides. Every HTTP deadline is now enforced by asyncio instead, which
+  lets a stop through, and no httpx client carries a timeout of its own.
+
 ## [0.5.0] 2026-09-28 01:25:05
 
 ### Added
