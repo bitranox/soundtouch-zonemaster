@@ -44,6 +44,7 @@ from deploy_service import (
     UvMissingError,
     VenvHouse,
     VenvNotCleanError,
+    VenvUnreadableError,
     WheelMissingError,
     ZoneStillHeldError,
     deploy,
@@ -393,23 +394,62 @@ def test_a_unit_that_stays_activating_is_refused_when_the_wait_runs_out(tmp_path
     assert 5 <= clock.t < 60, "bounded by --start-timeout, not by patience"
 
 
-def test_a_superseded_console_script_stops_the_deploy_before_the_start(tmp_path: Path) -> None:
-    """A unit naming the old script would start cleanly on the OLD code while the deploy said success."""
+def test_a_superseded_console_script_stops_the_deploy_before_the_house_is_touched(tmp_path: Path) -> None:
+    """A unit naming the old script would start cleanly on the OLD code while the deploy said success.
+
+    A new wheel never removes what an earlier name left, so a leftover that is there before the
+    install is still there after it. Finding it only then cost a stopped unit and a house left
+    off; finding it first costs nothing.
+    """
     systemd, house = FakeSystemd(), FakeHouse()
     target = _target(tmp_path, scripts=(*sorted(CONSOLE_SCRIPTS), "zonemaster-service"))
 
     with pytest.raises(VenvNotCleanError, match="zonemaster-service"):
         deploy(target, run=systemd, house=house, clock=FakeClock())
 
-    assert "start" not in systemd.verbs()
+    assert systemd.verbs() == []
+    assert house.switched == []
+    assert house.on is True
+
+
+def test_two_distributions_of_this_program_stop_the_deploy_before_the_house_is_touched(tmp_path: Path) -> None:
+    systemd, house = FakeSystemd(), FakeHouse(distributions=("soundtouch-multiroom", "soundtouch-zonemaster"))
+
+    with pytest.raises(VenvNotCleanError, match="soundtouch-multiroom"):
+        deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    assert systemd.verbs() == []
+    assert house.switched == []
+
+
+def test_a_leftover_is_named_by_a_dry_run_too(tmp_path: Path) -> None:
+    target = _target(tmp_path, scripts=(*sorted(CONSOLE_SCRIPTS), "zonemaster-service"))
+
+    with pytest.raises(VenvNotCleanError, match="zonemaster-service"):
+        deploy(target, run=FakeSystemd(), house=FakeHouse(), clock=FakeClock(), dry_run=True)
+
+
+def test_a_venv_the_install_leaves_without_the_service_script_is_never_started(tmp_path: Path) -> None:
+    """What only the install can show - a script it did not put there - is still checked after it."""
+    systemd, house = FakeSystemd(), FakeHouse()
+
+    with pytest.raises(VenvNotCleanError, match="missing: soundtouch-zonemaster-service"):
+        deploy(_target(tmp_path, scripts=("soundtouch-zonemaster",)), run=systemd, house=house, clock=FakeClock())
+
+    assert systemd.verbs() == ["stop", "install"]
     assert house.on is False
 
 
-def test_two_distributions_of_this_program_stop_the_deploy(tmp_path: Path) -> None:
-    house = FakeHouse(distributions=("soundtouch-multiroom", "soundtouch-zonemaster"))
-
-    with pytest.raises(VenvNotCleanError, match="soundtouch-multiroom"):
-        deploy(_target(tmp_path), run=FakeSystemd(), house=house, clock=FakeClock())
+def test_a_venv_whose_scripts_cannot_be_listed_is_refused_by_name(tmp_path: Path) -> None:
+    """A PermissionError from listing the venv is a refusal in the envelope, not a traceback."""
+    target = _target(tmp_path)
+    bin_dir = target.install.venv / "bin"
+    bin_dir.chmod(0o300)
+    try:
+        with pytest.raises(VenvUnreadableError, match="could not be listed"):
+            deploy(target, run=FakeSystemd(), house=FakeHouse(), clock=FakeClock())
+    finally:
+        bin_dir.chmod(0o755)
 
 
 def test_a_dry_run_reads_and_plans_but_changes_nothing(tmp_path: Path) -> None:

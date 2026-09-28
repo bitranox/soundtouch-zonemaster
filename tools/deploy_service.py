@@ -13,8 +13,9 @@ with ``install_service.py``, ``service_venv.py`` and ``_click.py`` beside it, an
 
 The steps, in the order that matters:
 
-1. **Preconditions**: the wheel is there, ``uv`` answers, and systemd knows the unit. Each refuses
-   by name before anything is touched.
+1. **Preconditions**: the wheel is there, ``uv`` answers, systemd knows the unit, and the venv
+   holds nothing a new wheel would leave behind (another distribution of this program, a console
+   script from an earlier name). Each refuses by name before anything is touched.
 2. **Backup** of the house database: SQLite through its backup API into ``--backup-dir`` (a plain
    copy of a WAL database can miss what is still in the ``-wal`` file); PostgreSQL gets a note to
    take a ``pg_dump``, because a server database is not this tool's to copy.
@@ -157,7 +158,11 @@ class StepTimedOutError(DeployRefusedError):
 
 
 class VenvNotCleanError(DeployRefusedError):
-    """The venv holds a superseded distribution or console script after the install."""
+    """The venv holds a superseded distribution or console script, before the install or after it."""
+
+
+class VenvUnreadableError(DeployRefusedError):
+    """The venv's ``bin`` directory could not be listed, so what is in it is not known."""
 
 
 class UnitNotActiveError(DeployRefusedError):
@@ -277,17 +282,33 @@ def _ours(name: str) -> bool:
     return any(part in lowered for part in _OURS)
 
 
-def venv_findings(*, distributions: Sequence[str], scripts: Sequence[str]) -> list[str]:
-    """What is wrong with the venv after the install, as sentences; empty when it is clean. Pure."""
+def _holding(ours: Sequence[str]) -> str:
+    return f"the venv holds {list(ours) or 'none'} of this program's distributions; exactly [{PROGRAM!r}] belongs"
+
+
+def leftover_findings(*, distributions: Sequence[str], scripts: Sequence[str]) -> list[str]:
+    """What a new wheel will NOT remove, as sentences; empty when there is none. Pure.
+
+    Another distribution of this program, a second copy of this one, a console script from an
+    earlier name: each is still there after the install, so each is looked for BEFORE it, while
+    refusing still leaves the house exactly as it was.
+    """
     findings: list[str] = []
     ours = sorted(name for name in distributions if _ours(name))
-    if ours != [PROGRAM]:
-        findings.append(
-            f"the venv holds {ours or 'none'} of this program's distributions; exactly [{PROGRAM!r}] belongs"
-        )
+    if any(name != PROGRAM for name in ours) or ours.count(PROGRAM) > 1:
+        findings.append(_holding(ours))
     stale = sorted(name for name in scripts if _ours(name) and name not in CONSOLE_SCRIPTS)
     if stale:
         findings.append(f"superseded console scripts are still in the venv: {', '.join(stale)}")
+    return findings
+
+
+def venv_findings(*, distributions: Sequence[str], scripts: Sequence[str]) -> list[str]:
+    """What is wrong with the venv after the install, as sentences; empty when it is clean. Pure."""
+    findings = leftover_findings(distributions=distributions, scripts=scripts)
+    ours = sorted(name for name in distributions if _ours(name))
+    if PROGRAM not in ours:
+        findings.insert(0, _holding(ours))
     missing = sorted(CONSOLE_SCRIPTS - set(scripts))
     if missing:
         findings.append(f"console scripts the unit may name are missing: {', '.join(missing)}")
@@ -477,6 +498,28 @@ def unit_property(unit: str, name: str, *, run: Runner) -> str:
     return _ran(run, ["systemctl", "show", "-p", name, "--value", unit]).stdout.strip()
 
 
+def listed_scripts(bin_dir: Path) -> list[str]:
+    """The names in the venv's ``bin``; none when there is no venv yet. A listing that fails refuses."""
+    if not bin_dir.is_dir():
+        return []
+    try:
+        return sorted(path.name for path in bin_dir.iterdir())
+    except OSError as exc:
+        message = f"{bin_dir}: could not be listed ({type(exc).__name__}: {exc.strerror or exc})"
+        raise VenvUnreadableError(message) from exc
+
+
+def check_no_leftovers(target: Target, *, house: House) -> None:
+    """Refuse, before anything is touched, a venv holding what the install cannot remove."""
+    if not target.install.python.exists():
+        return
+    scripts = listed_scripts(target.install.venv / "bin")
+    leftovers = leftover_findings(distributions=house.distributions(), scripts=scripts)
+    if leftovers:
+        message = f"{'; '.join(leftovers)} - nothing was changed; remove them from the venv first"
+        raise VenvNotCleanError(message)
+
+
 def read_situation(target: Target, *, run: Runner, house: House) -> Situation:
     view = house.show() if target.install.python.exists() else None
     return Situation(house=view, unit_active=unit_state(target.unit, run=run) == "active")
@@ -538,8 +581,7 @@ class _Run:
             raise StepFailedError(f"install: {exc}") from exc
 
     def _check_venv(self) -> None:
-        bin_dir = self.target.install.venv / "bin"
-        scripts = sorted(path.name for path in bin_dir.iterdir()) if bin_dir.is_dir() else []
+        scripts = listed_scripts(self.target.install.venv / "bin")
         findings = venv_findings(distributions=self.house.distributions(), scripts=scripts)
         if findings:
             raise VenvNotCleanError("; ".join(findings))
@@ -601,6 +643,7 @@ def deploy(target: Target, *, run: Runner, house: House, clock: Clock, dry_run: 
     """Read the machine, plan, and - unless ``dry_run`` - carry the plan out. Raises a DeployRefusedError."""
     check_preconditions(target, run=run)
     situation = read_situation(target, run=run, house=house)
+    check_no_leftovers(target, house=house)
     view = situation.house
     report = DeployReport(
         dry_run=dry_run,
