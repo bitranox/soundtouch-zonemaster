@@ -37,6 +37,7 @@ import pytest
 from mpdfake import HOST as MPD_HOST
 from mpdfake import FakeMpd
 from registry_double import FakeRegistry, devices_at
+from service_log import recording_into
 from speaker_double import (
     FakeSpeaker,
     key_body,
@@ -372,7 +373,7 @@ async def _running(options: ServiceOptions, logs: list[str]) -> AsyncGenerator[Z
     """The service as the unit runs it, ended the way SIGINT ends it: cancelled, then cleaned up."""
     service = ZoneService(
         options,
-        log=lambda kind, text: logs.append(f"{kind}: {text}"),
+        log=recording_into(logs),
         ports=build_production().zone_ports,
     )
     task = asyncio.create_task(service.run())
@@ -3774,7 +3775,7 @@ async def _running_with_a_store_that_can_fail(
         return store
 
     ports = replace(build_production().zone_ports, open_store=_open_store)
-    service = ZoneService(options, log=lambda kind, text: logs.append(f"{kind}: {text}"), ports=ports)
+    service = ZoneService(options, log=recording_into(logs), ports=ports)
     task = asyncio.create_task(service.run())
     try:
         await eventually(lambda: len(created) == 1, "the service opened its store")

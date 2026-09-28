@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 
 import pytest
+from service_log import recording_into
 
 from soundtouch_zonemaster.adapters.soundtouch import connections, ipc
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio_data
@@ -79,11 +80,11 @@ async def test_a_data_loop_ends_with_its_stream_instead_of_writing_a_line_for_ev
     source = StreamSource(
         station=Station(url_id=1, playback_url="http://example.invalid/s", name="Test", content_item_xml="<x/>"),
         ring=ring,
-        log=lambda kind, text: logs.append(f"{kind}: {text}"),
+        log=recording_into(logs),
     )
     server = await connections.serve_data(
         BIND,
-        lambda kind, text: logs.append(f"{kind}: {text}"),
+        recording_into(logs),
         lambda stream_id: source if stream_id == 1 else None,
         audio_data.AudioServerMsgAcceptAudioData.NONE,
         lambda _peer, _stream_id: _base_of_zero(),

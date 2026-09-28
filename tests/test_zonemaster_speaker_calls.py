@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 import pytest
+from service_log import recording_into
 from speaker_double import FakeSpeaker
 
 from soundtouch_zonemaster.adapters.soundtouch.speaker_http import select_station, station_from_speaker_preset
@@ -152,7 +153,7 @@ async def test_a_speaker_that_refuses_does_not_stop_the_others_being_dissolved(s
     master = ZoneMaster(
         bind_ip="127.0.0.1",
         device_id="5EB0CE000001",
-        log=lambda kind, text: logs.append(f"{kind}: {text}"),
+        log=recording_into(logs),
         slaves={
             "127.0.0.9": Slave(ip="127.0.0.9", device_id="DEAD01"),  # nothing listens here
             SPEAKER: Slave(ip=SPEAKER, device_id=DEVICE_ID),
@@ -195,7 +196,7 @@ async def test_an_unreachable_slave_does_not_stop_the_rest_of_the_announcement()
     master = ZoneMaster(
         bind_ip="127.0.0.1",
         device_id="5EB0CE000001",
-        log=lambda kind, text: logs.append(f"{kind}: {text}"),
+        log=recording_into(logs),
         slaves={"127.0.0.9": Slave(ip="127.0.0.9", device_id="DEAD01")},
     )
     try:
@@ -256,7 +257,7 @@ async def test_a_box_leaving_cannot_die_on_an_unplugged_speaker_because_it_speak
     master = ZoneMaster(
         bind_ip="127.0.0.1",
         device_id="5EB0CE000001",
-        log=lambda kind, text: logs.append(f"{kind}: {text}"),
+        log=recording_into(logs),
         slaves={
             "127.0.0.8": Slave(ip="127.0.0.8", device_id="DEAD01"),  # nothing listens here
             SPEAKER: Slave(ip=SPEAKER, device_id=DEVICE_ID),

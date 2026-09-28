@@ -18,6 +18,7 @@ import errno
 import socket
 
 import pytest
+from service_log import recording_into
 
 from soundtouch_zonemaster.adapters.soundtouch.zone_master import ZoneMaster
 from soundtouch_zonemaster.application.errors import PortsBusyError
@@ -70,7 +71,7 @@ async def test_start_waits_for_a_port_somebody_else_holds_and_takes_it_when_it_f
     master = ZoneMaster(
         bind_ip=BIND,
         device_id="5EB0CE000001",
-        log=lambda kind, text: logs.append(f"{kind}: {text}"),
+        log=recording_into(logs),
         bind_attempts=40,
         bind_retry_wait_s=0.05,
     )
@@ -107,7 +108,7 @@ async def test_start_gives_up_after_its_bound_and_leaves_no_port_of_its_own_boun
     master = ZoneMaster(
         bind_ip=BIND,
         device_id="5EB0CE000001",
-        log=lambda kind, text: logs.append(f"{kind}: {text}"),
+        log=recording_into(logs),
         bind_attempts=2,
         bind_retry_wait_s=0.01,
     )

@@ -14,6 +14,7 @@ import socket
 from typing import TYPE_CHECKING
 
 import pytest
+from service_log import recording_into
 
 from soundtouch_zonemaster.adapters.soundtouch import clock, connections, ipc
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio, audio_data
@@ -663,9 +664,7 @@ async def test_a_data_channel_the_ring_has_run_past_is_closed_with_its_reason_lo
     that goes quiet with nothing in the log but the word closed.
     """
     logs: list[str] = []
-
-    def log(kind: str, text: str) -> None:
-        logs.append(f"{kind}: {text}")
+    log = recording_into(logs)
 
     station = Station(
         url_id=1, playback_url="http://example.invalid/s", name="Gone", content_item_xml="<ContentItem />"
@@ -769,7 +768,7 @@ async def test_stopping_a_source_hands_on_the_cancellation_of_whoever_is_stoppin
     source = StreamSource(
         Station(url_id=1, playback_url=url, name="Held", content_item_xml=CONTENT_ITEM.format(url=url)),
         RingBuffer(),
-        lambda kind, text: logs.append(f"{kind}: {text}"),
+        recording_into(logs),
     )
     try:
         source.start(clock.now_us)
