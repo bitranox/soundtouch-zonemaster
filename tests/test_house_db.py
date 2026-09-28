@@ -17,7 +17,7 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, func, insert, inspect, select, text, update
 from sqlalchemy.engine import Engine, make_url
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 
 from soundtouch_zonemaster.adapters.config.settings_map import SETTINGS
@@ -361,16 +361,38 @@ def test_sqlite_reading_uses_wal_journal_mode_and_full_synchronous(tmp_path: Pat
 
 
 def test_close_gives_back_the_engine_even_when_releasing_the_lock_raises(tmp_path: Path) -> None:
-    database = _opened(str(tmp_path / "house.sqlite"))
-    # Reaching into the internal state is the point of this test: it pins the `finally` cleanup
-    # in `close()`, which nothing public exposes a seam for.
-    database._lock = _ExplodingLock()  # pyright: ignore[reportPrivateUsage]
-    database._locked = True  # pyright: ignore[reportPrivateUsage]
+    """A lock injected through ``lock_factory`` at construction, rather than poked onto the
+    private ``_lock``/``_locked`` attributes after the fact (OPEN-WORK rank 205)."""
+    setting = str(tmp_path / "house.sqlite")
+    database = HouseDatabase(setting, lock_factory=lambda _engine: _ExplodingLock())
+    database.open(exclusive=True)
     with pytest.raises(RuntimeError):
         database.close()
-    assert database._locked is False  # pyright: ignore[reportPrivateUsage]
-    assert database._lock is None  # pyright: ignore[reportPrivateUsage]
-    assert database._engine is None  # pyright: ignore[reportPrivateUsage]
+    # Nothing is left held: a second HouseDatabase over the same file opens exclusively at once,
+    # proven behaviourally rather than by reading the closed instance's private state.
+    reopened = HouseDatabase(setting)
+    reopened.open(exclusive=True)
+    reopened.close()
+
+
+def test_a_refusal_is_not_replaced_by_the_lock_release_that_cleans_up_after_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken migration must reach the caller as the ``StoreError`` it always did, not as
+    whatever the writer lock's ``release()`` raises while ``open()`` cleans up after it - the
+    ORIGINAL exception is what open() failed with, and a cleanup failure must not become the one
+    the caller sees instead (OPEN-WORK rank 205)."""
+
+    def _breaks(_config: Config, _revision: str) -> None:
+        message = "a migration that cannot run"
+        raise SQLAlchemyError(message)
+
+    monkeypatch.setattr(house_db.command, "upgrade", _breaks)
+    database = HouseDatabase(str(tmp_path / "house.sqlite"), lock_factory=lambda _engine: _ExplodingLock())
+    with pytest.raises(StoreError) as caught:
+        database.open(exclusive=True)
+    assert "boom" not in str(caught.value), "the lock's own release failure must not surface here"
+    assert "SQLAlchemyError" in str(caught.value)
 
 
 def test_an_unknown_driver_refuses_as_a_store_error_naming_the_database() -> None:

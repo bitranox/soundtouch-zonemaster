@@ -52,7 +52,7 @@ from ...application.errors import StoreBusyError, StoreError, StoreMissingError
 from ...domain.database_url import carries_a_password, is_a_password_key, masked
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
     from typing import NoReturn
 
     from sqlalchemy.engine import Connection, Engine
@@ -222,11 +222,23 @@ class AdvisoryLock:
 class HouseDatabase:
     """One house database: an engine that behaves the same on every backend, and its writer lock."""
 
-    def __init__(self, setting: str, *, password: Secret | None = None, busy_timeout_s: float = 5.0) -> None:
+    def __init__(
+        self,
+        setting: str,
+        *,
+        password: Secret | None = None,
+        busy_timeout_s: float = 5.0,
+        lock_factory: Callable[[Engine], _WriterLock] | None = None,
+    ) -> None:
         """Read the setting and refuse what cannot be opened; nothing is connected yet.
 
         A password given for a SQLite database is refused by name: SQLite has none, and a setting
         that is silently ignored reads to its author as one that is in force.
+
+        ``lock_factory`` replaces the writer lock ``_build_lock`` would otherwise build (a
+        ``FileLock`` on SQLite, an ``AdvisoryLock`` on PostgreSQL); it exists so a test can inject
+        a lock that fails a specific way without reaching into the private ``_lock`` attribute to
+        do it. Production never passes one.
         """
         self.url = database_url(setting)
         self.where = masked(setting)
@@ -236,6 +248,7 @@ class HouseDatabase:
             raise StoreError(message)
         self._password = password
         self._busy_timeout_s = busy_timeout_s
+        self._lock_factory = lock_factory
         self._engine: Engine | None = None
         self._lock: _WriterLock | None = None
         self._locked = False
@@ -263,7 +276,7 @@ class HouseDatabase:
         except (SQLAlchemyError, ImportError) as exc:
             self._refuse(exc)
         except BaseException:
-            self.close()
+            self._close_without_replacing_the_error()
             raise
         try:
             self._lock = self._build_lock(self._engine)
@@ -274,14 +287,27 @@ class HouseDatabase:
         except SQLAlchemyError as exc:
             self._refuse(exc)
         except BaseException:
-            self.close()
+            self._close_without_replacing_the_error()
             raise
 
     def _refuse(self, exc: Exception) -> NoReturn:
         """Close whatever ``open()`` managed to build, then raise the one ``StoreError`` callers refuse on."""
-        self.close()
+        self._close_without_replacing_the_error()
         message = f"{self.where}: could not be opened as a house database ({reason_for(exc)})"
         raise StoreError(message) from exc
+
+    def _close_without_replacing_the_error(self) -> None:
+        """Clean up while an exception is already on its way out, without becoming the one that leaves.
+
+        ``close()`` can itself raise (a lock's ``release()`` failing the way a dead PostgreSQL
+        session or a held ``flock`` can): unguarded, that failure would REPLACE the exception this
+        is cleaning up after - a caller catching ``KeyboardInterrupt`` around ``open()`` would meet
+        a ``RuntimeError`` from the lock instead, and ``_refuse`` would raise that in place of the
+        ``StoreError`` it means to. A cleanup failure here is discarded rather than chained: what
+        matters at this point is which exception the caller sees, not this one's own tidiness.
+        """
+        with suppress(BaseException):
+            self.close()
 
     def close(self) -> None:
         """Give the lock back, then the connections. Harmless when nothing is open.
@@ -347,6 +373,8 @@ class HouseDatabase:
         return create_engine(self.url, pool_pre_ping=True, connect_args=connect_args)
 
     def _build_lock(self, engine: Engine) -> _WriterLock:
+        if self._lock_factory is not None:
+            return self._lock_factory(engine)
         if self.url.get_backend_name() == "sqlite":
             return FileLock(Path(str(self.url.database)))
         return AdvisoryLock(engine, where=self.where)
