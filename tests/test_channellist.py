@@ -31,6 +31,9 @@ from soundtouch_zonemaster.domain.channellist import (
 )
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind
 
+ORION_RELATIVE = "/station?data=eyJuYW1lIjoiUmFkaW8ifQ%3D%3D"
+"""A preset location as AfterTouch writes it: the query-escaped base64 of a small JSON object."""
+
 
 def _radio(number: str, name: str | None = None) -> Channel:
     """One radio channel with an invented name and URL; only its number matters to most tests."""
@@ -220,6 +223,17 @@ class TestSeeding:
         assert found is not None
         assert (found.name, found.url, found.kind) == ("Superfly", "http://x/sf", ChannelKind.RADIO)
 
+    def test_a_relative_orion_preset_seeds_a_channel_with_its_location_unchanged(self) -> None:
+        """A box whose presets AfterTouch rewrote to the relative form still seeds the house.
+
+        Refusing it would end the first start at the first preset, which is every preset once the
+        house has been converted.
+        """
+        have = seed_from_presets({1: PresetStation(name="Orion", url=ORION_RELATIVE), 2: None})
+        found = have.seeded.by_number("1")
+        assert found is not None
+        assert (found.name, found.url, found.kind) == ("Orion", ORION_RELATIVE, ChannelKind.RADIO)
+
     def test_seeding_nothing_is_an_empty_list_and_says_so(self) -> None:
         have = seed_from_presets(dict.fromkeys(range(1, 7)))
         assert have.seeded.channels == ()
@@ -252,6 +266,29 @@ class TestTheChannelRecord:
 
         The refusal used to sit on the service's --station-url and moved with the channel list,
         because this is where a URL somebody can type now lives.
+        """
+        with pytest.raises(ValueError, match="http"):
+            Channel(number="1", name="local", kind=ChannelKind.RADIO, url=bad)
+
+    @pytest.mark.parametrize("relative", [ORION_RELATIVE, "/station", "/station?", "/station?data="])
+    def test_a_relative_orion_location_is_a_channel_url_kept_as_written(self, relative: str) -> None:
+        """AfterTouch writes a preset as ``/station?data=...`` and the speaker completes it itself.
+
+        The speaker prepends the LOCAL_INTERNET_RADIO base from its service registry, so the
+        relative form names a station exactly as well as the absolute one does. The channel keeps
+        it verbatim: it is what a box is handed again, and the box resolves it the same way.
+        """
+        channel = Channel(number="1", name="Orion", kind=ChannelKind.RADIO, url=relative)
+        assert channel.url == relative
+
+    @pytest.mark.parametrize(
+        "bad", ["/stations?data=x", "/station/x", "/station#x", "station?data=x", "/core02/orion/station?data=x"]
+    )
+    def test_a_path_that_only_resembles_the_orion_station_is_still_refused(self, bad: str) -> None:
+        """Only ``/station`` itself, bare or with a query, is relative to the Orion base.
+
+        The same rule AfterTouch applies (``RelativeOrionLocation``): anything else starting with a
+        slash is a bare path, which the master has no base to resolve against.
         """
         with pytest.raises(ValueError, match="http"):
             Channel(number="1", name="local", kind=ChannelKind.RADIO, url=bad)

@@ -340,9 +340,9 @@ class ZoneMasterPort(Protocol):
 class OpenZoneMaster(Protocol):
     """Build the master the service holds. Not started here: the service starts it under its lock.
 
-    Six parameters because a constructor's parameter list is what this mirrors: the port exists so
+    Seven parameters because a constructor's parameter list is what this mirrors: the port exists so
     a type checker can compare the two, and a shorter one would stop describing the thing. Bundling
-    them into a record would move the same six one call further out and change the service body,
+    them into a record would move the same seven one call further out and change the service body,
     which is the one thing this milestone's split may not do.
     """
 
@@ -355,6 +355,7 @@ class OpenZoneMaster(Protocol):
         events: asyncio.Queue[SpeakerEvent],
         slave_heard: Callable[[str], None],
         ignore_selects: bool,
+        service_url: str,
     ) -> ZoneMasterPort: ...
 
 

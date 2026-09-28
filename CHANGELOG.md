@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A channel url, and a speaker preset the channel list is seeded from, may be a RELATIVE Orion
+  location, `/station?data=...`, the form AfterTouch 0.138.0 writes presets in. The master
+  completes it the way a speaker does: with the `LOCAL_INTERNET_RADIO` base URL from the service's
+  BMX registry (`<[registry] url>/bmx/registry/v1/services`), read once per run. A registry that
+  cannot be read falls back to `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion` and says
+  so in the log. The location is stored, and sent to a speaker in a `/select`, exactly as given.
+  The absolute form (`http://.../orion/station?data=...`) and the legacy
+  `/custom/v1/playback/...` form still work unchanged; every other bare path is still refused.
+
+### Changed
+
+- `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
+  `membership.consoles_allowed` already applies to a console's id: a lower-case id is no longer
+  refused.
+- A higher config layer's explicit `null` over `bind_ip` or `device_id` - `--set zone.bind_ip=null`
+  or the equivalent environment variable - is refused naming the setting, rather than with pydantic's own
+  words about the record field (for `device_id` an explicit null is refused rather than falling back
+  to this host's MAC address, which is what a value given nowhere does). Previously
+  only `database.url` was refused this way.
+
 ### Fixed
 
 - `channels export` now reads the house database once and writes the file atomically, so the
@@ -18,16 +40,6 @@ All notable changes to this project are documented here. The format follows
 - `config` now masks the database's own location in anything the house store narrates on stderr
   under `--redact`, not only the values it prints. Nothing narrates on that path today, but a
   future line (a migration, an import) can no longer defeat `--redact` by naming it anyway.
-
-### Changed
-
-- `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
-  `membership.consoles_allowed` already applies to a console's id: a lower-case id is no longer
-  refused.
-- A higher config layer's explicit `null` over `bind_ip` or `device_id` - `--set zone.bind_ip=null`
-  or the equivalent environment variable - now refuses the same way a value given nowhere does
-  (naming the setting), rather than with pydantic's own words about the record field. Previously
-  only `database.url` was refused this way.
 
 ## [0.5.2] 2026-09-28 21:03:10
 

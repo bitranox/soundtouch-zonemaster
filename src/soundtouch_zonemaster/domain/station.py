@@ -20,7 +20,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["Station", "StationRequest", "station_request_from"]
+__all__ = ["ORION_STATION_PATH", "Station", "StationRequest", "is_relative_orion_location", "station_request_from"]
+
+ORION_STATION_PATH = "/station"
+"""The one path a location may name RELATIVE to the service's Orion adapter.
+
+AfterTouch writes a preset as ``/station?data=<query-escaped base64 of {name, imageUrl,
+streamUrl}>`` and the speaker completes it by prepending the ``LOCAL_INTERNET_RADIO`` base URL
+from its service registry. The absolute spelling, that base plus this path, names the same
+station; the legacy ``/custom/v1/playback/<b64>`` form is absolute too.
+"""
 
 
 @dataclass(frozen=True)
@@ -73,3 +82,16 @@ def station_request_from(*, location: str | None, name: str | None, content_item
         name=name if name else location,
         content_item_xml=content_item_xml,
     )
+
+
+def is_relative_orion_location(location: str) -> bool:
+    """Whether ``location`` is the relative Orion form, which only a base URL makes fetchable.
+
+    AfterTouch's own rule (``RelativeOrionLocation``): exactly :data:`ORION_STATION_PATH`, bare or
+    followed by a query. ``/stations``, ``/station/x`` and ``/station#x`` are other paths, and a
+    base prepended to one of them would name something the Orion adapter never served.
+    """
+    if not location.startswith(ORION_STATION_PATH):
+        return False
+    rest = location[len(ORION_STATION_PATH) :]
+    return not rest or rest.startswith("?")

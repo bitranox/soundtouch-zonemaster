@@ -206,6 +206,9 @@ class ZoneReconcile(VolumeGuard):
             # digit - which is the opposite of dialling, where an intermediate digit does nothing.
             # The number comes from the box's own notification channel instead.
             ignore_selects=True,
+            # The neighbour whose BMX registry completes a relative Orion channel url, the way a
+            # speaker completes the same location from its own registry.
+            service_url=self.options.registry_url,
         )
         # Held BEFORE it is started: start() binds four listeners one after another, so a failure
         # or a cancel in the middle would otherwise leave the bound ones with nothing holding them

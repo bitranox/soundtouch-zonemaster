@@ -27,6 +27,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from .enums import ChannelEnd, ChannelKind
+from .station import is_relative_orion_location
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -87,7 +88,14 @@ def a_url_the_master_can_fetch(url: str) -> str:
     the design keeps local files behind a media root that does not exist yet. That refusal used to
     sit on the service's ``--station-url``; it moved here with the channel list, because this is
     where the URL a person can type now lives.
+
+    The one path that is NOT bare is the relative Orion location AfterTouch writes presets in
+    (:func:`~soundtouch_zonemaster.domain.station.is_relative_orion_location`): it is relative to
+    a base the service registry names, so the master can fetch it exactly as a speaker does, and
+    a house whose presets were converted to it would otherwise refuse every one of them.
     """
+    if is_relative_orion_location(url):
+        return url
     if not url.startswith(("http://", "https://")):
         raise ChannelNumberError(f"a channel is fetched over http or https, not {url!r}")
     return url
