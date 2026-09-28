@@ -257,6 +257,40 @@ def test_a_lower_case_device_id_option_is_accepted_and_used_upper_case(
     assert seen[0].device_id == "AABBCC001122"
 
 
+REQUIRED_SETTINGS = (
+    pytest.param("bind_ip", "zone.bind_ip", id="bind_ip"),
+    pytest.param("device_id", "zone.device_id", id="device_id"),
+    pytest.param("database", "database.url", id="database"),
+)
+"""Every ``ServiceOptionsInput`` field with no pydantic default: the ones a higher layer's ``null``
+must refuse the same way a value given nowhere is refused, rather than as a record field that is
+not a string."""
+
+
+@pytest.mark.parametrize(("field", "path"), REQUIRED_SETTINGS)
+def test_a_required_setting_given_as_null_is_refused_the_same_as_given_nowhere(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    field: str,
+    path: str,
+) -> None:
+    """``database.url`` was the only required setting this held for; a higher layer's ``null`` over
+    ``zone.bind_ip`` or ``zone.device_id`` used to reach pydantic's own words about the record
+    field instead ("Input should be a valid string"). All three now refuse by the SETTING's name,
+    in the one sentence a value given nowhere gets."""
+    _user_config(isolated_config_layers, _house(tmp_path, zone='device_id = "AABBCC001122"\n'))
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--set", f"{path}=null"])
+
+    assert main() == 2
+    message = capsys.readouterr().err
+    assert f"no value anywhere for {field}" in message
+    assert path in message
+    assert "Input should be a valid string" not in message
+
+
 def test_a_misspelled_setting_gets_a_line_rather_than_silence(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:

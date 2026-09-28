@@ -281,6 +281,14 @@ class ServiceOptionsInput(BaseModel):
         )
 
 
+_REQUIRED_FIELDS = tuple(name for name, field in ServiceOptionsInput.model_fields.items() if field.is_required())
+"""The fields with no pydantic default: ``bind_ip``, ``device_id`` and ``database`` today. A higher
+layer's explicit ``null`` over any of these is dropped in :func:`parse_service_options` before
+validation, so it is refused as a value given nowhere rather than as a record field that is not a
+string; a field WITH a default is left alone, because ``None`` there is a value that field's own
+default or a later layer is entitled to fill, not a refusal this program should manufacture."""
+
+
 def database_text_or_refuse(value: object) -> str | None:
     """A database setting as text, ``None`` passed through. Raises :class:`OptionsError` (exit 2).
 
@@ -475,11 +483,15 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     merged = merge_service_settings(
         configured=scoped_to_the_configured_database(configured, typed=database), given=given
     )
-    if _DATABASE_FIELD in merged and merged[_DATABASE_FIELD] is None:
-        # The environment layer reads `null` and `none` as no value, and `--set` the JSON null.
-        # Validated as it came, pydantic would refuse it as a record field that is not a string;
-        # dropped, it is a database given nowhere, refused in the one sentence the store verbs give.
-        del merged[_DATABASE_FIELD]
+    # The environment layer reads `null` and `none` as no value, and `--set` the JSON null. Left as
+    # it arrived, pydantic would refuse a required field as not a string, naming the record field
+    # rather than the setting; dropped, each is a value given nowhere, refused in the one sentence
+    # every other missing setting gets. Only a REQUIRED field is dropped: one with a default is
+    # correctly a value of None if a later layer (or the default itself) does not fill it, which
+    # is not this program's business to second-guess.
+    for name in _REQUIRED_FIELDS:
+        if name in merged and merged[name] is None:
+            del merged[name]
     try:
         return ServiceOptionsInput.model_validate(merged).record()
     except ValidationError as exc:
