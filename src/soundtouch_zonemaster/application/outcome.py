@@ -17,8 +17,7 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import cast
 
-from ..domain.preferences import DEVICE_ID as _DEVICE_ID
-from ..domain.preferences import PreferenceName, PreferenceRefusedError, checked
+from ..domain.preferences import PreferenceName, PreferenceRefusedError, checked, normalized_device_id
 
 __all__ = ["ExitCode", "OptionsError", "device_id_or_refuse", "preference_or_refuse", "tcp_port_or_refuse"]
 
@@ -58,10 +57,18 @@ class OptionsError(Exception):
 
 
 def device_id_or_refuse(value: str) -> str:
-    """Twelve hex digits, or a refusal. Both programs take one, so both refuse the same way."""
-    if not _DEVICE_ID.fullmatch(value):
+    """Twelve hex digits, or a refusal. Both programs take one, so both refuse the same way.
+
+    Either case is accepted and folded to upper case through
+    :func:`~..domain.preferences.normalized_device_id`, the same rule
+    ``membership.consoles_allowed`` already applies to a console: a ``--device-id`` typed or a
+    ``zone.device_id`` deployed lower-case is not refused for a reason the console surface does
+    not refuse it for either.
+    """
+    upper = normalized_device_id(value)
+    if upper is None:
         raise OptionsError("device id must be 12 hex digits", exit_code=ExitCode.ERROR)
-    return value
+    return upper
 
 
 def tcp_port_or_refuse(value: int, *, what: str) -> int:

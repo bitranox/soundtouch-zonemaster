@@ -25,10 +25,10 @@ disagreement, and what this corpus is for is knowing WHICH frames a change moved
 
 **Where old and new differ, this file states the difference rather than hiding it.** Each delta is
 named in the test that meets it, with what the old code did and why the new answer is the same
-decision reached a different way. There are thirteen. Deltas 6 to 9 are the options corpus's and
-are written out where that corpus is replayed; deltas 10 to 13 are a different species from all the
+decision reached a different way. There are fourteen. Deltas 6 to 9 are the options corpus's and
+are written out where that corpus is replayed; deltas 10 to 14 are a different species from all the
 others and the comment at each one says so - every delta from 1 to 9 is the SAME behaviour reached
-another way, while 10 to 13 are deliberate REPAIRS that supersede what the old code did. The
+another way, while 10 to 14 are deliberate REPAIRS that supersede what the old code did. The
 recorded case keeps the old answer, because that is what a corpus is for; the assertion beside it
 is what the code does now, and why:
 
@@ -64,6 +64,10 @@ is what the code does now, and why:
 13. The same repair on the channel file, in that file's own direction: it refused outright rather
    than starting empty, and it is the file most likely to have been hand-edited from a Windows box,
    because it is the only copy of something a person built.
+14. A REPAIR, not an equivalence: a lower-case ``--device-id`` / ``zone.device_id`` was refused as
+   "not 12 hex digits" although the archive's own device ids were case-insensitive everywhere else.
+   It is accepted and folded to upper case now, the same rule ``membership.consoles_allowed``
+   already applies to a console's id.
 """
 
 from __future__ import annotations
@@ -1414,6 +1418,18 @@ def replay_service_options(case: dict[str, Any], work: Path, monkeypatch: pytest
 
     def call() -> ServiceOptions:
         return with_cli_values(given, configured=configured)
+
+    if case["name"] == "service: a lowercase hex device id":
+        # DELTA 14, a REPAIR rather than an equivalence, and the same species as 10 to 13. The
+        # recorded refusal is the archive's own answer, asserted first so the case still proves
+        # WHICH input is meant; what follows is that it is no longer given. A lower-case
+        # --device-id / zone.device_id is accepted and folded to upper case now, the same rule
+        # membership.consoles_allowed already applied to a console's own id (USER decision
+        # 2026-09-27).
+        assert expect["raises"]["message"] == "device id must be 12 hex digits"
+        options = call()
+        assert options.device_id == "AABBCC001122"
+        return
 
     if "raises" in expect:
         with pytest.raises(OptionsError) as caught:

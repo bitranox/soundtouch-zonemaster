@@ -228,6 +228,35 @@ def test_a_lower_case_console_id_in_a_config_layer_no_longer_stops_the_start(
     assert seen[0].consoles_allowed == ("AABBCC000012",)
 
 
+def test_a_lower_case_device_id_in_a_config_layer_is_accepted_and_used_upper_case(
+    monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """``zone.device_id`` follows the same rule ``membership.consoles_allowed`` already does: a
+    person or a deployed config may spell an id lower-case, and it is folded to upper case rather
+    than refused - the shape the registry itself reports."""
+    _user_config(isolated_config_layers, _house(tmp_path, zone='device_id = "aabbcc001122"\n'))
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service"])
+
+    assert main(run_service=run) == 0
+    assert seen[0].device_id == "AABBCC001122"
+
+
+def test_a_lower_case_device_id_option_is_accepted_and_used_upper_case(
+    monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The same rule from the command line: ``--device-id`` is the setting's other surface, and a
+    person typing it lower-case must not be refused where a config file spelling it the same way
+    is not."""
+    _user_config(isolated_config_layers, _house(tmp_path))
+    argv = [part.replace("/var/lib/zonemaster", str(tmp_path)) for part in DEPLOYED_ARGV]
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv, "--device-id", "aabbcc001122"])
+
+    assert main(run_service=run) == 0
+    assert seen[0].device_id == "AABBCC001122"
+
+
 def test_a_misspelled_setting_gets_a_line_rather_than_silence(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:

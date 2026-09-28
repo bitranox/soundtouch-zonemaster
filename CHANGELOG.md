@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
+  `membership.consoles_allowed` already applies to a console's id: a lower-case id is no longer
+  refused.
+
 ## [0.5.2] 2026-09-28 21:03:10
 
 ### Fixed

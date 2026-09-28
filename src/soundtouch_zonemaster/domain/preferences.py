@@ -45,6 +45,7 @@ __all__ = [
     "Stored",
     "checked",
     "decoded",
+    "normalized_device_id",
     "plain_value",
     "quoted",
     "resolved",
@@ -67,6 +68,19 @@ FADE_CEILING_S = 5.0
 
 DEVICE_ID = re.compile(r"[0-9A-F]{12}")
 """A speaker's device id: its MAC, twelve hex digits, as the registry spells it (upper case)."""
+
+
+def normalized_device_id(value: str) -> str | None:
+    """Twelve hex digits of either case, folded to upper case; ``None`` if it is not one.
+
+    The one place a device id is both checked and normalised, so every surface that takes one - a
+    console in :func:`_device_ids`, the master's own ``--device-id`` / ``zone.device_id`` in
+    :func:`~..application.outcome.device_id_or_refuse` - holds a person or a deployed config to the
+    same rule and hands back the same shape the registry reports, however it was spelled.
+    """
+    upper = value.upper()
+    return upper if DEVICE_ID.fullmatch(upper) else None
+
 
 PreferenceValue = float | tuple[str, ...]
 
@@ -318,8 +332,8 @@ def _device_ids(name: PreferenceName, value: object) -> tuple[str, ...]:
         raise PreferenceRefusedError(message)
     ids: list[str] = []
     for item in cast("list[object] | tuple[object, ...]", value):
-        upper = item.upper() if isinstance(item, str) else None
-        if upper is None or not DEVICE_ID.fullmatch(upper):
+        upper = normalized_device_id(item) if isinstance(item, str) else None
+        if upper is None:
             # Only a string is quoted: anything else decoded from a stored row (a nested list, say)
             # can be megabytes, and repr() would build all of it before any cut.
             said = quoted(item) if isinstance(item, str) else f"something of type {type(item).__name__}"
