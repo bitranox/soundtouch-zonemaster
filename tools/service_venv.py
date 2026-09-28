@@ -328,7 +328,8 @@ def backup(*, default: Path, to: Path) -> BackupReport:
 
 
 def distributions() -> DistributionsReport:
-    names = sorted({str(dist.metadata["Name"]) for dist in metadata.distributions()})
+    """One name per installed distribution, duplicates kept: two copies of one is what a deploy looks for."""
+    names = sorted(str(dist.metadata["Name"]) for dist in metadata.distributions())
     return DistributionsReport(names=names)
 
 

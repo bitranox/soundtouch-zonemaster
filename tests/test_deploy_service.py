@@ -400,6 +400,15 @@ def test_a_clean_venv_has_no_findings() -> None:
     assert venv_findings(distributions=["pydantic", "soundtouch-zonemaster"], scripts=[*CONSOLE_SCRIPTS, "uv"]) == []
 
 
+def test_one_distribution_installed_twice_is_a_finding() -> None:
+    findings = venv_findings(
+        distributions=["soundtouch-zonemaster", "soundtouch-zonemaster"], scripts=sorted(CONSOLE_SCRIPTS)
+    )
+
+    assert len(findings) == 1
+    assert "soundtouch-zonemaster', 'soundtouch-zonemaster'" in findings[0]
+
+
 def test_a_venv_without_the_service_script_is_a_finding() -> None:
     findings = venv_findings(distributions=["soundtouch-zonemaster"], scripts=["soundtouch-zonemaster"])
 

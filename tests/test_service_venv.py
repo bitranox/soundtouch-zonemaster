@@ -407,6 +407,26 @@ def test_distributions_names_this_program(capsys: pytest.CaptureFixture[str]) ->
     assert "soundtouch-zonemaster" in document["data"]["names"]
 
 
+def test_a_distribution_installed_twice_is_named_twice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Two dist-info directories of one name are the leftover a deploy has to see.
+
+    A set collapsed them into one name, and "exactly one distribution of this program" then held
+    for a venv holding two. The second copy is a real dist-info directory on a real path entry.
+    """
+    extra = tmp_path / "site"
+    info = extra / "soundtouch_zonemaster-0.0.1.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text("Metadata-Version: 2.1\nName: soundtouch-zonemaster\nVersion: 0.0.1\n")
+    monkeypatch.setattr(sys, "path", [str(extra), *sys.path])
+
+    code, document = _drive(["distributions"], capsys)
+
+    assert code == 0
+    assert document["data"]["names"].count("soundtouch-zonemaster") == 2
+
+
 def test_a_database_url_carrying_a_password_is_refused_without_repeating_it(
     tmp_path: Path, isolated_config_layers: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
