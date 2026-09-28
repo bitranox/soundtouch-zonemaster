@@ -13,12 +13,14 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ...application.errors import PortsBusyError
+from ...application.options import DEFAULT_BASE_URL
 from ...domain import zonexml
 from ...domain.enums import SpeakerPath
 from ...domain.station import Station, StationRequest
 from . import connections, xmlmodels
 from .clock import now_us, serve_clock
 from .http_api import HttpApi, serve_http
+from .orion import OrionBase
 from .pb import audio_data
 from .placement import JoinPlanner, JoinSlot, StreamKey
 from .source import RingBuffer, StreamSource
@@ -167,6 +169,9 @@ class ZoneMaster:
     Liveness and never membership: it says something is at the other end of a channel we opened,
     which is all a report proves. The service uses it to keep a quiet member from ageing out.
     """
+    service_url: str = DEFAULT_BASE_URL
+    """The replacement service's base URL (``[registry] url``), whose BMX registry completes a
+    relative Orion location before a station is fetched. The prototype leaves the default."""
     slaves: dict[str, Slave] = field(default_factory=dict[str, Slave])
     transports: SlaveTransports = field(default_factory=SlaveTransports)
     station: Station | None = None
@@ -182,10 +187,13 @@ class ZoneMaster:
         default_factory=list[asyncio.AbstractServer | asyncio.DatagramTransport]
     )
     planner: JoinPlanner = field(init=False)
+    orion: OrionBase = field(init=False)
+    """One per master, so every station of a run shares the base the registry named once."""
 
     def __post_init__(self) -> None:
         # The planner reaches streams through source_for, so it can read one and never add one.
         self.planner = JoinPlanner(log=self.log, source_for=self.source_for)
+        self.orion = OrionBase(self.service_url)
 
     # --- lifecycle ---------------------------------------------------------------------------
 
@@ -310,7 +318,7 @@ class ZoneMaster:
         generation = self._play_generation
         station = Station(self._next_url_id, request.playback_url, request.name, request.content_item_xml)
         self._next_url_id += 1
-        source = StreamSource(station, RingBuffer(), self.log)
+        source = StreamSource(station, RingBuffer(), self.log, orion=self.orion)
         source.start(now_us)
         self.sources[station.url_id] = source
         # Wait for the first bytes so t0_us exists before any slave is told to PLAY at it.

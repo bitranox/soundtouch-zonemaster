@@ -39,10 +39,19 @@ def devices_at(addresses: dict[str, str]) -> str:
 
 
 class FakeRegistry:
-    """The slice of AfterTouch the service reads: one GET that returns a JSON array."""
+    """The slice of AfterTouch the service reads: a GET that returns a JSON document.
+
+    The device list by default; :attr:`bodies` answers other paths, such as the BMX registry.
+    """
 
     def __init__(self, body: str, *, status_line: str = "200 OK") -> None:
         self.body = body
+        self.bodies: dict[str, str] = {}
+        """A body per request PATH, query excluded, answered instead of :attr:`body`.
+
+        The same neighbour serves the speakers' BMX service registry, and a test resolving a
+        relative station location needs that document where the device list would be.
+        """
         self.status_line = status_line
         self.paths: list[str] = []
         self._server: asyncio.AbstractServer | None = None
@@ -87,8 +96,9 @@ class FakeRegistry:
     async def _answer_one(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         head = await reader.readuntil(b"\r\n\r\n")
         request_line = head.decode("utf-8", "replace").split("\r\n")[0]
-        self.paths.append(request_line.split(" ")[1])
-        payload = self.body.encode()
+        path = request_line.split(" ")[1]
+        self.paths.append(path)
+        payload = self.bodies.get(path.split("?", 1)[0], self.body).encode()
         writer.write(
             f"HTTP/1.1 {self.status_line}\r\n"
             f"Content-Type: application/json\r\n"

@@ -57,6 +57,23 @@ class TestLoading:
         save_channels(path, have)
         assert load_channels(path, log=_log_to([])) == have
 
+    def test_a_relative_orion_location_loads_and_is_written_back_as_it_was(self, tmp_path: Path) -> None:
+        """The form AfterTouch writes presets in is a channel url a person may type into the file.
+
+        The bytes on disk keep it relative, because the relative form is the one that survives the
+        service moving to another address: the speaker completes it from its own registry.
+        """
+        path = tmp_path / "channels.json"
+        relative = "/station?data=eyJuYW1lIjoiUmFkaW8ifQ%3D%3D"
+        document = {"channels": [{"number": "1", "name": "Orion", "kind": "radio", "url": relative}]}
+        path.write_text(json.dumps(document), encoding="utf-8")
+        loaded = load_channels(path, log=_log_to([]))
+        found = loaded.by_number("1")
+        assert found is not None
+        assert found.url == relative
+        save_channels(path, loaded)
+        assert json.loads(path.read_text(encoding="utf-8"))["channels"][0]["url"] == relative
+
     def test_an_unusable_file_refuses_rather_than_starting_empty(self, tmp_path: Path) -> None:
         """The decision this module turns on. Starting empty would let the next save erase it."""
         path = tmp_path / "channels.json"

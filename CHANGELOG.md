@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A channel url, and a speaker preset the channel list is seeded from, may be a RELATIVE Orion
+  location, `/station?data=...`, the form AfterTouch 0.138.0 writes presets in. The master
+  completes it the way a speaker does: with the `LOCAL_INTERNET_RADIO` base URL from the service's
+  BMX registry (`<[registry] url>/bmx/registry/v1/services`), read once per run. A registry that
+  cannot be read falls back to `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion` and says
+  so in the log. The location is stored, and sent to a speaker in a `/select`, exactly as given.
+  The absolute form (`http://.../orion/station?data=...`) and the legacy
+  `/custom/v1/playback/...` form still work unchanged; every other bare path is still refused.
+
 ## [0.5.2] 2026-09-28 21:03:10
 
 ### Fixed

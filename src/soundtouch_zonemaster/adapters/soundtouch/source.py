@@ -21,6 +21,7 @@ from ...domain.enums import ContentType
 from ...domain.frames import FrameIndex, find_frame
 from ...domain.timeline import FrameTimeline, ZoneTimeline
 from ..http_client import client_without_deadline
+from .orion import OrionBase
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -161,6 +162,12 @@ class StreamSource:
     content_type: str = ""
     bytes_total: int = 0
     read_timeout_s: float = READ_TIMEOUT_S
+    orion: OrionBase = field(default_factory=OrionBase, repr=False)
+    """What completes a relative Orion location before it is fetched (``orion.py``).
+
+    The master hands every source the one it holds, so the service registry is read once per run
+    rather than once per station.
+    """
     _task: asyncio.Task[None] | None = field(default=None, repr=False)
     frames: FrameIndex = field(init=False, repr=False)
     frame_timeline: FrameTimeline | None = field(default=None, repr=False)
@@ -252,7 +259,9 @@ class StreamSource:
         headers = {"User-Agent": "Bose_Lisa/27.0.6", "Icy-MetaData": "0"}
         async with client_without_deadline(follow_redirects=True, headers=headers) as client:
             async with asyncio.timeout(ANSWER_TIMEOUT_S):
-                url = await resolve_stream_url(client, self.station.playback_url, self.log)
+                # The station keeps the location as it was given; only this fetch sees it completed.
+                location = await self.orion.absolute(client, self.station.playback_url, self.log)
+                url = await resolve_stream_url(client, location, self.log)
             async with asyncio.timeout(ANSWER_TIMEOUT_S):
                 resp = await client.send(client.build_request("GET", url), stream=True)
             try:

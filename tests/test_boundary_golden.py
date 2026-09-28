@@ -1029,6 +1029,7 @@ def wired_service(
         events: asyncio.Queue[SpeakerEvent],
         slave_heard: Callable[[str], None],
         ignore_selects: bool,
+        service_url: str,
     ) -> FakeMaster:
         return FakeMaster()
 

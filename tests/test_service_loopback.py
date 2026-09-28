@@ -1605,6 +1605,38 @@ async def test_an_empty_channel_file_is_seeded_from_the_box_that_is_switched_on_
     assert found.name == "Technikum"
 
 
+async def test_relative_orion_presets_seed_the_list_and_play_through_the_registry_s_base(
+    world: World, tmp_path: Path
+) -> None:
+    """The form AfterTouch now writes presets in, from the preset key to the station's socket.
+
+    ``/station?data=...`` is relative: a speaker completes it with the LOCAL_INTERNET_RADIO base
+    its service registry names, and the master has to do the same before it can fetch a byte. The
+    list keeps the location as the box stored it, because that is what a box is handed again.
+    """
+    relative = "/station?data=eyJuYW1lIjoiT3Jpb24ifQ%3D%3D"
+    station_base = world.station_url.removesuffix("/live")
+    world.registry.bodies["/bmx/registry/v1/services"] = json.dumps(
+        {"bmx_services": [{"id": {"name": "LOCAL_INTERNET_RADIO"}, "baseUrl": f"{station_base}/orion"}]}
+    )
+    world.studio.presets = {1: _preset(relative, "Orion")}
+    options = _options(world, tmp_path, seed=True)
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        await _both_wake(world)
+        await eventually(lambda: _channels_of(options).numbers_in_order() == ("1",), "the list was seeded")
+        await eventually(
+            lambda: any(f"GET /orion{relative} " in fetch for fetch in world.fetches),
+            "the station was fetched at the registry's base plus the relative location",
+        )
+
+    seeded = _channels_of(options).by_number("1")
+    assert seeded is not None
+    assert seeded.url == relative, "the channel keeps the location exactly as the preset stored it"
+    assert "/bmx/registry/v1/services" in world.registry.paths
+
+
 async def test_a_box_with_no_presets_leaves_the_seeding_to_the_next_one_switched_on(
     world: World, tmp_path: Path
 ) -> None:
