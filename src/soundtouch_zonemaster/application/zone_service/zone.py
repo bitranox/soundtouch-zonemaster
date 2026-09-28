@@ -62,6 +62,17 @@ echo that never comes; each claim hands over one frame and is then spent.
 class ZoneReconcile(VolumeGuard):
     """The zone, the one pass that changes it, and the two loops that ask for one."""
 
+    _standing_down: ZoneMasterPort | None = None
+    """The master a stand-down took away from ``master`` and has not finished with.
+
+    ``master`` is cleared FIRST, so nothing a key press starts can find a zone that is being
+    dissolved. That leaves the dying master held by nothing but the stand-down's own frame, and a
+    stop that lands inside the dissolve - SIGINT right after ``switch off``, the deploy order - used
+    to lose it there: the boxes not yet told stayed in a zone whose master had gone, and its four
+    listeners stayed bound. Held here until it is down, the next stand-down (the service's own
+    ``finally``) finishes the job instead of finding nothing to do.
+    """
+
     async def _watch_the_switch(self) -> None:
         """Off stands the service down; on builds the zone again. Nothing else is touched."""
         async with contextlib.aclosing(self.switch.watch()) as switch:
@@ -699,11 +710,17 @@ class ZoneReconcile(VolumeGuard):
         await self._stop_house_writes()
         master, self.master = self.master, None
         self._joined.clear()
-        if master is None:
+        if master is not None:
+            self._standing_down = master
+        going = self._standing_down
+        if going is None:
             return
         self.log("zone", "standing down: dissolving the zone")
-        await master.dissolve()
-        await master.stop()
+        # Released only once it is down: a stop that interrupts either await leaves it here for the
+        # next stand-down, which dissolves the boxes not yet told and closes the listeners.
+        await going.dissolve()
+        await going.stop()
+        self._standing_down = None
 
 
 def _what_it_plays(channel: Channel) -> str:

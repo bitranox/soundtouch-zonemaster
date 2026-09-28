@@ -3796,6 +3796,37 @@ async def _running_with_a_store_that_can_fail(
             await task
 
 
+async def test_a_stop_that_lands_inside_the_dissolve_still_dissolves_the_zone_and_frees_the_ports(
+    world: World, tmp_path: Path
+) -> None:
+    """A stop that arrives while the switch-off is still telling the boxes must finish the job.
+
+    The dissolve is one HTTP call per box, sent one after another, and a real box takes tens of
+    milliseconds to answer each - so a SIGINT right after ``switch off`` (which is how a deploy
+    stops the unit) lands inside it. Whatever the stop interrupted, the box that was not told yet
+    must still be told, and the master's four listeners must still be closed: a master nobody
+    holds any more keeps its ports until the process exits, and the boxes it never reached stay in
+    a zone whose master has gone.
+    """
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        await _both_wake(world)
+        for box in (world.studio, world.hallway):
+            box.slow["POST /setZone"] = 1.0
+        _flip(options, on=False)
+        await eventually(
+            lambda: len(dissolves(world.studio)) + len(dissolves(world.hallway)) == 1,
+            "the first box has the dissolve and the service is waiting for its answer",
+        )
+    # The stop has run to its end here: _running waited for the service task.
+    assert len(dissolves(world.studio)) >= 1, "the studio was told the zone is over"
+    assert len(dissolves(world.hallway)) >= 1, "the hallway was told the zone is over"
+    await nothing_answers_on(MASTER, 8090, timeout=2.0)
+    await nothing_answers_on(MASTER, 40002, timeout=2.0)
+
+
 async def test_a_store_that_cannot_save_state_does_not_stop_the_dissolve(world: World, tmp_path: Path) -> None:
     """A StoreError while remembering where MPD was must not abort the stand-down: the speakers
     still hear the zone dissolve, and the failure is logged rather than swallowed or left to leave

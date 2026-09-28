@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A stop that arrived while `switch off` was still dissolving the zone - which is the order a
+  deploy uses - left the boxes not yet told in a zone whose master had gone, and kept the master's
+  four ports bound until the process ended. The dissolve is one call per box, so the stop only had
+  to land while one box was answering. The stand-down now holds the master until it is down, and
+  the service's own last stand-down finishes an interrupted one: every box is told, and the ports
+  are closed.
+
 ## [0.5.1] 2026-09-28 15:08:20
 
 ### Changed
