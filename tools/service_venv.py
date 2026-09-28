@@ -43,22 +43,21 @@ from __future__ import annotations
 
 import sqlite3
 import sys
-from contextlib import closing, contextmanager
+from contextlib import closing
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, override
+from typing import TYPE_CHECKING, NamedTuple
 
 import rich_click as click
 from _click import argument, current_context, option, run_cli
 from pydantic import BaseModel
-from sqlalchemy import create_engine, inspect
 from sqlalchemy.exc import SQLAlchemyError
 
 from soundtouch_zonemaster.adapters.cli.context import Shared, named_database
 from soundtouch_zonemaster.adapters.cli.envelope import OutputMode
 from soundtouch_zonemaster.adapters.config.errors import ConfigInputError
-from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase, database_url, reason_for
+from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase, database_url, reason_for, schema_exists
 from soundtouch_zonemaster.adapters.files.house_state import read_state
 from soundtouch_zonemaster.adapters.files.house_switch import read_switch, write_switch
 from soundtouch_zonemaster.adapters.files.switch_file import Switch
@@ -68,7 +67,7 @@ from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.state import ZoneState
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Sequence
+    from collections.abc import Callable, Sequence
 
     from sqlalchemy.engine import Connection
 
@@ -77,9 +76,6 @@ if TYPE_CHECKING:
 COMMAND = "service_venv"
 
 EXIT_OK, EXIT_BUSY, EXIT_ERROR = 0, 1, 2
-
-_POSTGRES_PROBE_TIMEOUT_S = 5
-"""How long the freshness probe waits for a PostgreSQL server, the store's own connect bound."""
 
 _REFUSALS = (ConfigInputError, OptionsError, StoreError, OSError, sqlite3.Error)
 """Everything a verb here can meet that must end in the envelope rather than a traceback."""
@@ -150,51 +146,17 @@ class DistributionsReport(BaseModel):
     names: list[str]
 
 
-@contextmanager
-def _read_only(setting: str, password: Secret | None) -> Generator[Connection | None]:
-    """A plain connection that creates nothing and migrates nothing; ``None`` for a missing SQLite file.
-
-    Not the store: opening the store brings any database it reaches up to head, which on
-    PostgreSQL - where no file tells an empty database from a missing one - creates the schema.
-    A question about the house must leave the house as it found it, so it is asked here. A SQLite
-    file that is not there is answered without connecting, because connecting would create it.
-    ``HouseDatabase`` is built only for its reading of the setting (and its refusals); it never
-    opens. Anything the database library raises leaves as the one ``StoreError``.
-    """
-    house = HouseDatabase(setting, password=password)
-    connect_args: dict[str, object] = {}
-    if house.url.get_backend_name() == "sqlite":
-        if not Path(str(house.url.database)).exists():
-            yield None
-            return
-    else:
-        connect_args["connect_timeout"] = _POSTGRES_PROBE_TIMEOUT_S
-        if password is not None:
-            connect_args["password"] = password.reveal()
-    engine = create_engine(house.url, connect_args=connect_args)
-    try:
-        with engine.connect() as connection:
-            yield connection
-    except SQLAlchemyError as exc:
-        message = f"{house.where}: could not be read ({reason_for(exc)})"
-        raise StoreError(message) from exc
-    finally:
-        engine.dispose()
-
-
-def _holds_a_house_schema(connection: Connection) -> bool:
-    """Alembic's version table, which the first open of any version of the service writes."""
-    return inspect(connection).has_table("alembic_version")
-
-
 def house_schema_exists(setting: str, password: Secret | None) -> bool:
-    """Whether the database already holds a house schema. Creates nothing.
+    """Whether the database already holds a house schema. Creates nothing, migrates nothing.
 
     Asked BEFORE the store opens it, because opening is what creates the file and brings the
-    schema to head, after which a new database and an old one look the same.
+    schema to head, after which a new database and an old one look the same. Goes through
+    :meth:`HouseDatabase.probe`, the same non-migrating read the store's own engine settings back,
+    rather than a connection built here: a house database is asked about itself only one way.
     """
-    with _read_only(setting, password) as connection:
-        return connection is not None and _holds_a_house_schema(connection)
+    house = HouseDatabase(setting, password=password)
+    with house.probe() as connection:
+        return connection is not None and schema_exists(connection)
 
 
 def seed_word(*, schema_existed: bool, legacy_switch: bool | None) -> bool | None:
@@ -208,57 +170,44 @@ def seed_word(*, schema_existed: bool, legacy_switch: bool | None) -> bool | Non
     return False if legacy_switch is None else legacy_switch
 
 
-class _CreatedWithItsSwitch(HouseDatabase):
-    """A house database whose FIRST write transaction also carries the switch a seed owes it.
-
-    On a database this run creates, that first transaction is the one ``open()`` brings the schema
-    to head in, so the schema and the switch are committed together or not at all. Two
-    transactions left a window: a seed cut off between them - a Ctrl-C, a dropped ``pct exec``
-    session, a full disk - left a schema with no switch row, the next run took that for a database
-    somebody had been using and left it alone, and the first start read it as ON and took the
-    house. An interrupted run now leaves no schema, so the next one still sees a new database.
-
-    When the schema was already there (another process created it between the freshness probe and
-    ``open()``), the first write transaction is the seed's own, and the owed switch is written
-    there only if that transaction did not write one itself.
-    """
-
-    def __init__(self, setting: str, *, password: Secret | None, owed: bool | None) -> None:
-        super().__init__(setting, password=password)
-        self._owed = owed
-        self.written = False
-
-    @property
-    def owes_a_switch(self) -> bool:
-        return self._owed is not None
-
-    @override
-    @contextmanager
-    def writing(self) -> Generator[Connection]:
-        with super().writing() as connection:
-            yield connection
-            if self._owed is not None:
-                if read_switch(connection) is None:
-                    write_switch(connection, on=self._owed)
-                    self.written = True
-                self._owed = None
-
-
 def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport:
+    """Make sure a first start finds the switch off, and change no switch anybody set.
+
+    ``house.open(create=True, seed=...)`` carries the switch in the SAME transaction that creates
+    the schema, on a database this run finds truly new, so an interrupt anywhere in between leaves
+    no schema behind rather than a schema with no switch row - the next run still sees a database
+    that was never created and seeds it again. The one case that hook cannot reach is a schema
+    another process created between the freshness probe above and this call's own ``open()``: no
+    migration then runs here, so its transaction never carries anything, and the switch is written
+    in one of this call's own - but only if that other process left none, because a switch already
+    there is the operator's, not a race to paper over.
+    """
     setting, password, configured = configured_database(default=default)
     existed = house_schema_exists(setting, password)
     legacy = None
     if legacy_switch_file is not None and legacy_switch_file.exists():
         legacy = Switch(legacy_switch_file, log=_narrate).is_on()
     word = seed_word(schema_existed=existed, legacy_switch=legacy)
-    house = _CreatedWithItsSwitch(setting, password=password, owed=word)
-    house.open(exclusive=False, create=True)
+    written = False
+    seed: Callable[[Connection], None] | None = None
+    if word is not None:
+        owed = word
+
+        def _seed(connection: Connection) -> None:
+            nonlocal written
+            write_switch(connection, on=owed)
+            written = True
+
+        seed = _seed
+
+    house = HouseDatabase(setting, password=password)
     try:
-        if house.owes_a_switch:
-            # open() found the schema already at head and wrote nothing, so no transaction has
-            # carried the switch yet: an empty one of the seed's own does, as it ends.
-            with house.writing():
-                pass
+        house.open(exclusive=False, create=True, seed=seed)
+        if word is not None and not written:
+            with house.writing() as connection:
+                if read_switch(connection) is None:
+                    write_switch(connection, on=word)
+                    written = True
         with house.reading() as connection:
             held = read_switch(connection)
     except SQLAlchemyError as exc:
@@ -267,9 +216,7 @@ def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport
     finally:
         house.close()
     shown = "unset" if held is None else ("on" if held else "off")
-    return SeedReport(
-        database=house.where, created=not existed, switch=shown, written=house.written, configured=configured
-    )
+    return SeedReport(database=house.where, created=not existed, switch=shown, written=written, configured=configured)
 
 
 def show(*, default: Path) -> ShowReport:
@@ -284,8 +231,9 @@ def show(*, default: Path) -> ShowReport:
     setting, password, _configured = configured_database(default=default)
     backend = database_url(setting).get_backend_name()
     where = masked(setting)
-    with _read_only(setting, password) as connection:
-        if connection is None or not _holds_a_house_schema(connection):
+    house = HouseDatabase(setting, password=password)
+    with house.probe() as connection:
+        if connection is None or not schema_exists(connection):
             return ShowReport(database=where, backend=backend, exists=False, on=True, members=[])
         held = read_switch(connection)
         state = read_state(connection) or ZoneState()
