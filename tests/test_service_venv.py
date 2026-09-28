@@ -53,6 +53,16 @@ def _switch_row(path: Path) -> str | None:
     return None if row is None else str(row[0])
 
 
+def _main_file_switch_row(path: Path) -> str | None:
+    """The switch word as the MAIN file alone holds it: a private copy, read without its ``-wal``."""
+    alone = path.with_name(f"alone-{path.name}")
+    alone.write_bytes(path.read_bytes())
+    try:
+        return _switch_row(alone)
+    finally:
+        alone.unlink()
+
+
 def _set_switch(path: Path, *, on: bool) -> None:
     store = open_house_store(str(path), password=None, log=_quiet)
     store.open(exclusive=False, create=False)
@@ -339,12 +349,24 @@ def test_set_switch_refuses_a_database_that_is_not_there(tmp_path: Path, capsys:
 def test_a_backup_is_a_consistent_copy_taken_through_the_backup_api(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The copy is opened as a house database and holds what the original held."""
-    database = created_by_the_service(tmp_path / "zonemaster.sqlite")
-    _set_switch(database, on=False)
-    backups = tmp_path / "backups"
+    """The copy holds a write that is committed but still only in the ``-wal`` file.
 
-    code, document = _drive(["backup", "--to", str(backups), "--default", str(database)], capsys)
+    That is the service's database while it runs: it holds a connection open, so SQLite never
+    checkpoints on close, and the newest commits live in ``<database>-wal`` until a checkpoint
+    moves them into the main file. A plain copy of the main file loses exactly those. The write
+    here is made on a connection that stays open through the backup, with automatic checkpoints
+    off, so it is in the ``-wal`` file and nowhere else when the copy is taken.
+    """
+    database = created_by_the_service(tmp_path / "zonemaster.sqlite")
+    backups = tmp_path / "backups"
+    with closing(sqlite3.connect(database)) as running:
+        running.execute("PRAGMA wal_autocheckpoint = 0")
+        running.execute("INSERT INTO switch (id, word, changed_at) VALUES (1, 'off', '2026-09-28T00:00:00+00:00')")
+        running.commit()
+        assert Path(f"{database}-wal").stat().st_size > 0, "the write must still be in the -wal file"
+        assert _main_file_switch_row(database) is None, "and not yet in the main file"
+
+        code, document = _drive(["backup", "--to", str(backups), "--default", str(database)], capsys)
 
     assert code == 0
     copy = Path(document["data"]["backup"])
