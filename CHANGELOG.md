@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format follows
   insert, on both backends. `switch` opens the store without the writer lock, so two invocations
   really can write the row at the same instant; on PostgreSQL under READ COMMITTED that could end
   in a unique-constraint violation instead of the switch simply landing on whichever value won.
+- `config` now masks the database's own location in anything the house store narrates on stderr
+  under `--redact`, not only the values it prints. Nothing narrates on that path today, but a
+  future line (a migration, an import) can no longer defeat `--redact` by naming it anyway.
 
 ### Changed
 

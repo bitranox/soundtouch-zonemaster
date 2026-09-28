@@ -1615,6 +1615,15 @@ class _StoreThatNarrates(SqlHouseStore):
         super().open(exclusive=exclusive, create=create)
 
 
+class _StoreThatNarratesItsLocation(SqlHouseStore):
+    """The real store, saying a line naming ITS OWN LOCATION while it opens - the way a future
+    narration line (a migration, an import) could."""
+
+    def open(self, *, exclusive: bool, create: bool = True) -> None:
+        self.log("store", f"{self.where}: a line the store says while it opens")
+        super().open(exclusive=exclusive, create=create)
+
+
 def test_a_database_that_fails_to_close_costs_config_one_line_and_not_the_view(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
@@ -1653,3 +1662,28 @@ def test_what_the_store_says_goes_to_stderr_and_leaves_the_view_alone(
 
     assert captured.out == plain
     assert "a line the store says while it opens" in captured.err
+
+
+def test_the_stores_own_narration_is_masked_too_under_redact(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """A future narration line naming the database (a migration, an import) must not defeat
+    ``--redact`` by printing the very location it was asked to hide (OPEN-WORK rank 218). The
+    control is the same run without ``--redact``, which still names it."""
+    database = _stored(tmp_path, PreferenceName.WINDOW, 0.7)
+
+    def opener(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
+        return _StoreThatNarratesItsLocation(database, password=password, log=log)
+
+    argv = ["soundtouch-zonemaster-service", "--database", database, "config", "--section", "dialling"]
+    monkeypatch.setattr("sys.argv", argv)
+    assert main(open_store=opener) == 0
+    plain_err = capsys.readouterr().err
+    assert database in plain_err, "the control: the plain run does name the database"
+
+    monkeypatch.setattr("sys.argv", [*argv, "--redact"])
+    assert main(open_store=opener) == 0
+    redacted_err = capsys.readouterr().err
+
+    assert database not in redacted_err
+    assert "a line the store says while it opens" in redacted_err

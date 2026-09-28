@@ -38,6 +38,7 @@ from ..typed_click import option
 
 if TYPE_CHECKING:
     from ....application.ports import HouseStore
+    from ....domain.logfn import LogFn
     from ....domain.preferences import PreferenceRow
     from ..context import Shared
 
@@ -143,6 +144,21 @@ def cli_config(ctx: click.Context, *, only: str | None, redact: bool) -> None:
         sys.stdout.write(f"# {database_note}\n")
 
 
+def _redacting_log(*, where: str, redact: bool) -> LogFn:
+    """The store's own narration, on stderr, with the database location masked too under --redact.
+
+    Nothing on this path narrates today - ``load_preferences`` and ``close`` say nothing of their
+    own - but a future line (a migration brought up to date, a future read) must not defeat
+    --redact by naming the very database it was asked to hide (OPEN-WORK rank 218)."""
+    if not redact:
+        return log_on_stderr
+
+    def _log(kind: str, text: str) -> None:
+        log_on_stderr(kind, text.replace(where, REDACTED_PLACEHOLDER))
+
+    return _log
+
+
 def _house_rows(ctx: click.Context, shared: Shared, *, redact: bool) -> tuple[tuple[PreferenceRow, ...], str | None]:
     """The stored preference rows, or none and the one sentence that says why.
 
@@ -159,7 +175,8 @@ def _house_rows(ctx: click.Context, shared: Shared, *, redact: bool) -> tuple[tu
     if choice is None:
         return (), None
     try:
-        store = store_opener_of(ctx)(choice.setting, password=choice.password, log=log_on_stderr)
+        store_log = _redacting_log(where=masked_database_url(choice.setting), redact=redact)
+        store = store_opener_of(ctx)(choice.setting, password=choice.password, log=store_log)
         store.open(exclusive=False, create=False)
     except StoreMissingError:
         where = "" if redact else f" {masked_database_url(choice.setting)}"
