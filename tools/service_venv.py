@@ -22,10 +22,11 @@ The verbs:
     somebody is using. An old ``zone.switch`` beside a new database is the operator's word from
     before the database, and that word goes in instead of OFF.
 ``show``
-    The switch and the members the zone holds. A SQLite file that is not there is reported as
-    such and not created.
+    The switch and the members the zone holds, read without the store: a database with no house
+    schema is reported as not there and left without one (``--dry-run`` changes nothing), and a
+    switch that cannot be read is refused rather than read as ON.
 ``set-switch on|off``
-    Set it, in a database that exists.
+    Set it, in a database that already holds a house schema.
 ``backup --to DIR``
     A consistent copy through SQLite's backup API, which is safe while the service writes (a
     plain copy of a WAL database can miss what is still in the ``-wal`` file). A PostgreSQL
@@ -58,12 +59,13 @@ from soundtouch_zonemaster.adapters.cli.context import Shared, named_database
 from soundtouch_zonemaster.adapters.cli.envelope import OutputMode
 from soundtouch_zonemaster.adapters.config.errors import ConfigInputError
 from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase, database_url, reason_for
+from soundtouch_zonemaster.adapters.files.house_state import read_state
 from soundtouch_zonemaster.adapters.files.house_switch import read_switch, write_switch
 from soundtouch_zonemaster.adapters.files.switch_file import Switch
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError, StoreMissingError
 from soundtouch_zonemaster.application.outcome import OptionsError
-from soundtouch_zonemaster.composition import open_house_store
 from soundtouch_zonemaster.domain.database_url import masked
+from soundtouch_zonemaster.domain.state import ZoneState
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Sequence
@@ -137,31 +139,51 @@ class DistributionsReport(BaseModel):
     names: list[str]
 
 
-def house_schema_exists(setting: str, password: Secret | None) -> bool:
-    """Whether the database already holds a house schema. Creates nothing.
+@contextmanager
+def _read_only(setting: str, password: Secret | None) -> Generator[Connection | None]:
+    """A plain connection that creates nothing and migrates nothing; ``None`` for a missing SQLite file.
 
-    Asked BEFORE the store opens it, because opening is what creates the file and brings the
-    schema to head, after which a new database and an old one look the same. A SQLite file that
-    is not there is new without connecting (connecting would create it); anything else is asked
-    for Alembic's version table, which the first open of any version of the service writes.
+    Not the store: opening the store brings any database it reaches up to head, which on
+    PostgreSQL - where no file tells an empty database from a missing one - creates the schema.
+    A question about the house must leave the house as it found it, so it is asked here. A SQLite
+    file that is not there is answered without connecting, because connecting would create it.
+    ``HouseDatabase`` is built only for its reading of the setting (and its refusals); it never
+    opens. Anything the database library raises leaves as the one ``StoreError``.
     """
-    url = database_url(setting)
+    house = HouseDatabase(setting, password=password)
     connect_args: dict[str, object] = {}
-    if url.get_backend_name() == "sqlite":
-        if not Path(str(url.database)).exists():
-            return False
+    if house.url.get_backend_name() == "sqlite":
+        if not Path(str(house.url.database)).exists():
+            yield None
+            return
     else:
         connect_args["connect_timeout"] = _POSTGRES_PROBE_TIMEOUT_S
         if password is not None:
             connect_args["password"] = password.reveal()
-    engine = create_engine(url, connect_args=connect_args)
+    engine = create_engine(house.url, connect_args=connect_args)
     try:
-        return inspect(engine).has_table("alembic_version")
+        with engine.connect() as connection:
+            yield connection
     except SQLAlchemyError as exc:
-        message = f"{masked(setting)}: could not be read ({reason_for(exc)})"
+        message = f"{house.where}: could not be read ({reason_for(exc)})"
         raise StoreError(message) from exc
     finally:
         engine.dispose()
+
+
+def _holds_a_house_schema(connection: Connection) -> bool:
+    """Alembic's version table, which the first open of any version of the service writes."""
+    return inspect(connection).has_table("alembic_version")
+
+
+def house_schema_exists(setting: str, password: Secret | None) -> bool:
+    """Whether the database already holds a house schema. Creates nothing.
+
+    Asked BEFORE the store opens it, because opening is what creates the file and brings the
+    schema to head, after which a new database and an old one look the same.
+    """
+    with _read_only(setting, password) as connection:
+        return connection is not None and _holds_a_house_schema(connection)
 
 
 def seed_word(*, schema_existed: bool, legacy_switch: bool | None) -> bool | None:
@@ -238,31 +260,48 @@ def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport
 
 
 def show(*, default: Path) -> ShowReport:
+    """The switch and the members, read without the store: nothing is created, migrated or assumed.
+
+    Two things the store does are right for the service and wrong here. Opening it migrates, so a
+    ``--dry-run`` would create the schema of a database that had none. And its switch read answers
+    ON when the read fails, so that a lost database cannot silently stop the house; but a deploy
+    takes this answer as the switch it hands back at the end, and a failed read that said ON
+    turned a house somebody had switched off back on. So a read that fails is refused here.
+    """
     setting, password = configured_database(default=default)
     backend = database_url(setting).get_backend_name()
-    store = open_house_store(setting, password=password, log=_narrate)
-    try:
-        store.open(exclusive=False, create=False)
-    except StoreMissingError:
-        return ShowReport(database=store.where, backend=backend, exists=False, on=True, members=[])
-    try:
-        members = list(store.load_state().members)
-        on = store.is_on()
-    finally:
-        store.close()
-    return ShowReport(database=store.where, backend=backend, exists=True, on=on, members=members)
+    where = masked(setting)
+    with _read_only(setting, password) as connection:
+        if connection is None or not _holds_a_house_schema(connection):
+            return ShowReport(database=where, backend=backend, exists=False, on=True, members=[])
+        held = read_switch(connection)
+        state = read_state(connection) or ZoneState()
+    on = True if held is None else held
+    return ShowReport(database=where, backend=backend, exists=True, on=on, members=list(state.members))
 
 
 def set_switch(*, default: Path, on: bool) -> SwitchReport:
+    """Set it and read it back in one transaction, in a database that already holds a house schema.
+
+    A database without one is refused rather than opened, because opening would create it: only
+    the service and the installer do that.
+    """
     setting, password = configured_database(default=default)
-    store = open_house_store(setting, password=password, log=_narrate)
-    store.open(exclusive=False, create=False)
+    if not house_schema_exists(setting, password):
+        message = f"{masked(setting)}: holds no house database (only the service and the installer create one)"
+        raise StoreMissingError(message)
+    house = HouseDatabase(setting, password=password)
+    house.open(exclusive=False, create=False)
     try:
-        changed = store.set_switch(on=on)
-        now = store.is_on()
+        with house.writing() as connection:
+            changed = write_switch(connection, on=on)
+            held = read_switch(connection)
+    except SQLAlchemyError as exc:
+        message = f"{house.where}: {reason_for(exc)}"
+        raise StoreError(message) from exc
     finally:
-        store.close()
-    return SwitchReport(database=store.where, on=now, changed=changed)
+        house.close()
+    return SwitchReport(database=house.where, on=True if held is None else held, changed=changed)
 
 
 def backup(*, default: Path, to: Path) -> BackupReport:

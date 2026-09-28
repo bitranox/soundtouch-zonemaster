@@ -250,6 +250,69 @@ def test_show_answers_a_database_that_is_not_there_without_creating_it(
     assert not missing.exists()
 
 
+def _schema_less(path: Path) -> Path:
+    """A database file that holds something, but no house schema: what an empty server database is."""
+    with closing(sqlite3.connect(path)) as connection:
+        connection.execute("CREATE TABLE unrelated (id INTEGER)")
+        connection.commit()
+    return path
+
+
+def _has_a_house_schema(path: Path) -> bool:
+    with closing(sqlite3.connect(path)) as connection:
+        found = connection.execute("SELECT name FROM sqlite_master WHERE name = 'alembic_version'").fetchone()
+    return found is not None
+
+
+def test_show_reads_a_database_without_a_house_schema_as_new_and_leaves_it_so(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A read must not migrate. ``show`` is what ``--dry-run`` runs, and it used to open the store,
+    which brings any database it reaches up to head - on PostgreSQL, where no file tells an empty
+    database from a missing one, that created the schema, and the deploy then read a house that was
+    never set up as one somebody had switched on, and restored it ON."""
+    database = _schema_less(tmp_path / "zonemaster.sqlite")
+
+    code, document = _drive(["show", "--default", str(database)], capsys)
+
+    assert code == 0
+    assert document["data"]["exists"] is False
+    assert not _has_a_house_schema(database), "a dry run changes nothing"
+
+
+def test_set_switch_refuses_a_database_without_a_house_schema(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    database = _schema_less(tmp_path / "zonemaster.sqlite")
+
+    code, document = _drive(["set-switch", "on", "--default", str(database)], capsys)
+
+    assert code == 2
+    assert document["error"] == "StoreMissingError"
+    assert not _has_a_house_schema(database)
+
+
+def test_a_switch_that_cannot_be_read_is_refused_not_reported_as_on(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The service reads a failed switch read as ON, which is right for the service and wrong here.
+
+    A deploy takes what ``show`` says as the switch it hands back at the end: a read that failed
+    and answered ``on`` turned a house somebody had switched off back on. So ``show`` refuses.
+    """
+    database = created_by_the_service(tmp_path / "zonemaster.sqlite")
+    _set_switch(database, on=False)
+    with closing(sqlite3.connect(database)) as connection:
+        connection.execute("DROP TABLE switch")
+        connection.commit()
+
+    code, document = _drive(["show", "--default", str(database)], capsys)
+
+    assert code == 2
+    assert document["ok"] is False
+    assert document["error"] == "StoreError"
+
+
 def test_set_switch_changes_the_row(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     database = created_by_the_service(tmp_path / "zonemaster.sqlite")
 
