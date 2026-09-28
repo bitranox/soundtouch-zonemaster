@@ -4513,6 +4513,79 @@ async def test_a_console_taken_off_the_list_leaves_the_zone(world: World, tmp_pa
         )
 
 
+class _PassCountingMaster(ZoneMaster):
+    """The real master, counting the passes that reach it.
+
+    Every pass that holds a zone asks the master which boxes a station change left behind, whoever
+    is in the zone and whatever else the pass does, so that call is one tick per pass. A pass that
+    changes nothing is otherwise invisible from outside, which is the point of it being idempotent.
+    """
+
+    passes = 0
+
+    def slaves_left_on_an_old_stream(self) -> list[str]:
+        self.passes += 1
+        return super().slaves_left_on_an_old_stream()
+
+
+@asynccontextmanager
+async def _running_counting_passes(
+    options: ServiceOptions, logs: list[str]
+) -> AsyncGenerator[tuple[ZoneService, Callable[[], int]], None]:
+    """The real wiring, with the master built through the ``open_zone_master`` port as the counter above."""
+    ports = replace(build_production().zone_ports, open_zone_master=_PassCountingMaster)
+    service = ZoneService(options, log=recording_into(logs), ports=ports)
+
+    def passes() -> int:
+        master = service.master
+        return master.passes if isinstance(master, _PassCountingMaster) else 0
+
+    task = asyncio.create_task(service.run())
+    try:
+        yield service, passes
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+async def _quiet(passes: Callable[[], int], *, for_s: float = 0.3, within_s: float = 5.0) -> int:
+    """Wait until no pass has run for ``for_s``, and answer how many had run by then."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + within_s
+    seen, since = passes(), loop.time()
+    while loop.time() - since < for_s:
+        assert loop.time() < deadline, f"the house never went quiet: {passes()} passes"
+        await asyncio.sleep(0.02)
+        if passes() != seen:
+            seen, since = passes(), loop.time()
+    return seen
+
+
+async def test_a_preference_take_asks_for_a_pass_only_when_the_console_list_moved(world: World, tmp_path: Path) -> None:
+    """Who belongs is the only thing a preference changes that the pass acts on.
+
+    A fade, a rewind, a window or a hold is read where it is used, so a take that moves only one
+    of those asks for no pass; a take that moves the console list asks for one, and that pass is
+    what lets a console go (``test_a_console_taken_off_the_list_leaves_the_zone``). The registry
+    poll, which asks for a pass every time it runs, is pushed out past every wait here, and no box
+    says anything, so nothing else can ask.
+    """
+    options = replace(_options(world, tmp_path), registry_poll_s=30.0)
+    logs: list[str] = []
+
+    async with _running_counting_passes(options, logs) as (_service, passes):
+        await eventually(lambda: passes() > 0, "the start ran its pass")
+        before = await _quiet(passes)
+        _set_preference(options, PreferenceName.FADE, 1.0)
+        await eventually(lambda: _said(logs, "a joining box fades in over 1.0 s, set by cli"), "the fade was taken in")
+        assert await _quiet(passes) == before, "a take that moved only the fade asked for a pass"
+
+        _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
+        await eventually(lambda: _said(logs, f"consoles allowed into the zone: {CONSOLE_ID}"), "the list was taken in")
+        await eventually(lambda: passes() > before, "and the take that moved it asked for a pass", timeout=5.0)
+
+
 async def test_a_console_put_on_the_list_while_the_house_runs_is_watched_and_joins_when_it_wakes(
     world: World, tmp_path: Path
 ) -> None:

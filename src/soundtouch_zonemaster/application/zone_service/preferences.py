@@ -97,9 +97,12 @@ class PreferenceBook(ZoneReconcile):
         from the ones last taken in. A line is written only for a value or a source that changed,
         so a start with nothing stored says nothing, as it always did.
 
-        The window and the hold are not handed over here but asked for: the dialling worker hands
-        them over once nobody is mid-gesture, so a number being typed finishes on the window it
-        began with. The rewind and the fade are read where they are used, and a fade reads its
+        Each worker is woken only for what it acts on, so a take that moved nothing it reads costs
+        it nothing: start and every calibration take the preferences in, and a pass asked for by a
+        fade would be a pass for nothing. The window and the hold are not handed over here but asked
+        for: the dialling worker hands them over once nobody is mid-gesture, so a number being
+        typed finishes on the window it began with. The rewind and the fade are read where they are
+        used, and a fade reads its
         length once, when it starts. A console taken off the list is let go at the next pass, and
         stays watched until the next restart, because the speaker book never forgets a box; one put
         on the list is watched from the next registry read.
@@ -117,11 +120,16 @@ class PreferenceBook(ZoneReconcile):
         self._preferences = resolution.preferences
         self._set_by = dict(resolution.set_by)
         self.policy.consoles_allowed = frozenset(self._preferences.consoles_allowed)
-        self._dial_numbers_wanted = (self._preferences.window_s, self._preferences.hold_threshold_s)
-        # Wakes the dialling worker, which is where the two are handed over once nobody is pressing.
-        self._dialled.set()
-        # A console allowed or no longer allowed changes who belongs, and the pass is what acts on that.
-        self._wanted.set()
+        dial_numbers = (self._preferences.window_s, self._preferences.hold_threshold_s)
+        if dial_numbers != (before.window_s, before.hold_threshold_s):
+            self._dial_numbers_wanted = dial_numbers
+            # Wakes the dialling worker, which is where the two are handed over once nobody is pressing.
+            self._dialled.set()
+        if frozenset(self._preferences.consoles_allowed) != frozenset(before.consoles_allowed):
+            # A console allowed or no longer allowed changes who belongs, and the pass is what acts
+            # on that. Nothing else a preference moves is the pass's business: the rewind and the
+            # fade are read where they are used, and the window and hold by the dialling worker.
+            self._wanted.set()
         for name in PreferenceName:
             moved = value_of(before, name) != value_of(self._preferences, name)
             if moved or before_set_by.get(name) != self._set_by.get(name):
