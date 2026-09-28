@@ -61,6 +61,7 @@ if TYPE_CHECKING:
     from ...domain.secret import Secret
 
 __all__ = [
+    "ADVISORY_KEY",
     "LOCK_SUFFIX",
     "MIGRATIONS",
     "MIN_SQLITE",
@@ -77,7 +78,7 @@ MIN_SQLITE = (3, 37, 0)
 SUPPORTED = ("sqlite", "postgresql")
 MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 
-_ADVISORY_KEY = 1515147845
+ADVISORY_KEY = 1515147845
 """The house's advisory lock on a shared PostgreSQL server: "ZONE" as four bytes, fixed forever."""
 _POSTGRES_TIMEOUT_S = 5
 _ELSEWHERE = "give it as database.password (or keep it in ~/.pgpass) instead"
@@ -191,7 +192,7 @@ class AdvisoryLock:
     def acquire(self) -> None:
         connection = self._engine.connect().execution_options(isolation_level="AUTOCOMMIT")
         try:
-            held = connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": _ADVISORY_KEY}).scalar_one()
+            held = connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": ADVISORY_KEY}).scalar_one()
         except SQLAlchemyError:
             connection.close()
             raise
@@ -212,7 +213,7 @@ class AdvisoryLock:
         connection = self._connection
         try:
             with suppress(SQLAlchemyError):
-                connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": _ADVISORY_KEY})
+                connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": ADVISORY_KEY})
             connection.close()
         finally:
             self._connection = None
@@ -380,9 +381,18 @@ class HouseDatabase:
         return current
 
     def _upgrade(self) -> None:
+        """Bring the schema to head, with the ordinary statement timeout lifted for the run.
+
+        The connect-time ``statement_timeout`` exists to bound an ordinary query against a server
+        that stopped answering; a real migration may legitimately touch more rows than that
+        allows. ``SET LOCAL`` only lasts this one transaction, so every OTHER statement on this
+        connection keeps the connect-time bound once the migration commits.
+        """
         config = Config()
         config.set_main_option("script_location", str(MIGRATIONS))
         with self.writing() as connection:
+            if connection.dialect.name == "postgresql":
+                connection.execute(text("SET LOCAL statement_timeout = 0"))
             config.attributes["connection"] = connection
             command.upgrade(config, "head")
 

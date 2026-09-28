@@ -87,6 +87,29 @@ def test_the_migrations_build_exactly_the_schema_the_rows_are_written_through(ho
     assert differences == []
 
 
+def test_the_statement_timeout_is_lifted_while_a_migration_runs(
+    monkeypatch: pytest.MonkeyPatch, house_database: str
+) -> None:
+    """The connect-time ``statement_timeout`` bounds an ordinary query against a stopped server;
+    a real migration may legitimately touch more rows than that allows and must not be cut off at
+    5 seconds (OPEN-WORK rank 205). The upgrade is spied on rather than slowed down: what matters
+    is the SETTING in force while it runs, not how long any one migration happens to take."""
+    if not house_database.startswith("postgresql"):
+        pytest.skip("SQLite's connect timeout is a busy_timeout, not a statement_timeout")
+    seen: list[object] = []
+    real_upgrade = command.upgrade
+
+    def _spy(config: Config, revision: str) -> None:
+        connection = config.attributes["connection"]
+        seen.append(connection.execute(text("SHOW statement_timeout")).scalar())
+        real_upgrade(config, revision)
+
+    monkeypatch.setattr(house_db.command, "upgrade", _spy)
+    database = _opened(house_database)
+    database.close()
+    assert seen == ["0"]
+
+
 def test_every_sqlite_table_is_strict(tmp_path: Path) -> None:
     database = _opened(str(tmp_path / "house.sqlite"))
     with database.reading() as connection:
@@ -196,6 +219,27 @@ def test_a_database_behind_the_schema_is_not_migrated_while_another_process_hold
             _opened(str(path))
     finally:
         lock.release()
+
+
+def test_a_postgresql_database_behind_the_schema_is_not_migrated_while_locked_by_advisory(
+    house_database: str,
+) -> None:
+    """The SQLite arm of this rule is proven through the file lock above; the PostgreSQL arm goes
+    through the advisory lock instead, and nothing had ever run it (OPEN-WORK rank 205)."""
+    if not house_database.startswith("postgresql"):
+        pytest.skip("only PostgreSQL takes an advisory lock; SQLite is proven through FileLock")
+    engine = create_engine(house_database)
+    holder = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+    key = house_db.ADVISORY_KEY
+    held = holder.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key}).scalar_one()
+    assert held, "the control: the lock really was free to take"
+    try:
+        with pytest.raises(StoreBusyError):
+            _opened(house_database)
+    finally:
+        holder.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})
+        holder.close()
+        engine.dispose()
 
 
 def test_a_read_does_not_block_a_writer_but_a_write_does(tmp_path: Path) -> None:
