@@ -35,6 +35,15 @@ The verbs:
     Every distribution installed in this interpreter, which is how a deploy proves the venv holds
     exactly one of this program's.
 
+Which package answers: the one installed in that venv, whichever version it is. A deploy asks
+``show``, ``backup``, ``set-switch`` and ``distributions`` BEFORE it installs the new wheel, so
+those run against the package it is about to replace - 0.5.2 on the house's machine as this is
+written - and only ``seed-switch`` (the installer's, after the wheel is in) and the checks after
+the install meet the new one. So everything imported at the top here, and every verb but
+``seed-switch``, uses only what 0.5.2 already has; the two things the house database gained since
+(``HouseDatabase.probe`` and ``schema_exists``) are asked for by name and stood in for when the
+installed package predates them (``probe_of``, ``holds_a_house_schema``).
+
 Exit codes are the house's: 0 done, 1 refused because the database is held by another writer,
 2 it could not run.
 """
@@ -43,7 +52,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
@@ -52,12 +61,14 @@ from typing import TYPE_CHECKING, NamedTuple
 import rich_click as click
 from _click import argument, current_context, option, run_cli
 from pydantic import BaseModel
+from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
 
 from soundtouch_zonemaster.adapters.cli.context import Shared, named_database
 from soundtouch_zonemaster.adapters.cli.envelope import OutputMode
 from soundtouch_zonemaster.adapters.config.errors import ConfigInputError
-from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase, database_url, reason_for, schema_exists
+from soundtouch_zonemaster.adapters.files import house_db
+from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase, database_url, reason_for
 from soundtouch_zonemaster.adapters.files.house_state import read_state
 from soundtouch_zonemaster.adapters.files.house_switch import read_switch, write_switch
 from soundtouch_zonemaster.adapters.files.switch_file import Switch
@@ -67,9 +78,10 @@ from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.state import ZoneState
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Generator, Sequence
+    from contextlib import AbstractContextManager
 
-    from sqlalchemy.engine import Connection
+    from sqlalchemy.engine import Connection, Engine
 
     from soundtouch_zonemaster.domain.secret import Secret
 
@@ -146,17 +158,74 @@ class DistributionsReport(BaseModel):
     names: list[str]
 
 
+def probe_of(house: HouseDatabase) -> AbstractContextManager[Connection | None]:
+    """The house database's own read that migrates nothing and creates no file.
+
+    :meth:`HouseDatabase.probe` when the installed package has it. A package from before it
+    (0.5.2 and older, which is what a deploy reads the house through before it installs) gets
+    :func:`_probe_before_it_existed`, the same read built from that package's own engine.
+    """
+    if hasattr(house, "probe"):
+        return house.probe()
+    return _probe_before_it_existed(house)
+
+
+@contextmanager
+def _probe_before_it_existed(house: HouseDatabase) -> Generator[Connection | None]:
+    """What ``HouseDatabase.probe`` does, for a package that does not have it yet.
+
+    Its engine comes from that package's own ``_build_engine``, the one ``open`` connects
+    through, rather than from connect arguments repeated here: a copy is what drifts, and this
+    only ever runs against a package already released, whose private method can no longer
+    change under it. A package without even that is refused, never guessed at. A SQLite file that
+    is not there is answered without connecting, because connecting would create it; anything the
+    database library raises leaves as the one ``StoreError``, so a failed read is never an answer.
+    """
+    if house.url.get_backend_name() == "sqlite" and not Path(str(house.url.database)).exists():
+        yield None
+        return
+    build: Callable[[], Engine] | None = getattr(house, "_build_engine", None)
+    if build is None:
+        message = f"{house.where}: the installed package has no way to read its database without migrating it"
+        raise StoreError(message)
+    try:
+        engine = build()
+    except (SQLAlchemyError, ImportError) as exc:
+        message = f"{house.where}: could not be read ({reason_for(exc)})"
+        raise StoreError(message) from exc
+    try:
+        with engine.connect() as connection:
+            yield connection
+    except SQLAlchemyError as exc:
+        message = f"{house.where}: could not be read ({reason_for(exc)})"
+        raise StoreError(message) from exc
+    finally:
+        engine.dispose()
+
+
+def holds_a_house_schema(connection: Connection) -> bool:
+    """Whether the house schema is there: the installed package's ``schema_exists``, or its rule.
+
+    A package from before ``schema_exists`` gets the rule it states - Alembic's version table,
+    which every version of the service writes in the transaction that creates its schema.
+    """
+    own: Callable[[Connection], bool] | None = getattr(house_db, "schema_exists", None)
+    if own is not None:
+        return own(connection)
+    return inspect(connection).has_table("alembic_version")
+
+
 def house_schema_exists(setting: str, password: Secret | None) -> bool:
     """Whether the database already holds a house schema. Creates nothing, migrates nothing.
 
     Asked BEFORE the store opens it, because opening is what creates the file and brings the
     schema to head, after which a new database and an old one look the same. Goes through
-    :meth:`HouseDatabase.probe`, the same non-migrating read the store's own engine settings back,
-    rather than a connection built here: a house database is asked about itself only one way.
+    :func:`probe_of`, the house's own non-migrating read, rather than a connection built here: a
+    house database is asked about itself only one way.
     """
     house = HouseDatabase(setting, password=password)
-    with house.probe() as connection:
-        return connection is not None and schema_exists(connection)
+    with probe_of(house) as connection:
+        return connection is not None and holds_a_house_schema(connection)
 
 
 def seed_word(*, schema_existed: bool, legacy_switch: bool | None) -> bool | None:
@@ -232,8 +301,8 @@ def show(*, default: Path) -> ShowReport:
     backend = database_url(setting).get_backend_name()
     where = masked(setting)
     house = HouseDatabase(setting, password=password)
-    with house.probe() as connection:
-        if connection is None or not schema_exists(connection):
+    with probe_of(house) as connection:
+        if connection is None or not holds_a_house_schema(connection):
             return ShowReport(database=where, backend=backend, exists=False, on=True, members=[])
         held = read_switch(connection)
         state = read_state(connection) or ZoneState()
