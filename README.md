@@ -253,6 +253,16 @@ uv run python -m soundtouch_zonemaster \
 The `sync` lines it logs are the instrument: they report how far each speaker is from the zone, in
 milliseconds, and they agreed with the ear on every run the ear judged.
 
+The protocol fixes the master's ports, and 40002, 40003 and 40005 lie inside Linux's default
+ephemeral range (32768 to 60999). Any outbound connection, including the service's own long-lived
+WebSockets to the speakers, can be handed one as its source port, and the master then cannot bind it
+until that connection ends. Reserve them on the machine that runs the master:
+
+```bash
+echo 'net.ipv4.ip_local_reserved_ports = 40002-40003,40005' | sudo tee /etc/sysctl.d/60-zonemaster-reserved-ports.conf
+sudo sysctl --system
+```
+
 Anything that makes a speaker play is audible in the room it stands in. Check the speakers are in
 standby before a run, and note that the master refuses to target a Lifestyle console, whose input
 switches when it is sent a power command.

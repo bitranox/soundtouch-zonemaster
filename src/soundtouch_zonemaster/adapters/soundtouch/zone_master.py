@@ -194,8 +194,12 @@ class ZoneMaster:
 
         The ports are the protocol's and cannot be moved, and on this machine all three of the
         numbered ones fall inside the kernel's ephemeral range, so any outbound connection can be
-        sitting on one when the zone starts. That is transient - a connection ends - so it is worth
-        waiting for; measured in the flat on 2026-09-07, three attempts failed and the fourth bound.
+        sitting on one when the zone starts. A short request ends, so that is worth waiting for;
+        measured in the flat on 2026-09-07, three attempts failed and the fourth bound. The
+        service's own observer WebSockets do NOT end - they hold their port for hours - so a machine
+        that runs the master reserves the three in the kernel (``net.ipv4.ip_local_reserved_ports =
+        40002-40003,40005``), after which nothing is ever handed one. A test runner reserves
+        nothing, which is why the tests give the master an address no other socket uses.
 
         A busy port must not be fatal, because the caller is a service that is watching speakers and
         holding a house: it can come back on its next pass, and dying loses the observers, the

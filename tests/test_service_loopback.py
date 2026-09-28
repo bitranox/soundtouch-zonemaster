@@ -86,7 +86,17 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.domain.preferences import PreferenceRow, PreferenceValue
     from soundtouch_zonemaster.domain.secret import Secret
 
-MASTER = "127.0.0.1"
+MASTER = "127.0.0.10"
+"""An address of the master's own, which nothing else in this file binds or connects from.
+
+The master's ports are fixed and 40002 and 40003 lie inside the kernel's ephemeral range, so any
+socket that takes an ephemeral port ON THE MASTER'S ADDRESS can be sitting on one when the master
+starts: a fake server bound to port 0 there, or a client connection, whose source address is
+127.0.0.1 for every destination in 127/8. The master then finds a port busy for the whole test
+(OPEN-WORK rank 176, reproduced by narrowing the ephemeral range in a private network namespace).
+"""
+STATION_IP = "127.0.0.1"
+"""The fake radio station, beside the registry and MPD fakes and away from :data:`MASTER`."""
 MASTER_ID = "5EB0CE000001"
 
 STUDIO_ID, STUDIO_IP = "AABBCC000010", "127.0.0.2"
@@ -117,7 +127,7 @@ def free_port() -> int:
     it here because they are on different addresses, which is true of the flat too.
     """
     with socket.socket() as probe:
-        probe.bind((MASTER, 0))
+        probe.bind((STUDIO_IP, 0))
         return int(probe.getsockname()[1])
 
 
@@ -185,8 +195,8 @@ async def _station(
         with contextlib.suppress(OSError):
             await writer.wait_closed()
 
-    server = await asyncio.start_server(handle, MASTER, 0)
-    return server, f"http://{MASTER}:{server.sockets[0].getsockname()[1]}/live"
+    server = await asyncio.start_server(handle, STATION_IP, 0)
+    return server, f"http://{STATION_IP}:{server.sockets[0].getsockname()[1]}/live"
 
 
 @pytest.fixture

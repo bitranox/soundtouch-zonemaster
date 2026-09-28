@@ -32,7 +32,17 @@ pytestmark = pytest.mark.asyncio
 # local variable that has to be spelled in lower case.
 TransportControl = audio.AudioServerMsgTransportControl
 
-BIND = "127.0.0.1"
+MASTER_IP = "127.0.0.10"
+"""The master's own address, which no fake binds and no connection starts from.
+
+40002 and 40003 lie inside the kernel's ephemeral range, so a socket taking an ephemeral port on the
+master's address - the fake station bound to port 0, or a client, whose source is 127.0.0.1 for all
+of 127/8 - can sit on one when the master binds (OPEN-WORK rank 176).
+"""
+SLAVE_IP = "127.0.0.1"
+"""Where every fake slave's connection comes FROM, so the address the master knows it by."""
+STATION_IP = "127.0.0.1"
+"""The fake radio stations, away from :data:`MASTER_IP`."""
 CONTENT_ITEM = (
     '<ContentItem source="LOCAL_INTERNET_RADIO" type="stationurl" location="{url}" '
     'sourceAccount="" isPresetable="true"><itemName>Test</itemName></ContentItem>'
@@ -67,9 +77,9 @@ async def _station_server(payload: bytes, first_byte_delay: float = 0.0) -> tupl
         with contextlib.suppress(OSError):
             await writer.wait_closed()
 
-    srv = await asyncio.start_server(handle, BIND, 0)
+    srv = await asyncio.start_server(handle, STATION_IP, 0)
     port = srv.sockets[0].getsockname()[1]
-    return srv, f"http://{BIND}:{port}/live"
+    return srv, f"http://{STATION_IP}:{port}/live"
 
 
 async def _headers_then_silence(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -102,15 +112,15 @@ async def test_fake_slave_joins_pulls_data_and_syncs_clock() -> None:
     payload = os.urandom(300_000)
     station_srv, url = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
-    # The master must not try to talk to a real speaker at 127.0.0.1 during this test.
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    # The master must not try to talk to a real speaker at SLAVE_IP during this test.
     await master.start()
     try:
         await master.play(StationRequest(url, "Test", CONTENT_ITEM.format(url=url)))
         assert master.station is not None and master.sources[master.station.url_id].t0_us is not None
 
         # --- transport channel: the join sequence arrives in order --------------------------------
-        r, w = await asyncio.open_connection(BIND, 40002)
+        r, w = await asyncio.open_connection(MASTER_IP, 40002)
         frames = await _read_frames(r, 3)
         assert [f.typename for f in frames] == [
             "AudioServerMsgSetClockMasterMsg",
@@ -118,9 +128,9 @@ async def test_fake_slave_joins_pulls_data_and_syncs_clock() -> None:
             "AudioServerMsgTransportControl",
         ]
         clock_msg = frames[0].payload_as(audio.AudioServerMsgSetClockMasterMsg)
-        assert clock_msg.clockMasterPort == 40005 and clock_msg.clockMasterIp == BIND
+        assert clock_msg.clockMasterPort == 40005 and clock_msg.clockMasterIp == MASTER_IP
         set_url = frames[1].payload_as(audio.AudioServerMsgSetURL)
-        assert set_url.url.startswith(f"stream://{BIND}:40003?") and "force_connect=true" in set_url.url
+        assert set_url.url.startswith(f"stream://{MASTER_IP}:40003?") and "force_connect=true" in set_url.url
         play = frames[2].payload_as(audio.AudioServerMsgTransportControl)
         assert play.control == audio.AudioServerMsgTransportControl.PLAY
         assert master.station is not None
@@ -132,7 +142,7 @@ async def test_fake_slave_joins_pulls_data_and_syncs_clock() -> None:
         w.write(ipc.encode_frame(ipc.EVENT, audio.AudioServerMsgSlavePingResponseMsg(), sequence=1))
 
         # --- data channel: pull two chunks; the first carries the absolute offset --------------------
-        dr, dw = await asyncio.open_connection(BIND, 40003)
+        dr, dw = await asyncio.open_connection(MASTER_IP, 40003)
         req = audio_data.AudioServerMsgAcceptAudioDataRequest(byte_count=8192, min_byte_count=8192, stream_id=1)
         # Sequence numbers like a real slave after a ping exchange: not starting at 1, with a gap.
         dw.write(ipc.encode_frame(ipc.REQUEST, req, sequence=30))
@@ -160,18 +170,18 @@ async def test_fake_slave_joins_pulls_data_and_syncs_clock() -> None:
         u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         u.setblocking(False)
         t1 = 123456789
-        await loop.sock_sendto(u, clock.SyncPacket(clock.CLOCK_MAGIC, 3, t1, 0, 0, 0, 0).pack(), (BIND, 40005))
+        await loop.sock_sendto(u, clock.SyncPacket(clock.CLOCK_MAGIC, 3, t1, 0, 0, 0, 0).pack(), (MASTER_IP, 40005))
         rep = clock.SyncPacket.parse(await asyncio.wait_for(loop.sock_recv(u, 64), 2.0))
         assert rep.t1 == t1 and rep.t2 > 0 and rep.t3 >= rep.t2 and rep.t1_prev == 0
         await loop.sock_sendto(
-            u, clock.SyncPacket(clock.CLOCK_MAGIC, 3, t1 + 400_000, rep.t2, rep.t3, 0, 0).pack(), (BIND, 40005)
+            u, clock.SyncPacket(clock.CLOCK_MAGIC, 3, t1 + 400_000, rep.t2, rep.t3, 0, 0).pack(), (MASTER_IP, 40005)
         )
         rep2 = clock.SyncPacket.parse(await asyncio.wait_for(loop.sock_recv(u, 64), 2.0))
         u.close()
         assert rep2.t1_prev == t1 and rep2.t3_prev_precise == rep.t3
 
         # --- http: now_playing and getZone answer; slaveMsg select switches the station -------------
-        hr, hw = await asyncio.open_connection(BIND, 8090)
+        hr, hw = await asyncio.open_connection(MASTER_IP, 8090)
         hw.write(b"GET /now_playing HTTP/1.1\r\nHost: x\r\n\r\n")
         resp = await asyncio.wait_for(hr.read(), 5.0)
         assert b"200 OK" in resp and b'source="LOCAL_INTERNET_RADIO"' in resp and b"<itemName>Test</itemName>" in resp
@@ -183,7 +193,7 @@ async def test_fake_slave_joins_pulls_data_and_syncs_clock() -> None:
             f'location="{url2}" sourceAccount="" isPresetable="true">'
             "<itemName>Two</itemName></content></slaveMessage>"
         )
-        hr, hw = await asyncio.open_connection(BIND, 8090)
+        hr, hw = await asyncio.open_connection(MASTER_IP, 8090)
         hw.write(f"POST /slaveMsg HTTP/1.1\r\nHost: x\r\nContent-Length: {len(body)}\r\n\r\n{body}".encode())
         resp = await asyncio.wait_for(hr.read(), 5.0)
         assert b"<status>/slaveMsg</status>" in resp
@@ -231,7 +241,7 @@ async def _eventually(check: Callable[[], bool], what: str, *, timeout: float = 
 
 async def _join_transport() -> tuple[asyncio.StreamReader, asyncio.StreamWriter, ipc.Frame]:
     """Open a transport channel and return it with the PLAY frame of the join sequence."""
-    r, w = await asyncio.open_connection(BIND, 40002)
+    r, w = await asyncio.open_connection(MASTER_IP, 40002)
     frames = await _read_frames(r, 3, timeout=8.0)
     assert [f.typename for f in frames] == [
         "AudioServerMsgSetClockMasterMsg",
@@ -271,7 +281,7 @@ async def _report_playing(w: asyncio.StreamWriter, url_id: int, t0_us: int, stop
 
 
 async def _first_chunk(stream_id: int) -> audio_data.AudioServerMsgAcceptAudioData:
-    dr, dw = await asyncio.open_connection(BIND, 40003)
+    dr, dw = await asyncio.open_connection(MASTER_IP, 40003)
     req = audio_data.AudioServerMsgAcceptAudioDataRequest(byte_count=8192, min_byte_count=8192, stream_id=stream_id)
     dw.write(ipc.encode_frame(ipc.REQUEST, req, sequence=7))
     got: list[ipc.Frame] = []
@@ -287,7 +297,7 @@ async def test_a_slave_joining_a_running_stream_starts_where_the_zone_will_be_in
     payload = os.urandom(400_000)
     station_srv, url = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     stop = asyncio.Event()
     try:
@@ -330,7 +340,7 @@ async def test_a_slave_joining_before_the_zone_starts_shares_the_first_slave_s_s
     payload = os.urandom(200_000)
     station_srv, url = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         await master.play(StationRequest(url, "Test", CONTENT_ITEM.format(url=url)))
@@ -368,7 +378,7 @@ async def test_the_newer_of_two_overlapping_selects_wins_and_the_older_drops_its
     slow_srv, slow_url = await _station_server(os.urandom(100_000), first_byte_delay=0.6)
     fast_srv, fast_url = await _station_server(os.urandom(100_000))
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     try:
         overtaken = asyncio.create_task(
             master.play(StationRequest(slow_url, "Slow", CONTENT_ITEM.format(url=slow_url)))
@@ -401,7 +411,7 @@ async def test_a_select_in_flight_cannot_switch_a_speaker_after_the_zone_is_diss
     fast_srv, fast_url = await _station_server(os.urandom(100_000))
     slow_srv, slow_url = await _station_server(os.urandom(100_000), first_byte_delay=1.0)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         await master.play(StationRequest(fast_url, "Fast", CONTENT_ITEM.format(url=fast_url)))
@@ -413,7 +423,7 @@ async def test_a_select_in_flight_cannot_switch_a_speaker_after_the_zone_is_diss
             f'location="{slow_url}" sourceAccount="" isPresetable="true">'
             "<itemName>Slow</itemName></content></slaveMessage>"
         )
-        hr, hw = await asyncio.open_connection(BIND, 8090)
+        hr, hw = await asyncio.open_connection(MASTER_IP, 8090)
         hw.write(f"POST /slaveMsg HTTP/1.1\r\nHost: x\r\nContent-Length: {len(body)}\r\n\r\n{body}".encode())
         assert b"<status>/slaveMsg</status>" in await asyncio.wait_for(hr.read(), 5.0)
         await asyncio.sleep(0.2)  # the select is now inside play()'s wait for the first bytes
@@ -457,10 +467,10 @@ async def test_a_station_that_sends_no_bytes_still_places_a_joiner_on_a_real_clo
     the branch under test is the one the program runs.
     """
     fast_srv, fast_url = await _station_server(os.urandom(100_000))
-    silent = await asyncio.start_server(_headers_then_silence, BIND, 0)
-    silent_url = f"http://{BIND}:{silent.sockets[0].getsockname()[1]}/live"
+    silent = await asyncio.start_server(_headers_then_silence, STATION_IP, 0)
+    silent_url = f"http://{STATION_IP}:{silent.sockets[0].getsockname()[1]}/live"
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         await master.play(StationRequest(fast_url, "Fast", CONTENT_ITEM.format(url=fast_url)))
@@ -507,7 +517,7 @@ async def test_a_second_transport_re_plans_the_join_and_the_open_data_channel_ke
     payload = os.urandom(400_000)
     station_srv, url = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     stop = asyncio.Event()
     try:
@@ -520,7 +530,7 @@ async def test_a_second_transport_re_plans_the_join_and_the_open_data_channel_ke
         planned_first = master.planner.slots[StreamKey(peer, 1)]
 
         # ONE data channel, held open across the re-plan: that is the whole point.
-        dr, dw = await asyncio.open_connection(BIND, 40003)
+        dr, dw = await asyncio.open_connection(MASTER_IP, 40003)
 
         async def pull(sequence: int) -> audio_data.AudioServerMsgAcceptAudioData:
             req = audio_data.AudioServerMsgAcceptAudioDataRequest(byte_count=8192, min_byte_count=8192, stream_id=1)
@@ -584,7 +594,7 @@ async def test_a_station_change_leaves_each_stream_s_key_holding_its_own_placeme
     first_srv, first_url = await _station_server(os.urandom(200_000))
     second_srv, second_url = await _station_server(os.urandom(200_000))
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         first = await master.play(StationRequest(first_url, "First", CONTENT_ITEM.format(url=first_url)))
@@ -596,7 +606,7 @@ async def test_a_station_change_leaves_each_stream_s_key_holding_its_own_placeme
         # so the join completes here rather than suspending.
         await asyncio.sleep((started - clock.now_us()) / 1e6 + 0.3)
 
-        r, w = await asyncio.open_connection(BIND, 40002)
+        r, w = await asyncio.open_connection(MASTER_IP, 40002)
         await asyncio.sleep(0.3)  # let the join finish before the press
         second = await master.play(StationRequest(second_url, "Second", CONTENT_ITEM.format(url=second_url)))
         assert second is not None and second.url_id != first.url_id
@@ -640,10 +650,10 @@ async def test_a_transport_arriving_before_any_station_is_closed_with_its_reason
     somebody reading the log why a speaker never started.
     """
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000003", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000003", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
-        reader, writer = await asyncio.open_connection(BIND, 40002)
+        reader, writer = await asyncio.open_connection(MASTER_IP, 40002)
         assert await asyncio.wait_for(reader.read(), timeout=5.0) == b"", "the master has to end it"
         writer.close()
         with contextlib.suppress(ConnectionError):
@@ -677,14 +687,14 @@ async def test_a_data_channel_the_ring_has_run_past_is_closed_with_its_reason_lo
         return 0  # the byte this slave is still waiting for, dropped minutes ago
 
     server = await connections.serve_data(
-        BIND,
+        MASTER_IP,
         log,
         lambda stream_id: source if stream_id == 1 else None,
         audio_data.AudioServerMsgAcceptAudioData.NONE,
         base_for,
     )
     try:
-        reader, writer = await asyncio.open_connection(BIND, 40003)
+        reader, writer = await asyncio.open_connection(MASTER_IP, 40003)
         request = audio_data.AudioServerMsgAcceptAudioDataRequest(byte_count=512, min_byte_count=1, stream_id=1)
         writer.write(ipc.encode_frame(ipc.REQUEST, request, sequence=7))
         assert await asyncio.wait_for(reader.read(), timeout=5.0) == b"", "the channel has to end"
@@ -711,14 +721,14 @@ async def test_a_registered_slave_s_transport_is_attached_to_its_record() -> Non
     payload = os.urandom(64_000)
     station_srv, url = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000004", log=lambda k, t: logs.append(f"{k}: {t}"))
-    master.slaves[BIND] = Slave(ip=BIND, device_id="AABBCC000004")
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000004", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master.slaves[SLAVE_IP] = Slave(ip=SLAVE_IP, device_id="AABBCC000004")
     await master.start()
     try:
         await master.play(StationRequest(url, "Test", CONTENT_ITEM.format(url=url)))
         reader, writer, _play = await _join_transport()
-        assert master.slaves[BIND].transport is not None, "the record must hold the channel"
-        assert master.slaves[BIND].transport is master.transports.driven_for(BIND), "and it is the same one"
+        assert master.slaves[SLAVE_IP].transport is not None, "the record must hold the channel"
+        assert master.slaves[SLAVE_IP].transport is master.transports.driven_for(SLAVE_IP), "and it is the same one"
         assert not [line for line in logs if "transport from unknown" in line], (
             "a registered slave must not take the unknown branch"
         )
@@ -739,11 +749,11 @@ async def test_a_master_that_stopped_can_be_started_again_on_the_same_ports() ->
     dies on bind with "address already in use". A run never noticed, because a run stops once and
     then the process ends; a service stops every time somebody flips the switch.
     """
-    first = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000005", log=lambda _k, _t: None)
+    first = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000005", log=lambda _k, _t: None)
     await first.start()
     await first.stop()
 
-    second = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000005", log=lambda _k, _t: None)
+    second = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000005", log=lambda _k, _t: None)
     await second.start()  # the assertion IS this call: it must not raise
     await second.stop()
 
@@ -805,14 +815,14 @@ async def test_a_box_that_holds_two_channels_keeps_the_zone_when_the_older_one_e
     station_a, url_a = await _station_server(payload)
     station_b, url_b = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         first = await master.play(StationRequest(url_a, "A", CONTENT_ITEM.format(url=url_a)))
         assert first is not None
         _r_old, w_old, _play_old = await _join_transport()
         r_new, w_new, _play_new = await _join_transport()
-        assert master.transports.driven_for(BIND) is not None, "the box is driven on its newest channel"
+        assert master.transports.driven_for(SLAVE_IP) is not None, "the box is driven on its newest channel"
 
         # The older channel ends, exactly as the box's own reconnect ends it. The newer one is
         # untouched and is still the one the master drives.
@@ -820,10 +830,10 @@ async def test_a_box_that_holds_two_channels_keeps_the_zone_when_the_older_one_e
         with contextlib.suppress(ConnectionError):
             await w_old.wait_closed()
         await _eventually(
-            lambda: sum(1 for line in logs if line == "transport: 127.0.0.1: closed") == 1,
+            lambda: sum(1 for line in logs if line == f"transport: {SLAVE_IP}: closed") == 1,
             "the older channel was seen to end",
         )
-        assert master.transports.driven_for(BIND) is not None, "the box still has a channel and is still driven"
+        assert master.transports.driven_for(SLAVE_IP) is not None, "the box still has a channel and is still driven"
         assert master.planner.slots, "and its placement survived the close, because the box did"
 
         second = await master.play(StationRequest(url_b, "B", CONTENT_ITEM.format(url=url_b)))
@@ -861,7 +871,7 @@ async def test_the_last_channel_of_a_box_ending_is_what_drops_its_placement():
     payload = os.urandom(200_000)
     station_srv, url = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         await master.play(StationRequest(url, "Test", CONTENT_ITEM.format(url=url)))
@@ -873,7 +883,7 @@ async def test_the_last_channel_of_a_box_ending_is_what_drops_its_placement():
         with contextlib.suppress(ConnectionError):
             await w_old.wait_closed()
         await _eventually(
-            lambda: sum(1 for line in logs if line == "transport: 127.0.0.1: closed") == 1,
+            lambda: sum(1 for line in logs if line == f"transport: {SLAVE_IP}: closed") == 1,
             "the older channel was seen to end",
         )
         assert master.planner.slots, "one channel ending is not the box leaving"
@@ -882,7 +892,7 @@ async def test_the_last_channel_of_a_box_ending_is_what_drops_its_placement():
         with contextlib.suppress(ConnectionError):
             await w_new.wait_closed()
         await _eventually(lambda: not master.planner.slots, "the box's placement goes with its last channel")
-        assert master.transports.driven_for(BIND) is None, "and it is driven on nothing"
+        assert master.transports.driven_for(SLAVE_IP) is None, "and it is driven on nothing"
     finally:
         await master.stop()
         station_srv.close()
@@ -905,18 +915,18 @@ async def test_when_the_driven_channel_ends_the_older_one_is_kept_and_the_mismat
     station_a, url_a = await _station_server(payload)
     station_b, url_b = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         first = await master.play(StationRequest(url_a, "A", CONTENT_ITEM.format(url=url_a)))
         assert first is not None
         _r_old, w_old, _play_old = await _join_transport()
         _r_new, w_new, _play_new = await _join_transport()
-        superseded = master.transports.driven_for(BIND)
+        superseded = master.transports.driven_for(SLAVE_IP)
 
         second = await master.play(StationRequest(url_b, "B", CONTENT_ITEM.format(url=url_b)))
         assert second is not None
-        assert master.transports.driven_for(BIND) is superseded, "the switch went to the channel it was driven on"
+        assert master.transports.driven_for(SLAVE_IP) is superseded, "the switch went to the channel it was driven on"
 
         w_new.close()
         with contextlib.suppress(ConnectionError):
@@ -925,7 +935,7 @@ async def test_when_the_driven_channel_ends_the_older_one_is_kept_and_the_mismat
             lambda: any("driven channel ended" in line for line in logs),
             "the master said which stream the box is left on",
         )
-        left_on = master.transports.driven_for(BIND)
+        left_on = master.transports.driven_for(SLAVE_IP)
         assert left_on is not None, "the box keeps the channel it still has"
         assert left_on is not superseded, "and it is the other one"
         assert left_on.current is not None and left_on.current.url_id == first.url_id, (
@@ -987,7 +997,7 @@ async def test_a_press_holding_the_switch_lock_leaves_a_queued_channel_its_join_
     station_b, url_b = await _station_server(payload)
     station_c, url_c = await _station_server(payload)
     logs: list[str] = []
-    master = ZoneMaster(bind_ip=BIND, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
+    master = ZoneMaster(bind_ip=MASTER_IP, device_id="5EB0CE000001", log=lambda k, t: logs.append(f"{k}: {t}"))
     await master.start()
     try:
         first = await master.play(StationRequest(url_a, "A", CONTENT_ITEM.format(url=url_a)))
@@ -1003,17 +1013,17 @@ async def test_a_press_holding_the_switch_lock_leaves_a_queued_channel_its_join_
         with contextlib.suppress(ConnectionError):
             await w_sup.wait_closed()
         await _eventually(
-            lambda: sum(1 for line in logs if line == "transport: 127.0.0.1: closed") == 1,
+            lambda: sum(1 for line in logs if line == f"transport: {SLAVE_IP}: closed") == 1,
             "the driven channel was seen to end",
         )
-        left_behind = master.transports.driven_for(BIND)
+        left_behind = master.transports.driven_for(SLAVE_IP)
         assert left_behind is not None and left_behind.current is not None
         assert left_behind.current.url_id == first.url_id, "the box is driven on the station the zone has left"
-        assert master.slaves_left_on_an_old_stream() == [BIND], "which is what the service's pass acts on"
+        assert master.slaves_left_on_an_old_stream() == [SLAVE_IP], "which is what the service's pass acts on"
 
         # One: the third party takes the lock. Its switch sends STOP, SetURL, PAUSE and then sleeps
         # a second before the PLAY, so reading the PAUSE says the lock is held and stays held.
-        put_back = asyncio.create_task(master.put_back_on_the_station(BIND))
+        put_back = asyncio.create_task(master.put_back_on_the_station(SLAVE_IP))
         held = await _frames_ignoring_pings(r_old, 3)
         assert [f.typename for f in held] == [
             "AudioServerMsgTransportControl",
@@ -1036,11 +1046,11 @@ async def test_a_press_holding_the_switch_lock_leaves_a_queued_channel_its_join_
 
         # Three: a box opens a transport channel behind the press. _on_transport registers it
         # before it takes the lock, so the register says the same thing about this one.
-        r_late, w_late = await asyncio.open_connection(BIND, 40002)
+        r_late, w_late = await asyncio.open_connection(MASTER_IP, 40002)
         await _eventually(
-            lambda: master.transports.driven_for(BIND) is not left_behind, "the new channel queued behind the press"
+            lambda: master.transports.driven_for(SLAVE_IP) is not left_behind, "the new channel queued behind the press"
         )
-        late = master.transports.driven_for(BIND)
+        late = master.transports.driven_for(SLAVE_IP)
         assert late is not None and late.current is None, "it is the driven channel now, and it has joined nothing"
         assert not put_back.done(), "the third party still holds the lock"
         assert master.station is not None and master.station.url_id == second.url_id, (
