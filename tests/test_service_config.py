@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 import json
 import os
+import re
 import shutil
 import socket
 from dataclasses import dataclass
@@ -1226,6 +1227,24 @@ def _line_and_the_one_beneath(out: str, key: str) -> tuple[str, str]:
     return lines[at], lines[at + 1]
 
 
+def _shown_value(line: str) -> str:
+    """The value a ``<key> = <value>    # <where>`` line shows, without the note on where it came from.
+
+    The note carries the time a preference was stored, and a microsecond count holds every short
+    decimal sooner or later: ``30.790103`` contains ``0.7``. A test that looks for a value in the
+    whole line fails about once in a hundred runs on the clock rather than on the code.
+    """
+    return line.split(" = ", 1)[1].split("    # ", 1)[0]
+
+
+_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T[\d:.]+(?:[+-]\d{2}:\d{2}|Z)?")
+
+
+def _without_timestamps(text: str) -> str:
+    """``text`` with every ISO timestamp replaced, so a search for a value cannot match the clock."""
+    return _TIMESTAMP.sub("<time>", text)
+
+
 def test_config_shows_a_stored_preference_over_the_file_value_it_replaces(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
 ) -> None:
@@ -1416,9 +1435,9 @@ def test_redact_masks_a_value_the_database_holds_and_the_value_it_overrides(
     assert data["config"]["dialling.window_s"] == REDACTED_PLACEHOLDER
     assert data["provenance"]["dialling.window_s"]["overrides"]["value"] == REDACTED_PLACEHOLDER
     line, beneath = _line_and_the_one_beneath(human, "dialling.window_s")
-    assert "0.7" not in line, line
+    assert _shown_value(line) == json.dumps(REDACTED_PLACEHOLDER), line
     assert beneath.startswith("#   overridden: "), beneath
-    assert "0.8" not in beneath, beneath
+    assert _shown_value(beneath) == json.dumps(REDACTED_PLACEHOLDER), beneath
 
 
 def test_redact_masks_the_raw_text_of_a_row_the_rule_refused(
@@ -1432,10 +1451,10 @@ def test_redact_masks_the_raw_text_of_a_row_the_rule_refused(
 
     ignored = data["provenance"]["mpd.rewind_s"]["ignored_database_row"]
     assert ignored["text"] == REDACTED_PLACEHOLDER
-    assert "7.5" not in json.dumps(data)
+    assert "7.5" not in _without_timestamps(json.dumps(data))
     _, beneath = _line_and_the_one_beneath(human, "mpd.rewind_s")
     assert beneath.startswith("#   ignored in the house database: mpd.rewind_s = "), beneath
-    assert "7.5" not in human
+    assert "7.5" not in _without_timestamps(human)
 
 
 def test_a_database_url_from_a_config_layer_is_read_without_a_typed_database(
