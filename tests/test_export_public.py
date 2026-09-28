@@ -56,8 +56,8 @@ def _main_worktree_root(repo: Path) -> Path:
     ``git rev-parse --git-common-dir`` names the one ``.git`` directory every worktree of a
     repository shares - relative to the checkout it is run in for the main checkout itself,
     absolute for a linked one. Its parent is the main checkout's own path, which is the path the
-    private redaction list actually names; a linked worktree's ``ep.ROOT`` sits somewhere else
-    entirely (``.claude/worktrees/<name>`` and similar) and no rule is meant to cover that.
+    private redaction list actually names; a linked worktree's ``ep.ROOT`` sits under a tool's own
+    scratch directory instead, and no rule is meant to cover that.
     """
     common_dir = Path(_git(repo, "rev-parse", "--git-common-dir").decode("utf-8").strip())
     if not common_dir.is_absolute():
