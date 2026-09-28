@@ -81,11 +81,25 @@ def _purge_stale_coverage_files(cov_path: Path) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Point the coverage database at local disk, before pytest-cov opens one.
+    """Point a *later* coverage reader at local disk; pytest-cov's own run has already begun.
 
-    ``config`` is unread: pytest matches this hook by NAME and passes what the hook spec declares,
-    and what this one needs is the moment rather than the argument - it has to run before
-    pytest-cov builds its ``Coverage()`` in ``pytest_sessionstart``.
+    ``config`` is unread: pytest matches this hook by NAME and passes what the hook spec declares.
+
+    Measured against pytest-cov 7.1.0 / coverage 7.16.2: pytest-cov does NOT build its
+    ``Coverage()`` in ``pytest_sessionstart``. Its ``CovPlugin.__init__`` - registered
+    ``tryfirst`` on ``pytest_load_initial_conftests``, which runs before ANY conftest.py is
+    imported - calls ``start()`` synchronously, and that is where ``coverage.Coverage()`` is
+    constructed. So by the time this hook (or even this module's own top level) could set
+    ``COVERAGE_FILE``, pytest-cov's main run has already opened its database wherever the
+    environment or ``pyproject.toml`` said to at that earlier moment; setting the variable here
+    changes nothing for it. Confirmed by moving the same assignment to module import time and
+    watching the data file still land at coverage's default location.
+
+    What this still does: it purges a crashed run's SQLite sidecars, and it leaves
+    ``COVERAGE_FILE`` set in the process environment for anything that reads it AFTER this point
+    (a subprocess coverage.py invocation, ``coverage combine``, a manual run). CI does not depend
+    on it - ``default_cicd_public.yml`` sets ``COVERAGE_FILE`` at the job-step level, before pytest
+    starts, which is the only place early enough to redirect pytest-cov's own file.
     """
     if "COVERAGE_FILE" not in os.environ:
         cov_path = Path(tempfile.gettempdir()) / _COVERAGE_BASENAME
