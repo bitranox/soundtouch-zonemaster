@@ -60,7 +60,7 @@ def _install(tmp_path: Path, *, wheel_exists: bool = True) -> Install:
 _SEEDED = {
     "ok": True,
     "command": "service_venv seed-switch",
-    "data": {"database": "x", "switch": "off", "written": True},
+    "data": {"database": "x", "switch": "off", "written": True, "configured": True},
 }
 
 
@@ -181,6 +181,35 @@ def test_the_configured_database_is_the_one_written(tmp_path: Path) -> None:
     assert _switch_row(configured) == "off"
     assert report.database == str(configured)
     assert not install.database.exists(), "the default path is only for a machine that names no database"
+
+
+def test_a_machine_that_names_no_database_is_warned_that_the_service_will_not_open_this_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The default path is the installer's own, not the service's: the service names no default.
+
+    It refuses to start until a layer names ``database.url``, and if that ends up naming another
+    database, the service creates that one with no switch row - which it reads as ON. A quiet
+    seed of the default would read as the job done, so it is said, in the report and on stderr.
+    """
+    install = _install(tmp_path)
+
+    report = apply(install, plan(install), run=RealSeed(install, cwd=tmp_path))
+
+    assert len(report.warnings) == 1
+    assert "database.url" in report.warnings[0]
+    assert str(install.database) in report.warnings[0]
+    assert report.warnings[0] in capsys.readouterr().err
+
+
+def test_a_configured_database_draws_no_warning(tmp_path: Path) -> None:
+    install = _install(tmp_path)
+    configured = tmp_path / "elsewhere" / "house.sqlite"
+    configured.parent.mkdir()
+
+    report = apply(install, plan(install), run=RealSeed(install, cwd=tmp_path, database_url=str(configured)))
+
+    assert report.warnings == []
 
 
 def test_an_old_switch_file_that_says_on_is_what_a_new_database_starts_with(tmp_path: Path) -> None:

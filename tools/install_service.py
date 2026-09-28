@@ -166,6 +166,8 @@ class Report(BaseModel):
     """``on``, ``off``, or ``unset`` (no row, which the service reads as on)."""
     wheel: str
     changed: list[str]
+    warnings: list[str] = []
+    """What the install did that is not what it should look like it did; each is also said on stderr."""
 
 
 def plan(install: Install) -> Steps:
@@ -241,6 +243,9 @@ def apply(install: Install, steps: Steps, *, run: Runner = run_command, helper: 
     seeded = seed(install, run=run, helper=helper)
     if seeded.written:
         changed.append("switch")
+    warnings = [] if seeded.configured else [_unconfigured(seeded.database)]
+    for warning in warnings:
+        sys.stderr.write(f"warning: {warning}\n")
     return Report(
         prefix=str(install.prefix),
         state_dir=str(install.state_dir),
@@ -248,6 +253,16 @@ def apply(install: Install, steps: Steps, *, run: Runner = run_command, helper: 
         switch=seeded.switch,
         wheel=str(install.wheel),
         changed=changed,
+        warnings=warnings,
+    )
+
+
+def _unconfigured(database: str) -> str:
+    """The warning for a seed of the installer's default: the service has no default to meet it at."""
+    return (
+        f"no config layer names database.url, so the switch was seeded in the installer's default {database}; "
+        "the service refuses to start until database.url names a database, and one naming any other "
+        "creates that database with no switch row, which a first start reads as ON - name this one"
     )
 
 
@@ -257,6 +272,8 @@ class Seeded(BaseModel):
     database: str
     switch: str
     written: bool
+    configured: bool
+    """Whether a config layer named the database, rather than the installer's default standing in."""
 
 
 class SeedEnvelope(BaseModel):

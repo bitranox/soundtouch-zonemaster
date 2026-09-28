@@ -149,6 +149,18 @@ def test_the_configured_database_is_the_one_written(
     assert document["data"]["database"] == str(configured)
     assert _switch_row(configured) == "off"
     assert not default.exists(), "the default is only for a machine that configures no database"
+    assert document["data"]["configured"] is True
+
+
+def test_a_seed_of_the_default_says_no_layer_named_a_database(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    default = tmp_path / "zonemaster.sqlite"
+
+    code, document = _drive(["seed-switch", "--default", str(default)], capsys)
+
+    assert code == 0
+    assert document["data"]["configured"] is False
 
 
 def test_a_seed_cut_off_before_its_switch_is_written_leaves_a_database_the_next_run_seeds(

@@ -69,7 +69,11 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[1]
 UNIT = "soundtouch-multiroom.service"
 _SEEDED = json.dumps(
-    {"ok": True, "command": "service_venv seed-switch", "data": {"database": "db", "switch": "on", "written": False}}
+    {
+        "ok": True,
+        "command": "service_venv seed-switch",
+        "data": {"database": "db", "switch": "on", "written": False, "configured": True},
+    }
 )
 
 

@@ -47,7 +47,7 @@ from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, NamedTuple, override
 
 import rich_click as click
 from _click import argument, current_context, option, run_cli
@@ -90,7 +90,15 @@ def _narrate(kind: str, text: str) -> None:
     sys.stderr.write(f"{kind}: {text}\n")
 
 
-def configured_database(*, default: Path) -> tuple[str, Secret | None]:
+class Chosen(NamedTuple):
+    """The database a verb works on, and whether a config layer named it or the default stood in."""
+
+    setting: str
+    password: Secret | None
+    configured: bool
+
+
+def configured_database(*, default: Path) -> Chosen:
     """The database the service would open, else ``default``; with the password the layers give.
 
     ``named_database`` is the store verbs' own reading of the layers, so this and the service
@@ -99,8 +107,8 @@ def configured_database(*, default: Path) -> tuple[str, Secret | None]:
     shared = Shared(mode=OutputMode(machine=True, indent=None), profile=None, overrides=())
     choice = named_database(shared, narrate=_narrate)
     if choice is None:
-        return str(default), None
-    return choice.setting, choice.password
+        return Chosen(str(default), None, configured=False)
+    return Chosen(choice.setting, choice.password, configured=True)
 
 
 class SeedReport(BaseModel):
@@ -112,6 +120,9 @@ class SeedReport(BaseModel):
     switch: str
     """``on``, ``off``, or ``unset`` (no row: the service reads that as on)."""
     written: bool
+    configured: bool
+    """Whether a config layer named the database. When none did, the default stood in, and the
+    service - which has no default of its own - will not open it until ``database.url`` names it."""
 
 
 class ShowReport(BaseModel):
@@ -234,7 +245,7 @@ class _CreatedWithItsSwitch(HouseDatabase):
 
 
 def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport:
-    setting, password = configured_database(default=default)
+    setting, password, configured = configured_database(default=default)
     existed = house_schema_exists(setting, password)
     legacy = None
     if legacy_switch_file is not None and legacy_switch_file.exists():
@@ -256,7 +267,9 @@ def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport
     finally:
         house.close()
     shown = "unset" if held is None else ("on" if held else "off")
-    return SeedReport(database=house.where, created=not existed, switch=shown, written=house.written)
+    return SeedReport(
+        database=house.where, created=not existed, switch=shown, written=house.written, configured=configured
+    )
 
 
 def show(*, default: Path) -> ShowReport:
@@ -268,7 +281,7 @@ def show(*, default: Path) -> ShowReport:
     takes this answer as the switch it hands back at the end, and a failed read that said ON
     turned a house somebody had switched off back on. So a read that fails is refused here.
     """
-    setting, password = configured_database(default=default)
+    setting, password, _configured = configured_database(default=default)
     backend = database_url(setting).get_backend_name()
     where = masked(setting)
     with _read_only(setting, password) as connection:
@@ -286,7 +299,7 @@ def set_switch(*, default: Path, on: bool) -> SwitchReport:
     A database without one is refused rather than opened, because opening would create it: only
     the service and the installer do that.
     """
-    setting, password = configured_database(default=default)
+    setting, password, _configured = configured_database(default=default)
     if not house_schema_exists(setting, password):
         message = f"{masked(setting)}: holds no house database (only the service and the installer create one)"
         raise StoreMissingError(message)
@@ -306,7 +319,7 @@ def set_switch(*, default: Path, on: bool) -> SwitchReport:
 
 def backup(*, default: Path, to: Path) -> BackupReport:
     """Copy a SQLite house database with the backup API, or say what to do for PostgreSQL."""
-    setting, _password = configured_database(default=default)
+    setting, _password, _configured = configured_database(default=default)
     url = database_url(setting)
     where = masked(setting)
     backend = url.get_backend_name()
