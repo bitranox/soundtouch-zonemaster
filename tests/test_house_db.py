@@ -110,6 +110,18 @@ def test_the_statement_timeout_is_lifted_while_a_migration_runs(
     assert seen == ["0"]
 
 
+def test_an_old_sqlite_is_refused_by_name_before_strict_tables_would_fail_confusingly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """STRICT tables need SQLite 3.37; nothing had ever driven this refusal (OPEN-WORK rank 205).
+    The module attribute is qualified (``sqlite3.sqlite_version_info``), so patching it on the
+    ``sqlite3`` module is seen at call time rather than at some earlier import."""
+    monkeypatch.setattr("sqlite3.sqlite_version_info", (3, 36, 0))
+    monkeypatch.setattr("sqlite3.sqlite_version", "3.36.0")
+    with pytest.raises(StoreError, match=r"3\.36\.0 is older than 3\.37\.0"):
+        HouseDatabase(str(tmp_path / "house.sqlite")).open(exclusive=True)
+
+
 def test_every_sqlite_table_is_strict(tmp_path: Path) -> None:
     database = _opened(str(tmp_path / "house.sqlite"))
     with database.reading() as connection:

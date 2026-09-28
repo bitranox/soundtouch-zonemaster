@@ -10,7 +10,11 @@
 # Default: none. Effect: a plain path (or sqlite:////absolute/path) is one SQLite file, plus its
 # -wal and -shm files while the service runs and a .lock file beside it. A PLAIN PATH's directory
 # is checked at startup, before anything is opened; a sqlite:////absolute/path URL is not - it is
-# the store's own open that then fails if the directory is missing.
+# the store's own open that then fails if the directory is missing. A plain path may be relative:
+# nothing here refuses one, but it then resolves against the process's current working directory,
+# which for the deployed unit is whatever WorkingDirectory= names (or the service's own directory
+# when that is unset) rather than anywhere obvious from this file alone - give an absolute path
+# unless that resolution is deliberate.
 # postgresql+psycopg://user@host/dbname is a PostgreSQL database, which needs the package
 # installed with its postgres extra; the one-writer lock is then an advisory lock on the server.
 # A URL carrying a password is REFUSED, because the URL is shown by `config`, envelopes and logs:

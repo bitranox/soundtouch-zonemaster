@@ -220,8 +220,11 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
     except StoreError as exc:
         # The database, or an old file it was to import, cannot be used. That is a refused start
         # naming the file, and an answer rather than a crash: a stack under it would bury the one
-        # line a person has to act on. The store is opened and imported before a port is bound or
-        # a speaker touched, so at the start there is nothing else to report.
+        # line a person has to act on. This branch wraps the WHOLE run, not only its start, on the
+        # invariant that nothing past open() and import_legacy() (both inside run_service, before
+        # a port is bound or a speaker touched) can raise a StoreError - if the service ever grows
+        # a path that reopens or reuses the store later in its life, a StoreError from THAT would
+        # be reported here as a refused start too, which it would not be.
         report_failure(exc, command=service_command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
     except Exception as exc:  # noqa: BLE001 - CLI edge
