@@ -25,12 +25,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
-- A stop could hang for ever. When the service was stopped on the same turn of its event loop as a
-  station's read timeout fired, the timeout (httpx's, run by anyio) took the stop for its own and
-  swallowed it: the fetch reconnected every 30 seconds and the stop, and with it the dissolve of the
-  zone, waited on it indefinitely. It needs only a loop that is late at the moment of a stop, which a
-  loaded host or a slow pass provides. Every HTTP deadline is now enforced by asyncio instead, which
-  lets a stop through, and no httpx client carries a timeout of its own.
+- One cause of a stop that could hang for ever. When the service was stopped on the same turn of its
+  event loop as a station's read timeout fired, the timeout (httpx's, run by anyio) took the stop
+  for its own and swallowed it: the fetch reconnected every 30 seconds and the stop, and with it the
+  dissolve of the zone, waited on it indefinitely. It needs only a loop that is late at the moment
+  of a stop, which a loaded host or a slow pass provides. Every HTTP deadline is now enforced by
+  asyncio instead, which lets a stop through, and no httpx client carries a timeout of its own.
+
+### Known issues
+
+- A stop can still, rarely, wait for ever on a station fetch. It was seen once in CI after the fix
+  above (one of fifteen test runs) and has not been reproduced locally, so its cause is not yet
+  known. A service with no station playing is not affected.
 
 ## [0.5.0] 2026-09-28 01:25:05
 
