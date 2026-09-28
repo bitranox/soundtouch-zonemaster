@@ -17,6 +17,7 @@ import json
 import socket
 import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -46,7 +47,7 @@ def _drive(argv: Sequence[str], capsys: pytest.CaptureFixture[str]) -> tuple[int
 
 def _switch_row(path: Path) -> str | None:
     """The switch word as the file holds it, read with the stdlib so the reading is independent."""
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         row = connection.execute("SELECT word FROM switch WHERE id = 1").fetchone()
     return None if row is None else str(row[0])
 
@@ -232,7 +233,7 @@ def test_a_backup_is_a_consistent_copy_taken_through_the_backup_api(
     copy = Path(document["data"]["backup"])
     assert copy.parent == backups
     assert _switch_row(copy) == "off"
-    with sqlite3.connect(copy) as connection:
+    with closing(sqlite3.connect(copy)) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
 
 

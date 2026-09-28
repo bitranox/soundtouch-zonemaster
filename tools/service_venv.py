@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
@@ -243,7 +244,7 @@ def backup(*, default: Path, to: Path) -> BackupReport:
     if target.exists():
         message = f"{target}: already exists; a backup never writes over another"
         raise FileExistsError(message)
-    with sqlite3.connect(source) as original, sqlite3.connect(target) as copy:
+    with closing(sqlite3.connect(source)) as original, closing(sqlite3.connect(target)) as copy:
         original.backup(copy)
     return BackupReport(database=where, backend=backend, backup=str(target), note="copied with the SQLite backup API")
 

@@ -23,6 +23,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -100,7 +101,7 @@ class RealSeed(Recorder):
 
 
 def _switch_row(path: Path) -> str | None:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         row = connection.execute("SELECT word FROM switch WHERE id = 1").fetchone()
     return None if row is None else str(row[0])
 
