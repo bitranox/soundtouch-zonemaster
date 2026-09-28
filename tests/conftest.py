@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import hang_watchdog
 import pytest
 from lib_layered_config import read_config
 from sqlalchemy import create_engine, text
@@ -90,6 +91,8 @@ def pytest_configure(config: pytest.Config) -> None:
         cov_path = Path(tempfile.gettempdir()) / _COVERAGE_BASENAME
         _purge_stale_coverage_files(cov_path)
         os.environ["COVERAGE_FILE"] = str(cov_path)
+    # A hang in CI otherwise burns the job's six hours and reports nothing (OPEN-WORK rank 223).
+    hang_watchdog.arm_in_ci(config)
 
 
 def _untracked(_directory: str, names: list[str]) -> list[str]:

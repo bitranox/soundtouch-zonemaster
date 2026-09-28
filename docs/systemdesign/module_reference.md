@@ -131,7 +131,7 @@ Complete (v0.2.0+, the template rebuild)
 - `tests/test_zonemaster_cli.py`  -  The prototype command
 - `tests/test_ports.py`  -  Protocol conformance of build_production's wiring
 - `tests/test_service_loopback.py`  -  The loopback e2e with a fake slave
-- `tests/hang_watchdog.py`  -  Opt-in pytest plugin: dumps tasks, servers and sockets INSIDE a hang
+- `tests/hang_watchdog.py`  -  pytest plugin that dumps tasks, servers and sockets INSIDE a hang and kills the run; armed by itself when `CI=true`, opt-in locally with `-p hang_watchdog`
 - `tests/registry_double.py`, `tests/speaker_double.py`  -  Real-ish fakes the loopback drives over real sockets
 
 ---

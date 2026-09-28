@@ -1,7 +1,11 @@
-"""Dump the state INSIDE a hang, then kill the run. Not loaded by default; ask for it.
+"""Dump the state INSIDE a hang, then kill the run. Armed by itself in CI; locally, ask for it.
 
     env PYTHONPATH=tests WATCHDOG_STALL_S=40 WATCHDOG_OUT=/tmp/hang.txt \
         .venv/bin/python -m pytest -p hang_watchdog -q tests/test_service_loopback.py
+
+With ``CI=true`` (GitHub sets it) ``conftest.py`` arms it through :func:`arm_in_ci`, with a stall
+budget of :data:`CI_STALL_S` and the dump on stderr, so a hang there ends the job in minutes with
+its evidence in the log. ``WATCHDOG_OUT=-`` sends a local dump to stderr as well.
 
 Exit 3 means it fired. Written for the hunt that closed OPEN-WORK rank 17, where the suite stopped
 for ever on one to three of every four runs and every dump taken AFTERWARDS saw a tidy process: the
@@ -18,9 +22,9 @@ all. And every section is guarded and flushed on its own, because the first vers
 on a dead weakproxy in ``gc.get_objects()``, wrote nothing after the thread stacks, and left the
 run hanging with no report at all.
 
-Self-test: run it over any suite with ``WATCHDOG_STALL_S=2`` and require exit 3 and all six
-sections in the output file. An instrument that has stopped dumping looks exactly like a suite that
-has stopped hanging.
+Self-test: ``tests/test_hang_watchdog.py`` runs a stalled test in a subprocess with ``CI=true`` and
+``WATCHDOG_STALL_S=2``, and requires exit 3 and all six sections on stderr. An instrument that has
+stopped dumping looks exactly like a suite that has stopped hanging.
 """
 
 from __future__ import annotations
@@ -37,18 +41,25 @@ import threading
 import time
 import traceback
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-STALL_S = float(os.environ.get("WATCHDOG_STALL_S", "60"))
-OUT = os.environ.get("WATCHDOG_OUT", "/tmp/watchdog.txt")
+TO_STDERR = "-"
+"""The ``WATCHDOG_OUT`` value that sends the dump to the real stderr instead of a file."""
+
+CI_STALL_S = 300.0
+"""How long one phase may run in CI before it counts as a hang.
+
+Far above any phase this suite has (the longest waits are ten-second ``eventually`` deadlines) and
+far below the six hours a CI job otherwise burns on a hang it never reports."""
 
 _state = {"what": "session", "since": time.monotonic()}
 _lock = threading.Lock()
+_settings: dict[str, object] = {}
 
 
 def _mark(what: str) -> None:
@@ -200,10 +211,34 @@ def _dump_sockets(out: io.TextIOBase) -> None:
     print("\n".join(mine) or "(no socket of this pid)", file=out)
 
 
-def _dump(reason: str) -> None:
+@runtime_checkable
+class _SuspendsCapture(Protocol):
+    """The one method of pytest's capture manager this uses; ``getplugin`` hands back an untyped plugin."""
+
+    def suspend_global_capture(self, *, in_: bool = False) -> None: ...
+
+
+def _real_stderr(config: pytest.Config) -> io.TextIOBase:
+    """The process's own stderr, even while pytest is capturing it.
+
+    Mid-test, fd 2 points at pytest's capture file, which ``os._exit`` discards: a dump written
+    there never reaches a CI log. Suspending the global capture puts fd 2 back; nothing resumes it,
+    because the run is about to be killed.
+    """
+    capman = config.pluginmanager.getplugin("capturemanager")
+    if isinstance(capman, _SuspendsCapture):
+        capman.suspend_global_capture(in_=False)
+    return io.TextIOWrapper(io.FileIO(os.dup(2), "w"), encoding="utf-8", errors="replace", write_through=True)
+
+
+def _open_out(config: pytest.Config, where: str) -> io.TextIOBase:
+    return _real_stderr(config) if where == TO_STDERR else Path(where).open("a", encoding="utf-8")
+
+
+def _dump(config: pytest.Config, where: str, reason: str) -> None:
     what, age = _phase()
-    try:
-        with Path(OUT).open("a", encoding="utf-8") as out:
+    with _open_out(config, where) as out:
+        try:
             print(f"\n{'=' * 78}\nWATCHDOG {reason}: phase {what!r} stalled {age:.1f}s (pid {os.getpid()})", file=out)
             _section(out, "thread stacks", _dump_threads)
             _section(out, "loops and tasks", _dump_loops)
@@ -211,26 +246,39 @@ def _dump(reason: str) -> None:
             _section(out, "transports", _dump_transports)
             _section(out, "httpx clients", _dump_http_clients)
             _section(out, "sockets", _dump_sockets)
-    except BaseException:  # noqa: BLE001
-        with Path(OUT).open("a", encoding="utf-8") as out:
+        except BaseException:  # noqa: BLE001
             print("DUMP FAILED:\n" + traceback.format_exc(), file=out)
+        print(f"\nWATCHDOG: {what} stalled {age:.0f}s, killing run", file=out)
 
 
-def _watch() -> None:
+def _watch(config: pytest.Config, stall_s: float, where: str) -> None:
     while True:
         time.sleep(1.0)
         what, age = _phase()
-        if age > STALL_S and what != "session":
+        if age > stall_s and what != "session":
             try:
-                _dump("stall")
+                _dump(config, where, "stall")
             finally:
-                sys.stderr.write(f"\nWATCHDOG: {what} stalled {age:.0f}s, dump in {OUT}, killing run\n")
-                sys.stderr.flush()
                 os._exit(3)
 
 
+def arm_in_ci(config: pytest.Config) -> None:
+    """Register this plugin when ``CI=true`` and nobody asked for it with ``-p`` already.
+
+    CI's command line is owned by the CI template, so this is the seam. There it defaults to
+    :data:`CI_STALL_S` and to stderr, since a file on the runner dies with the runner; the two
+    environment variables still win when set.
+    """
+    if os.environ.get("CI") != "true" or config.pluginmanager.has_plugin("hang_watchdog"):
+        return
+    _settings.update(stall_s=CI_STALL_S, out=TO_STDERR)
+    config.pluginmanager.register(sys.modules[__name__], "hang_watchdog")
+
+
 def pytest_configure(config: pytest.Config) -> None:
-    threading.Thread(target=_watch, daemon=True, name="watchdog").start()
+    stall_s = float(os.environ.get("WATCHDOG_STALL_S", str(_settings.get("stall_s", 60.0))))
+    where = os.environ.get("WATCHDOG_OUT", str(_settings.get("out", "/tmp/watchdog.txt")))
+    threading.Thread(target=_watch, args=(config, stall_s, where), daemon=True, name="watchdog").start()
 
 
 @pytest.hookimpl(hookwrapper=True)
