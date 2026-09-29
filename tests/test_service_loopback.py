@@ -4560,7 +4560,14 @@ async def test_a_database_that_hangs_at_the_stop_does_not_keep_the_zone_from_bei
 
         await eventually(store.closed.is_set, "the close queued behind the stuck save ran once it ended")
         assert store.refused_saves >= 1, "the control: the stuck saves really did fail once let through"
-        assert len(_failed_saves_said(logs)) == store.refused_saves, logs
+        # Waited for rather than read at once: the close is set on the store's thread, and each
+        # failure reaches the log only a few turns of the loop LATER - one hop into the worker's
+        # answer, one more to whoever asked for a save it did not await. Read the moment the close
+        # is seen, the count was short by whichever lines had not landed yet.
+        await eventually(
+            lambda: len(_failed_saves_said(logs)) == store.refused_saves,
+            f"each of the {store.refused_saves} refused saves said exactly once",
+        )
 
 
 async def test_a_save_that_fails_at_the_end_of_a_fade_is_said_once_in_the_house_log(
