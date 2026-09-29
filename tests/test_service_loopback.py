@@ -1900,6 +1900,50 @@ async def test_the_list_is_seeded_from_the_box_listed_first_whichever_answered_f
         await eventually(lambda: _channels_of(options).numbers_in_order() == ("1", "3"), "the studio seeded it")
 
 
+class _AsksASecondRound(ZoneService):
+    """The service, with a way for a test to start a second round of "what are you playing".
+
+    Nothing in the service can do that today - the start asks one round and the registry poll,
+    which only runs after the start, asks the next - so this is the one way to reach the guard
+    that keeps it so, and it goes through the same method both of them call.
+    """
+
+    async def ask_a_second_round(self) -> None:
+        await self._ask_the_speakers_what_they_are_playing()
+
+
+async def test_a_second_round_while_one_is_out_is_refused_out_loud(world: World, tmp_path: Path) -> None:
+    """Two rounds out at once would silently misplace each other's boxes, so a second is refused.
+
+    A round's boxes keep the place in ``_switched_on`` the list had reached when the round opened,
+    as a POSITION. A second round opening while the first is out would insert ahead of it and move
+    it, and the channel list would then be seeded from the wrong box with nothing to show why. Only
+    the order of the two callers keeps them apart today, so the rule is enforced where a round
+    opens: said at ERROR, nobody asked, the round that is out undisturbed.
+    """
+    released = asyncio.Event()
+    world.studio.held["/now_playing"] = released
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    service = _AsksASecondRound(options, log=recording_into(logs), ports=build_production().zone_ports)
+    task = asyncio.create_task(service.run())
+    try:
+        await eventually(lambda: "/now_playing" in world.studio.paths(), "the start's round is out")
+        asked_before = len(world.hallway.paths())
+        await asyncio.wait_for(service.ask_a_second_round(), timeout=2.0)
+
+        refused = [line for line in logs if line.startswith(f"{ERROR_KIND}: ") and "second round" in line]
+        assert len(refused) == 1, logs
+        assert len(world.hallway.paths()) == asked_before, "the refused round asked nobody"
+        released.set()
+        await eventually(lambda: _said(logs, "probe: Bose Studio: "), "the round that was out still finished")
+    finally:
+        released.set()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 @pytest.mark.parametrize(
     "frame_before_second_answer",
     [

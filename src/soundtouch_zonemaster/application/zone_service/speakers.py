@@ -17,6 +17,7 @@ import time
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from ...domain.logfn import ERROR_KIND
 from ..errors import RegistryError
 from .channels import ChannelBook
 
@@ -45,7 +46,8 @@ class _AskedTogether:
     reply speed again, one level up.
 
     The place is a position, which holds because nothing else inserts into the list: frames only
-    append, and one round is out at a time (``ServiceState._rounds_out``).
+    append, and one round is out at a time - a second is refused while ``ServiceState._rounds_out``
+    is not zero.
     """
 
     def __init__(self, device_ids: Iterable[str], *, opens_at: int) -> None:
@@ -204,7 +206,22 @@ class SpeakerBook(ChannelBook):
         the HTTP timeout - must not hold back what another box has already said. While the round
         is out the channel list is not seeded (``ChannelBook._seed_the_channels``): the answers
         still to come may belong ahead of the ones already in.
+
+        **One round at a time, and a second is refused out loud.** A round's boxes keep the place the
+        list had reached when it opened as a POSITION (``_AskedTogether``), which holds only while
+        nothing else inserts: a second round opening while one is out would put its boxes ahead of
+        the first's and move them, and the list would then be seeded from the wrong box with nothing
+        to say why. Today only the order of the two callers keeps them apart - the start asks, and
+        the registry poll runs after it - so the rule is checked here, where any new caller would
+        break it. The refused round asks nobody and leaves the unasked boxes for the next one.
         """
+        if self._rounds_out:
+            self.log(
+                ERROR_KIND,
+                "a second round of 'what are you playing' was asked for while one is still out; refused, "
+                "so the round that is out keeps its places (the boxes not asked yet wait for the next round)",
+            )
+            return
         # In the order the registry listed them. The questions all go out at once, so this is not
         # the order they are asked in; it is the order their answers take among themselves in
         # ``_switched_on``, whichever of them replies first - and they take it where the list has

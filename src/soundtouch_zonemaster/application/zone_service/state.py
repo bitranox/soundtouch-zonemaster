@@ -281,10 +281,11 @@ class ServiceState:
         self._rounds_out = 0
         """How many rounds of "what are you playing" are waiting for answers; the list is not seeded meanwhile.
 
-        A count rather than a flag, although the start and then the registry poll ask one round at
-        a time. Where a round's answers go in ``_switched_on`` DOES depend on that - each round
-        keeps its place as a position, and a second round inserting ahead of it would move it - so
-        a change that lets two rounds overlap has to revisit ``SpeakerBook``'s ``_AskedTogether``."""
+        A count rather than a flag, although only one round is ever out: where a round's answers go
+        in ``_switched_on`` depends on that - each round keeps its place as a position, and a second
+        round inserting ahead of it would move it - so ``SpeakerBook`` refuses a second round while
+        this is not zero, out loud. A change that wants two rounds to overlap has to revisit
+        ``_AskedTogether`` first."""
         self._source_frames: dict[str, int] = {}
         """How many frames of its own each box has named its source in, counted by the reader.
 
