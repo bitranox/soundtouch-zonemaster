@@ -92,11 +92,16 @@ STOP_BOUND_S = 10.0
 Twice the store's own bounds (a PostgreSQL statement or connect timeout, a SQLite busy wait, all
 five seconds), so a close gives up only on a call that has already outlived every limit the store
 sets itself. The house's unit gives a stop sixty seconds before it kills, and this close is the
-last thing the stop waits for. Ahead of it come at most three seconds for the stand-down's save
-(``STAND_DOWN_SAVE_S``) and the dissolve, which waits up to eight seconds (the speaker HTTP
-timeout) for each box it cannot reach, one box after another. Five unreachable boxes make
-3 + 40 + 10 = 53 s, inside the sixty; six make 61 s, and the kill then lands in this close, after
-every box has been told, costing only the writes the close says it lost."""
+last thing the stop waits for. Ahead of it, on an MPD channel, the stand-down first asks MPD where
+it had got to: a status, and for a directory channel the queue after it, each bounded by
+``MPD_TIMEOUT_S`` (five seconds), so up to ten seconds from a daemon that has stopped answering.
+Then come at most three seconds for the save (``STAND_DOWN_SAVE_S``) and the dissolve, which waits
+up to eight seconds (the speaker HTTP timeout) for each box it cannot reach, one box after another.
+At worst that is 5 + 5 + 3 + 8 per unreachable box + 10: four make 55 s, inside the sixty; five
+make 63 s, and the kill lands in this close after every box has been told, costing only the writes
+the close says it lost; six make 71 s, and the kill lands in the dissolve itself, while it waits on
+the sixth box it cannot reach, so a box after that one in the dissolve's order is not told. With
+no MPD channel on, or MPD answering, the same sums are about ten seconds shorter."""
 
 _THREAD_END_POLL_S = 0.005
 """How often a close looks whether the thread has ended: a join would be a wait on the loop."""
