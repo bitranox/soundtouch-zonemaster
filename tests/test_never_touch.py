@@ -169,3 +169,24 @@ def test_a_never_touch_entry_that_is_not_one_stops_the_run_rather_than_reading_a
 
     assert main(run_zone=_must_not_run) == 2
     assert "never_touch" in capsys.readouterr().err
+
+
+def test_a_never_touch_entry_missing_a_field_is_named_down_to_that_field(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path
+) -> None:
+    """Which entry and which of its fields, not just which setting: the list can be long.
+
+    ``Field required`` alone under ``[prototype] never_touch`` leaves the reader counting entries
+    to find the one that lost its address; pydantic says where, and the refusal passes that on.
+    """
+    written = isolated_config_layers / "xdg" / "soundtouch-zonemaster" / "config.toml"
+    written.parent.mkdir(parents=True)
+    written.write_text(
+        '[prototype]\nnever_touch = [\n  { ip = "192.168.0.99", name = "Room6", why = "asleep" },\n'
+        '  { name = "Room5", why = "the console" },\n]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("sys.argv", _argv("--slave", ROOM5))
+
+    assert main(run_zone=_must_not_run) == 2
+    assert "[prototype] never_touch.1.ip: Field required" in capsys.readouterr().err

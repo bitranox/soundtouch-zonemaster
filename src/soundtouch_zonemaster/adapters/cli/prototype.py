@@ -97,11 +97,17 @@ def prototype_settings_of(config: Config) -> PrototypeSettings:
 
 
 def _where_in_a_file(loc: tuple[int | str, ...]) -> str:
-    """``("never_touch", 0, "ip")`` as ``[prototype] never_touch``: the setting, as a file writes it."""
+    """``("never_touch", 0, "ip")`` as ``[prototype] never_touch.0.ip``: the setting, then the rest of the way.
+
+    The field is named as a file writes it, and everything pydantic knows below it - which entry,
+    which of its keys - follows as it said it, because in a list of several the setting alone
+    does not say which entry lost its address.
+    """
     field_name = str(loc[0]) if loc else ""
     path = next((source for source, target in PROTOTYPE_SETTINGS.items() if target == field_name), field_name)
     section, _, key = path.partition(".")
-    return f"[{section}] {key}" if key else path
+    setting = f"[{section}] {key}" if key else path
+    return ".".join([setting, *(str(part) for part in loc[1:])])
 
 
 class OptionsInput(BaseModel):
