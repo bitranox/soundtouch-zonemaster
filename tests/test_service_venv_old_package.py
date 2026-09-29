@@ -275,3 +275,33 @@ def test_the_deploy_puts_back_only_its_own_switch_off_through_the_old_package(
     put_back = house.set_switch(on=True, if_changed_at=left.changed_at)
     assert put_back.written is True, "the control: over the stamp the row holds, it writes"
     assert _switch_row(install.database) == "on"
+
+
+def test_a_switch_off_over_one_already_off_says_it_changed_nothing_through_the_old_package(
+    old_package: Path, tmp_path: Path
+) -> None:
+    """The deploy keeps its switch-off's stamp only when that write turned the house off.
+
+    A person's ``switch off`` can land during the backup, before the deploy's own switch-off, and
+    the switch-off runs against the package being replaced. ``changed`` is the whole signal, so it
+    must be false through that package's store too - otherwise the deploy would record the fresh
+    stamp as its own and turn the house back on over the person's word.
+    """
+    install = Install(prefix=tmp_path / "opt", state_dir=tmp_path / "state", wheel=tmp_path / "w.whl")
+    install.state_dir.mkdir()
+    _old_house(old_package, install.database, word="on")
+
+    def runner(argv: list[str]) -> Ran:
+        ran = _run(argv[1:], old_package=old_package, cwd=tmp_path)
+        return Ran(code=ran.returncode, stdout=ran.stdout, stderr=ran.stderr)
+
+    house = VenvHouse(install, run=runner)
+    assert house.set_switch(on=False).changed is True, "the control: over a switch that was on, it changed it"
+    house.set_switch(on=True)
+    _old_house(old_package, install.database, word="off")  # a person's `switch off`, by the old store
+
+    switched = house.set_switch(on=False)
+
+    assert switched.written is True
+    assert switched.changed is False
+    assert _switch_row(install.database) == "off"

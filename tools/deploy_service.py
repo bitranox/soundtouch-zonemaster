@@ -37,7 +37,9 @@ The steps, in the order that matters:
 8. **Restore the switch** to what it was before step 3 - but only while the switch row still holds
    the deploy's own switch-off. A person who ran ``switch off`` (or ``on``) in the minutes between
    has the last word: their switch is left as they set it, and the envelope's ``switch_note`` says
-   so. The same holds when a failure before the stop puts the switch back.
+   so. The same holds when a failure before the stop puts the switch back, and when the person's
+   ``switch off`` landed during the backup, before step 3: the deploy's switch-off then changed
+   nothing, records nothing to put back, and the switch stays off.
 
 A failure after the stop leaves the unit stopped and the switch OFF, and says which steps were
 done: a half-deployed service is not one to hand a house back to. ``--dry-run`` reads the machine,
@@ -590,6 +592,13 @@ def read_situation(target: Target, *, run: Runner, house: House) -> Situation:
     return Situation(house=view, unit_active=unit_state(target.unit, run=run) == "active")
 
 
+_ALREADY_OFF = (
+    "the switch was already off when the deploy came to turn it off - somebody switched it off after the "
+    "deploy read it on - so the switch is left off"
+)
+"""What a deploy says when its own switch-off changed nothing, and why it will not turn the house on."""
+
+
 @dataclass
 class _Run:
     """One deploy in progress: what it acts through, and what it has done so far."""
@@ -620,7 +629,21 @@ class _Run:
         _say(self.report.backup.note)
 
     def _switch_off(self) -> None:
-        self.report.switched_off_at = self.house.set_switch(on=False).changed_at
+        """Turn the house off, and keep the stamp only when it was this write that turned it off.
+
+        The switch was read ON before the backup, and a person may run ``switch off`` while the
+        database is being copied. The write below then changes nothing - yet still leaves a fresh
+        stamp on the row, and recorded as the deploy's, that stamp would let the put-back turn the
+        house on over the person's word. A switch-off that changed nothing is not the deploy's to
+        undo, so it records no stamp and says why; the switch then stays off to the end.
+        """
+        switched = self.house.set_switch(on=False)
+        if switched.changed:
+            self.report.switched_off_at = switched.changed_at
+            return
+        self.report.switched_off_at = None
+        self.report.switch_note = _ALREADY_OFF
+        _say(_ALREADY_OFF)
 
     def _drain(self) -> None:
         verdict, view = poll_until(
@@ -714,7 +737,8 @@ class _Run:
         own = report.switched_off_at
         if own is None:
             report.switch_restored = False
-            report.switch_note = "the deploy's switch-off left no stamp to compare with, so the switch is left off"
+            if report.switch_note != _ALREADY_OFF:
+                report.switch_note = "the deploy's switch-off left no stamp to compare with, so the switch is left off"
             return report.switch_note
         switched = self.house.set_switch(on=True, if_changed_at=own)
         report.switch_restored = switched.written

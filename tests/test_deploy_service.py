@@ -204,6 +204,7 @@ class FakeHouse:
         clock: FakeClock | None = None,
         interrupted_while_off: BaseException | None = None,
         person_while_off: bool | None = None,
+        person_during_backup: bool | None = None,
     ) -> None:
         self.on = on
         self.members = list(members)
@@ -222,6 +223,9 @@ class FakeHouse:
         self.person_while_off = person_while_off
         """What a person running ``switch on|off`` sets while the deploy has the house off, at the
         first read of the drain; ``None`` is nobody."""
+        self.person_during_backup = person_during_backup
+        """What a person sets while the deploy copies the database: after the deploy has read the
+        switch on, and before its own switch-off. ``None`` is nobody."""
 
     def show(self) -> HouseView:
         if not self.on and self.interrupted_while_off is not None:
@@ -257,6 +261,8 @@ class FakeHouse:
 
     def backup(self, to: Path) -> BackupView:
         self.backups.append(to)
+        if self.person_during_backup is not None:
+            self.a_person_switches(on=self.person_during_backup)
         return BackupView(database="db", backend="sqlite", backup=str(to / "copy.sqlite"), note="copied")
 
     def distributions(self) -> list[str]:
@@ -378,6 +384,41 @@ def test_a_switch_off_somebody_runs_before_a_refused_deploy_puts_it_back_is_left
     assert house.on is False
     assert house.switched == [False]
     assert "left off" in str(caught.value)
+    assert "the unit was not stopped" in str(caught.value)
+
+
+def test_a_switch_off_somebody_runs_during_the_backup_is_not_undone_by_the_deploy(tmp_path: Path) -> None:
+    """The deploy read the switch ON before the backup; a person switched it off while it copied.
+
+    The deploy's own switch-off then changed nothing, and its write still left a fresh stamp - the
+    one putting the switch back compares with. Recorded as the deploy's, that stamp would turn the
+    house back on over the person's ``switch off``. A switch-off that changed nothing is not the
+    deploy's to undo, so no stamp is recorded and the switch stays off.
+    """
+    house = FakeHouse(on=True, person_during_backup=False)
+
+    report = deploy(_target(tmp_path), run=FakeSystemd(), house=house, clock=FakeClock())
+
+    assert house.on is False, "the person's switch off stands"
+    assert house.switched == [False], "the deploy wrote the switch once: its own switch-off, which changed nothing"
+    assert report.done == report.plan, "the deploy itself finished"
+    assert report.switched_off_at is None
+    assert report.switch_restored is False
+    assert report.switch_note is not None
+    assert "already off" in report.switch_note
+    assert "left off" in report.switch_note
+
+
+def test_a_switch_off_somebody_runs_during_the_backup_of_a_refused_deploy_is_left_off(tmp_path: Path) -> None:
+    """The same person, on the recovery path: the drain runs out and the refusal puts nothing back on."""
+    house = FakeHouse(drain_after=None, person_during_backup=False)
+
+    with pytest.raises(ZoneStillHeldError) as caught:
+        deploy(_target(tmp_path), run=FakeSystemd(), house=house, clock=FakeClock())
+
+    assert house.on is False
+    assert house.switched == [False]
+    assert "already off" in str(caught.value)
     assert "the unit was not stopped" in str(caught.value)
 
 
