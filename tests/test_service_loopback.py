@@ -1909,8 +1909,13 @@ class _AsksASecondRound(ZoneService):
     that keeps it so, and it goes through the same method both of them call.
     """
 
-    async def ask_a_second_round(self) -> None:
+    async def ask_a_second_round(self, *, with_unasked: str) -> None:
+        """Ask a round with ``with_unasked`` waiting to be asked, as a box the registry just listed would be."""
+        self._not_asked_yet.add(with_unasked)
         await self._ask_the_speakers_what_they_are_playing()
+
+    def still_to_ask(self) -> frozenset[str]:
+        return frozenset(self._not_asked_yet)
 
 
 async def test_a_second_round_while_one_is_out_is_refused_out_loud(world: World, tmp_path: Path) -> None:
@@ -1921,6 +1926,10 @@ async def test_a_second_round_while_one_is_out_is_refused_out_loud(world: World,
     it, and the channel list would then be seeded from the wrong box with nothing to show why. Only
     the order of the two callers keeps them apart today, so the rule is enforced where a round
     opens: said at ERROR, nobody asked, the round that is out undisturbed.
+
+    The second round has a box waiting to be asked. Without one, a refusal that went on to ask
+    anyway would ask nobody too - the start's round has already taken every box - and the test
+    could not tell it from one that returned.
     """
     released = asyncio.Event()
     world.studio.held["/now_playing"] = released
@@ -1930,12 +1939,15 @@ async def test_a_second_round_while_one_is_out_is_refused_out_loud(world: World,
     task = asyncio.create_task(service.run())
     try:
         await eventually(lambda: "/now_playing" in world.studio.paths(), "the start's round is out")
-        asked_before = len(world.hallway.paths())
-        await asyncio.wait_for(service.ask_a_second_round(), timeout=2.0)
+        await eventually(lambda: "/now_playing" in world.hallway.paths(), "and asked the hallway too")
+        asked_before = world.hallway.paths().count("/now_playing")
+        assert asked_before == 1, "the control: the start's round asked the hallway once"
+        await asyncio.wait_for(service.ask_a_second_round(with_unasked=HALLWAY_ID), timeout=2.0)
 
         refused = [line for line in logs if line.startswith(f"{ERROR_KIND}: ") and "second round" in line]
         assert len(refused) == 1, logs
-        assert len(world.hallway.paths()) == asked_before, "the refused round asked nobody"
+        assert world.hallway.paths().count("/now_playing") == asked_before, "the refused round asked nobody"
+        assert HALLWAY_ID in service.still_to_ask(), "the box it did not ask waits for the next round"
         released.set()
         await eventually(lambda: _said(logs, "probe: Bose Studio: "), "the round that was out still finished")
     finally:
