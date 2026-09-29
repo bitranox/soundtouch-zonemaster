@@ -29,6 +29,20 @@ All notable changes to this project are documented here. The format follows
   The absolute form (`http://.../orion/station?data=...`) and the legacy
   `/custom/v1/playback/...` form still work unchanged; every other bare path is still refused.
 
+- `tools/deploy_service.py`: one tested deploy, shipped to the service host and run there. It backs up
+  the house database (the sqlite3 backup API, safe in WAL mode), switches the house off and waits,
+  bounded, for the zone to empty, stops the unit, installs through `tools/install_service.py`, refuses a
+  venv that still holds a second distribution or a superseded console script (checked before the house
+  is touched), starts the unit and hands the house back only after the unit stayed active for a settle
+  window with no restart, then restores the switch. `--dry-run` reads without changing anything, on
+  PostgreSQL too; every step and command is bounded; `--json` / `--json-bare` as every CLI here.
+- The installer (`tools/install_service.py`, with `tools/service_venv.py` beside it) seeds the switch into
+  the configured house database (`database.url`, else `<state-dir>/zonemaster.sqlite`) in the same
+  transaction that creates the schema: a database it creates starts OFF (or with an old `zone.switch`
+  file's word), an existing database's switch is never changed, and an install interrupted half-way can
+  no longer leave a database whose first start reads ON. It warns when no config layer names
+  `database.url` and it seeded its own default path.
+
 ### Changed
 
 - `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
@@ -44,6 +58,9 @@ All notable changes to this project are documented here. The format follows
   on one thread of its own, in the order it was asked for, and a stop closes the database only
   after every write asked for before it. A state save that fails where a key press is read is
   logged and the service goes on, rather than ending the run.
+
+- On PostgreSQL a schema migration is no longer cut off by the store's 5 s statement timeout; the
+  timeout is lifted for the migration's own transaction only.
 
 ### Fixed
 
@@ -86,6 +103,9 @@ All notable changes to this project are documented here. The format follows
   held the dissolve, the close and then the process exit until systemd killed it, leaving the
   speakers bound to a master that had gone. A write given up on this way stays queued and still
   lands if the database comes back. A failed state save is also logged once rather than twice.
+
+- A house database that fails to open or migrate is refused with its own error again; a lock release
+  that failed while closing it could replace that error with an unrelated one.
 
 ## [0.5.2] 2026-09-28 21:03:10
 
