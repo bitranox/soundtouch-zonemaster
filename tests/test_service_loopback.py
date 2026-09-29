@@ -2671,6 +2671,55 @@ async def test_a_relative_channel_is_sent_as_stored_when_the_registry_cannot_say
     assert any("as stored" in line for line in logs), "the log says the location went out as stored"
 
 
+async def test_a_number_dialled_while_an_earlier_one_waits_on_the_registry_is_the_one_that_plays(
+    world: World, tmp_path: Path
+) -> None:
+    """The later number wins, however long the registry keeps the earlier one's station waiting.
+
+    Channel starts run as concurrent tasks and ``play`` takes its generation on entry, so a start
+    that waited for anything BEFORE ``play`` - the registry, for the item the zone shows its slaves -
+    let a number dialled after it reach ``play`` first and then lose to it: the house played 12
+    while it recorded 13. The registry is held here from the moment 12 is dialled until 13 plays,
+    and released only then, which is exactly the order that inverted the two.
+    """
+    station_base = world.station_url.removesuffix("/live")
+    world.registry.bodies["/bmx/registry/v1/services"] = json.dumps(
+        {"bmx_services": [{"id": {"name": "LOCAL_INTERNET_RADIO"}, "baseUrl": f"{station_base}/orion"}]}
+    )
+    answer = asyncio.Event()
+    world.registry.held["/bmx/registry/v1/services"] = answer
+    options = _orion_world(world, tmp_path, relative=("12",))
+    logs: list[str] = []
+
+    try:
+        async with _running(options, logs) as service:
+            await _both_wake(world)
+            await eventually(lambda: _station_name(service) == "C1", "the zone plays channel 1")
+
+            await _press_preset(world.studio, STUDIO_ID, 1)
+            await _press_preset(world.studio, STUDIO_ID, 2)
+            await eventually(lambda: _said(logs, "dialled 12: C12"), "12 was dialled")
+            await eventually(
+                lambda: "/bmx/registry/v1/services" in world.registry.paths, "and 12 is waiting on the registry"
+            )
+            await _press_preset(world.studio, STUDIO_ID, 1)
+            await _press_preset(world.studio, STUDIO_ID, 3)
+            await eventually(lambda: _station_name(service) == "C13", "the later number plays")
+            assert not answer.is_set(), "the control: 13 got there while the registry still held 12"
+
+            answer.set()
+            await eventually(
+                lambda: _said(logs, "a newer select won, dropping C12"),
+                "the earlier number gave up once the registry let it through",
+                timeout=15.0,
+            )
+            assert _station_name(service) == "C13", "and the house still plays the later one"
+    finally:
+        answer.set()
+
+    assert _state_of(options).channel == "13", "the number the house records is the one it plays"
+
+
 @pytest.mark.parametrize(
     "woken_on",
     [

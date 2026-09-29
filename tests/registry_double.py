@@ -53,6 +53,12 @@ class FakeRegistry:
         relative station location needs that document where the device list would be.
         """
         self.status_line = status_line
+        self.held: dict[str, asyncio.Event] = {}
+        """A gate per request PATH: a request for it is recorded at once and answered once it is set.
+
+        A registry that is slow on cue, for a test that has to act while the service is still
+        waiting for the answer. The test sets every gate it arms before it stops the registry.
+        """
         self.paths: list[str] = []
         self._server: asyncio.AbstractServer | None = None
         self.port = 0
@@ -98,6 +104,9 @@ class FakeRegistry:
         request_line = head.decode("utf-8", "replace").split("\r\n")[0]
         path = request_line.split(" ")[1]
         self.paths.append(path)
+        gate = self.held.get(path.split("?", 1)[0])
+        if gate is not None:
+            await gate.wait()
         payload = self.bodies.get(path.split("?", 1)[0], self.body).encode()
         writer.write(
             f"HTTP/1.1 {self.status_line}\r\n"
