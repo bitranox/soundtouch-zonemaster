@@ -18,14 +18,19 @@ import time
 from typing import TYPE_CHECKING
 
 from ...domain.enums import ChannelKind, KeyName
+from ...domain.logfn import ERROR_KIND
 from ...domain.preferences import PreferenceName, PreferenceSource
+from ..errors import StoreError
 from .constants import DIAL_TICK_S, MIN_CHANNELS_TO_STEP
 from .preferences import PreferenceBook
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable
+
     from ...domain.channellist import Channel
     from ...domain.dialling import DigitIgnored
     from ...domain.longpress import Hold
+    from ...domain.preferences import PreferenceRow
     from ...domain.presses import Press
     from ..ports import ZoneMasterPort
 
@@ -290,6 +295,12 @@ class Dialling(PreferenceBook):
         stop that cancels this worker while it waits for the window would otherwise leave the hold,
         decided in the same breath, never asked for at all - half a calibration stored, and nothing
         said about the other half.
+
+        A database that refuses either write, or the read-back, costs the calibration and nothing
+        else: it is said once, the house goes on with the numbers it already had, and the channel
+        still starts again. Let through, the refusal would end this worker, and with it the whole
+        service - the house stood down because somebody pressed four keys. If one of the two writes
+        did land, the preference watch takes it in at its next read, as it does any stored row.
         """
         deadline = self._calibration.deadline()
         if deadline is None or deadline > at:
@@ -303,14 +314,28 @@ class Dialling(PreferenceBook):
             if value is not None
         ]
         if writes:
-            await asyncio.gather(*writes)
-            # Read back rather than applied from ``result``: what the service runs on is then
-            # exactly what the database holds, and what a restart will read.
-            self._take_the_preferences(await self.store.load_preferences())
+            try:
+                await self._keep_the_calibration(writes)
+            except StoreError as exc:
+                self.log(ERROR_KIND, f"calibration: not stored, so the house keeps the numbers it had: {exc}")
         async with self._lock:
             master = self.master
             if master is not None:
                 await self._play_the_channel(master)
+
+    async def _keep_the_calibration(self, writes: list[Awaitable[PreferenceRow | None]]) -> None:
+        """Wait for the calibration's writes, then run on what the database now holds.
+
+        Every write is waited for even when an earlier one failed, so no refusal is left unheard
+        in a future nobody reads; the first one is raised. Read back rather than applied from what
+        was measured: what the service runs on is then exactly what the database holds, and what
+        a restart will read.
+        """
+        answers = await asyncio.gather(*writes, return_exceptions=True)
+        for answer in answers:
+            if isinstance(answer, BaseException):
+                raise answer
+        self._take_the_preferences(await self.store.load_preferences())
 
     async def _dialled_number(self, device_id: str, number: str) -> None:
         """One completed number: the channel for the WHOLE zone, or nothing at all.
