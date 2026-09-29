@@ -268,3 +268,86 @@ def test_the_note_says_when_a_running_service_acts_on_the_change(
     change = _envelope(capsys)["data"]
     assert isinstance(change, dict)
     assert change["note"] == note
+
+
+_NUMBERS_AS_THE_ENVIRONMENT_KEEPS_THEM = [
+    ("dialling.window_s", "DIALLING__WINDOW_S", "0.80", "dial_window_s", 0.8),
+    ("dialling.hold_threshold_s", "DIALLING__HOLD_THRESHOLD_S", "1.50", "hold_threshold_s", 1.5),
+    ("mpd.rewind_s", "MPD__REWIND_S", "1e1", "mpd_rewind_s", 10.0),
+    ("volume.fade_s", "VOLUME__FADE_S", "+1", "fade_s", 1.0),
+]
+"""A number the environment layer keeps as TEXT, per numeric preference.
+
+lib_layered_config 6.0.0 turns an environment value into a number only when the number reads back
+as the same text, so ``0.80``, ``1.50``, ``1e1`` and ``+1`` arrive as strings, though the service run
+has always read each of them as a number."""
+
+
+@pytest.mark.parametrize(
+    ("name", "variable", "text", "field", "number"),
+    _NUMBERS_AS_THE_ENVIRONMENT_KEEPS_THEM,
+    ids=[case[0] for case in _NUMBERS_AS_THE_ENVIRONMENT_KEEPS_THEM],
+)
+def test_a_number_the_environment_keeps_as_text_is_read_by_every_prefs_verb_as_the_run_reads_it(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    name: str,
+    variable: str,
+    text: str,
+    field: str,
+    number: float,
+) -> None:
+    """``prefs``, ``prefs set`` and ``prefs unset`` read a layered number the way the service run
+    does - through the record field's own pydantic type - rather than refusing the text the
+    environment handed over. The service run is the control: it always read it."""
+    monkeypatch.setenv(f"SOUNDTOUCH_ZONEMASTER___{variable}", text)
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
+
+    ran: list[ServiceOptions] = []
+
+    async def _record(options: ServiceOptions) -> int:
+        ran.append(options)
+        return 0
+
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--bind-ip", "127.0.0.1", "--database", database])
+    assert main(run_service=_record) == 0
+    assert getattr(ran[0], field) == number, "the service run is the reading prefs must match"
+
+    assert _run(monkeypatch, "--json", "--database", database, "prefs") == 0, capsys.readouterr()
+    preferences = cast("list[dict[str, Any]]", _envelope(capsys)["data"]["preferences"])
+    assert next(p for p in preferences if p["name"] == name) == {
+        "name": name,
+        "value": number,
+        "source": "configuration",
+        "changed_at": None,
+    }
+
+    assert _run(monkeypatch, "--json", "--database", database, "prefs", "set", name, "1.25") == 0
+    change = _envelope(capsys)["data"]
+    assert (change["before"]["value"], change["after"]["value"]) == (number, 1.25)
+
+    assert _run(monkeypatch, "--json", "--database", database, "prefs", "unset", name) == 0
+    change = _envelope(capsys)["data"]
+    assert (change["after"]["value"], change["after"]["source"]) == (number, "configuration")
+
+
+@pytest.mark.parametrize("verb", [(), ("set", "volume.fade_s", "1.5"), ("unset", "volume.fade_s")], ids=str)
+def test_a_layered_number_that_is_not_a_number_is_still_refused_by_every_prefs_verb(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    verb: tuple[str, ...],
+) -> None:
+    """Reading text as a number is the service run's lax parsing, not a loosened rule: text that is
+    no number is refused in the preference rule's own words, and nothing is written."""
+    monkeypatch.setenv("SOUNDTOUCH_ZONEMASTER___DIALLING__WINDOW_S", "fast")
+    database = str(created_by_the_service(tmp_path / "db.sqlite"))
+    assert _run(monkeypatch, "--json", "--database", database, "prefs", *verb) == 1
+    envelope = _envelope(capsys)
+    assert (envelope["ok"], envelope["message"]) == (False, "refused: dialling.window_s must be a number, not str")
+    assert _stored(database) == []

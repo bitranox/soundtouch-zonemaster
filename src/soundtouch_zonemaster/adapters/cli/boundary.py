@@ -23,7 +23,7 @@ import dataclasses
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, SecretStr, TypeAdapter, ValidationError, field_validator, model_validator
 
 from ...__init__conf__ import service_command
 from ...application.options import (
@@ -574,18 +574,49 @@ def configured_settings(config: Config, *, narrate: LogFn = log) -> dict[str, An
     return found
 
 
+_AS_THE_RUN_READS_THEM: Mapping[str, TypeAdapter[Any]] = {
+    field_name: TypeAdapter[Any](ServiceOptionsInput.model_fields[field_name].annotation)
+    for field_name in _PREFERENCE_FIELDS
+}
+"""Each preference field's own pydantic type, taken off :class:`ServiceOptionsInput` rather than
+written out again, so ``prefs`` coerces a layered value exactly as the service run does."""
+
+
+def _as_the_run_reads_it(field_name: str, value: object) -> object:
+    """A layered value coerced by the record field's own pydantic type, or as it came if that fails.
+
+    The environment layer keeps a number as TEXT unless it reads back identically (lib_layered_config
+    6.0.0), so ``...WINDOW_S=0.80`` - the variable ``50-dialling.toml`` itself names, with a
+    trailing zero - arrives as ``"0.80"``. The service run has always read that as 0.8, through
+    pydantic's lax parsing; handed to the preference rule raw, the same value made every ``prefs``
+    verb refuse it. The coercion is done HERE, at the edge that reads the files, and the rule stays
+    strict: a stored row or a typed ``prefs set`` value is JSON and never text standing in for a
+    number.
+
+    A value the type cannot read is passed on unchanged, so the preference rule refuses it in its
+    own words ("must be a number, not str") rather than in pydantic's.
+    """
+    try:
+        return _AS_THE_RUN_READS_THEM[field_name].validate_python(value)
+    except ValidationError:
+        return value
+
+
 def layered_preferences(configured: Mapping[str, Any]) -> HousePreferences:
     """The five preferences as the config layers give them, each checked by the preference rule.
 
     What ``prefs`` lays the stored rows over. It reads only these five fields, so a host that has
     no bind address configured can still list and change its preferences. A field no layer sets
-    takes the record's own default, read off the class so there is no second copy of it.
+    takes the record's own default, read off the class so there is no second copy of it. Each
+    value is first read as the service run reads it (:func:`_as_the_run_reads_it`), so the two can
+    never disagree about what a layer said.
     """
     defaults = {field.name: field.default for field in dataclasses.fields(ServiceOptions)}
     values: dict[str, Any] = {}
     for field_name in _PREFERENCE_FIELDS:
         name = PreferenceName(config_path_of(field_name))
-        values[field_name] = preference_or_refuse(name, configured.get(field_name, defaults[field_name]))
+        raw = configured.get(field_name, defaults[field_name])
+        values[field_name] = preference_or_refuse(name, _as_the_run_reads_it(field_name, raw))
     return HousePreferences(
         window_s=values["dial_window_s"],
         hold_threshold_s=values["hold_threshold_s"],

@@ -73,6 +73,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `prefs`, `prefs set` and `prefs unset` read a preference the environment gives as text the way
+  the service run does. Under `lib_layered_config` 6.0.0 a value such as
+  `SOUNDTOUCH_ZONEMASTER___DIALLING__WINDOW_S=0.80` (the variable `50-dialling.toml` names) arrives
+  as text, which the service always read as 0.8 but all three verbs refused with exit 1; the same
+  held for the hold threshold, the MPD rewind and the fade. Text that is no number is still refused.
 - A stop (a deploy's SIGINT, or `switch off`) that lands just as a calibration ends keeps both
   numbers it measured. It used to keep the dialling window and lose the hold threshold, because the
   hold was asked of the database only once the window's write had answered.
