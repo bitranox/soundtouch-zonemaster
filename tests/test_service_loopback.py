@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import gc
 import itertools
 import json
 import os
@@ -4436,6 +4437,7 @@ def _failed_saves_said(logs: list[str]) -> list[str]:
         "could not remember where mpd was, so the house dissolves without it",
         "the house state was not saved",
         "save_state failed after its caller had stopped waiting",
+        "fading back up failed",
     )
     return [line for line in logs if any(said in line for said in saying)]
 
@@ -4499,6 +4501,43 @@ async def test_a_database_that_hangs_at_the_stop_does_not_keep_the_zone_from_bei
         await eventually(store.closed.is_set, "the close queued behind the stuck save ran once it ended")
         assert store.refused_saves >= 1, "the control: the stuck saves really did fail once let through"
         assert len(_failed_saves_said(logs)) == store.refused_saves, logs
+
+
+async def test_a_save_that_fails_at_the_end_of_a_fade_is_said_once_in_the_house_log(
+    world: World, tmp_path: Path
+) -> None:
+    """The fade runs on a task nobody awaits, so whatever its last save raises must be said by it.
+
+    A fade that reaches the top writes the box's level down as put back, and that save is awaited:
+    a store that refuses it raises into the fade task. Nothing retrieves that task - the stop only
+    waits for fades still running - so the failure used to surface only as asyncio's own "Task
+    exception was never retrieved", at whatever moment the task was collected, in a log that is not
+    the house's. The box is at its level either way; what the house log needs is the one line.
+    """
+    complaints: list[dict[str, object]] = []
+    loop = asyncio.get_running_loop()
+    previous = loop.get_exception_handler()
+    loop.set_exception_handler(lambda _loop, context: complaints.append(context))
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    world.studio.volume = 24
+    try:
+        async with _running_with_a_store_that_can_fail(options, logs) as (_service, store):
+            await _wake_on_preset(world.studio, STUDIO_ID, 1)
+            # Armed once the climb has begun: the join's own saves - the level before the mute, and
+            # who the zone belongs to - are behind it by then, so the save refused is the fade's last.
+            await eventually(lambda: len(_volume_writes(world.studio)) >= 2, "the climb has begun")
+            store.saves_to_fail = 1
+            await eventually(lambda: store.refused_saves == 1, "the fade's last save was refused")
+            assert world.studio.volume == 24, "the control: the fade reached the top before its save failed"
+            await eventually(lambda: _failed_saves_said(logs) != [], "the failed save was said")
+            gc.collect()
+            for _ in range(3):
+                await asyncio.sleep(0)
+    finally:
+        loop.set_exception_handler(previous)
+    assert len(_failed_saves_said(logs)) == store.refused_saves == 1, logs
+    assert complaints == [], f"asyncio had nothing of its own to report: {complaints}"
 
 
 STALL_S = 0.2

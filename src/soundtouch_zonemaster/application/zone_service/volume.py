@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import time
 from typing import TYPE_CHECKING
 
 from ...domain.housevolume import owe, stepped
+from ...domain.logfn import ERROR_KIND
 from .constants import FADE_STEPS, MUTE_HOLD_S
 from .speakers import SpeakerBook
 
@@ -159,9 +161,24 @@ class VolumeGuard(SpeakerBook):
         if not fade:
             await self._put_one_back(speaker, level)
             return
-        self._fading[speaker.device_id] = asyncio.create_task(
-            self._fade_one_back_up(speaker, level), name=f"fade {speaker.device_id}"
-        )
+        task = asyncio.create_task(self._fade_one_back_up(speaker, level), name=f"fade {speaker.device_id}")
+        task.add_done_callback(functools.partial(self._say_if_fading_failed, speaker))
+        self._fading[speaker.device_id] = task
+
+    def _say_if_fading_failed(self, speaker: Speaker, fade: asyncio.Task[None]) -> None:
+        """One line for a fade that raised. A cancel is how a stop ends it, not news.
+
+        Nothing awaits a fade that runs to its end - the stop waits only for fades still running,
+        and with ``asyncio.wait``, which retrieves nothing - so what its last save raises has
+        nobody else to say it. Unsaid, it surfaced as asyncio's own "Task exception was never
+        retrieved" whenever the task was collected, in a log that is not the house's. Every call to
+        a speaker in the fade already says its own failure; the save is what can reach here.
+        """
+        if fade.cancelled():
+            return
+        failure = fade.exception()
+        if failure is not None:
+            self.log(ERROR_KIND, f"{speaker.name}: fading back up failed ({type(failure).__name__}: {failure})")
 
     async def _fade_one_back_up(self, speaker: Speaker, level: int) -> None:
         """Wait out the box's own station, then climb from zero to where it was.
