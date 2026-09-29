@@ -63,6 +63,7 @@ __all__ = [
     "database_password_of",
     "database_setting_of",
     "database_text_or_refuse",
+    "device_id_given_as_null",
     "layered_preferences",
     "merge_service_settings",
     "no_value_anywhere",
@@ -76,6 +77,9 @@ _PREFERENCE_FIELDS = ("dial_window_s", "hold_threshold_s", "mpd_rewind_s", "fade
 _DATABASE_FIELD = "database"
 """The record field the database setting fills. Its dotted config path comes from the settings
 map (:func:`config_path_of`), so no message here spells ``database.url`` itself."""
+
+_DEVICE_ID_FIELD = "device_id"
+"""The one required field that has a fallback: given nowhere, it is this host's MAC."""
 
 _CREDENTIAL_FIELD = "database_password"
 """The record field the password setting fills; its config path likewise comes from the map.
@@ -283,10 +287,13 @@ class ServiceOptionsInput(BaseModel):
 
 _REQUIRED_FIELDS = tuple(name for name, field in ServiceOptionsInput.model_fields.items() if field.is_required())
 """The fields with no pydantic default: ``bind_ip``, ``device_id`` and ``database`` today. A higher
-layer's explicit ``null`` over any of these is dropped in :func:`parse_service_options` before
-validation, so it is refused as a value given nowhere rather than as a record field that is not a
-string; a field WITH a default is left alone, because ``None`` there is a value that field's own
-default or a later layer is entitled to fill, not a refusal this program should manufacture."""
+layer's explicit ``null`` over ``bind_ip`` or ``database`` is dropped in
+:func:`parse_service_options` before validation, so it is refused as a value given nowhere rather
+than as a record field that is not a string. ``device_id`` is refused by a sentence of its own
+(:func:`device_id_given_as_null`), because given nowhere it falls back to this host's MAC and "give
+it somewhere" would be false. A field WITH a default is left alone, because ``None`` there is a
+value that field's own default or a later layer is entitled to fill, not a refusal this program
+should manufacture."""
 
 
 def database_text_or_refuse(value: object) -> str | None:
@@ -489,6 +496,8 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     # every other missing setting gets. Only a REQUIRED field is dropped: one with a default is
     # correctly a value of None if a later layer (or the default itself) does not fill it, which
     # is not this program's business to second-guess.
+    if _DEVICE_ID_FIELD in merged and merged[_DEVICE_ID_FIELD] is None:
+        raise device_id_given_as_null()
     for name in _REQUIRED_FIELDS:
         if name in merged and merged[name] is None:
             del merged[name]
@@ -524,6 +533,23 @@ def no_value_anywhere(missing: Sequence[str]) -> OptionsError:
         f"Give it on the command line ({flags}), or in a config file as {where} - "
         f"run `{service_command} config-deploy --target user` to write one - "
         f"or set {ENV_PREFIX}{env_name_of(missing[0])}."
+    )
+    return OptionsError(message, exit_code=ExitCode.ERROR)
+
+
+def device_id_given_as_null() -> OptionsError:
+    """The refusal (exit 2) for a device id a config layer, the environment or ``--set`` gave as null.
+
+    Not :func:`no_value_anywhere`: a device id given nowhere is no refusal at all, because the
+    service then takes this host's MAC, so telling the reader to give one would send them to fix
+    something that was never broken. The null itself is still refused rather than read as "use the
+    MAC", because it is somebody writing a value this program cannot read as an id, and a guess about
+    what they meant would name the zone after a machine they may not have chosen.
+    """
+    message = (
+        f"refused: {config_path_of(_DEVICE_ID_FIELD)} is null (in a config file, --set, or "
+        f"{ENV_PREFIX}{env_name_of(_DEVICE_ID_FIELD)}); an explicit null is not a device id. "
+        "Remove it to fall back to this host's MAC address, or give an id (--device-id)."
     )
     return OptionsError(message, exit_code=ExitCode.ERROR)
 

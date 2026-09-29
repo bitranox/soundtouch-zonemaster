@@ -54,11 +54,12 @@ All notable changes to this project are documented here. The format follows
 - `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
   `membership.consoles_allowed` already applies to a console's id: a lower-case id is no longer
   refused.
-- A higher config layer's explicit `null` over `bind_ip` or `device_id` - `--set zone.bind_ip=null`
-  or the equivalent environment variable - is refused naming the setting, rather than with pydantic's own
-  words about the record field (for `device_id` an explicit null is refused rather than falling back
-  to this host's MAC address, which is what a value given nowhere does). Previously
-  only `database.url` was refused this way.
+- A higher config layer's explicit `null` over `bind_ip` - `--set zone.bind_ip=null` or the
+  equivalent environment variable - is refused naming the setting, rather than with pydantic's own
+  words about the record field. Previously only `database.url` was refused this way. An explicit
+  `null` over `device_id` is refused too, in a sentence of its own: it says that removing the null
+  falls back to this host's MAC address, which is what a device id given nowhere does, rather than
+  asking for a value that was never needed.
 - The service's house database calls no longer run on the event loop that times the zone: every
   one - the state saves, the switch and preference polls, the channel list, open and close - runs
   on one thread of its own, in the order it was asked for, and a stop closes the database only

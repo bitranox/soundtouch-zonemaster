@@ -259,12 +259,12 @@ def test_a_lower_case_device_id_option_is_accepted_and_used_upper_case(
 
 REQUIRED_SETTINGS = (
     pytest.param("bind_ip", "zone.bind_ip", id="bind_ip"),
-    pytest.param("device_id", "zone.device_id", id="device_id"),
     pytest.param("database", "database.url", id="database"),
 )
-"""Every ``ServiceOptionsInput`` field with no pydantic default: the ones a higher layer's ``null``
-must refuse the same way a value given nowhere is refused, rather than as a record field that is
-not a string."""
+"""The ``ServiceOptionsInput`` fields with no pydantic default and no fallback: the ones a higher
+layer's ``null`` must refuse the same way a value given nowhere is refused, rather than as a record
+field that is not a string. ``device_id`` has no pydantic default either, but giving it nowhere is
+valid - it falls back to this host's MAC - so its ``null`` has a refusal of its own (below)."""
 
 
 @pytest.mark.parametrize(("field", "path"), REQUIRED_SETTINGS)
@@ -289,6 +289,50 @@ def test_a_required_setting_given_as_null_is_refused_the_same_as_given_nowhere(
     assert f"no value anywhere for {field}" in message
     assert path in message
     assert "Input should be a valid string" not in message
+
+
+@pytest.mark.parametrize("source", ["environment", "set-override"])
+def test_a_device_id_given_as_null_is_refused_as_a_null_not_as_a_value_given_nowhere(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    tmp_path: Path,
+    *,
+    source: str,
+) -> None:
+    """A device id given nowhere is not a refusal at all: the service takes this host's MAC. So the
+    sentence every other missing setting gets - "no value anywhere ... Give it" - is false for it,
+    and sends the reader to give a value they never needed. An explicit ``null`` is still refused,
+    because it is somebody saying something this program cannot read as an id; the refusal says so
+    and says that removing it is what brings the MAC back."""
+    _user_config(isolated_config_layers, _house(tmp_path))
+    argv = ["soundtouch-zonemaster-service"]
+    if source == "environment":
+        monkeypatch.setenv(f"{ENV_PREFIX}ZONE__DEVICE_ID", "null")
+    else:
+        argv += ["--set", "zone.device_id=null"]
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", argv)
+
+    assert main(run_service=run) == 2
+    message = capsys.readouterr().err
+    assert seen == [], "nothing ran"
+    assert "no value anywhere" not in message
+    assert "zone.device_id" in message
+    assert "null" in message
+    assert "MAC" in message
+
+
+def test_a_device_id_given_nowhere_falls_back_to_this_host_s_mac(
+    monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The control for the refusal above: the same house with no device id anywhere runs."""
+    _user_config(isolated_config_layers, _house(tmp_path))
+    seen, run = _capture()
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service"])
+
+    assert main(run_service=run) == 0
+    assert re.fullmatch(r"[0-9A-F]{12}", seen[0].device_id)
 
 
 def test_a_misspelled_setting_gets_a_line_rather_than_silence(
