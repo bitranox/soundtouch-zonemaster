@@ -282,6 +282,9 @@ async def test_an_unreachable_registry_falls_back_without_waiting_for_ever() -> 
         pytest.param("http://127.0.0.1:99999", id="port-out-of-range"),
         pytest.param("http://127.0.0.1:8000/\x01", id="control-character-in-the-path"),
         pytest.param("http://\u2603\u2603..example", id="host-that-is-no-name"),
+        # Accepted when the URL is built and refused only when the host is first read, which
+        # httpx does inside the request: idna.IDNAError, a ValueError and no httpx.HTTPError.
+        pytest.param("http://xn--zz.invalid", id="punycode-host-that-does-not-decode"),
     ],
 )
 async def test_a_registry_url_no_request_can_be_sent_to_falls_back_and_backs_off(service_url: str) -> None:

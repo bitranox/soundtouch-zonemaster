@@ -301,13 +301,15 @@ def _require_an_address(url: str) -> None:
 
     A mistyped ``[registry] url`` fails in ways that are not ``httpx.HTTPError``: a control
     character or a host that is no name raises ``httpx.InvalidURL`` while the request is built,
-    and a port past 65535 is only noticed by the socket, as an ``OverflowError`` inside anyio's
-    exception group. Either would escape to whoever asked for a location, which for a station
-    start is the one step that must not raise, so both are checked here, before anything is sent,
-    and answered the way an unreadable registry is.
+    a punycode host that does not decode (``xn--zz``) is accepted there and raises
+    ``idna.IDNAError`` only when the request first reads ``.host``, and a port past 65535 is only
+    noticed by the socket, as an ``OverflowError`` inside anyio's exception group. Any of them
+    would escape to whoever asked for a location, which for a station start is the one step that
+    must not raise, so all three are checked here, before anything is sent, and answered the way
+    an unreadable registry is. ``IDNAError`` is a ``ValueError``, as the port's refusal is.
     """
     try:
-        httpx.URL(url)
+        _ = httpx.URL(url).host
         _ = urlsplit(url).port
     except (httpx.InvalidURL, ValueError) as exc:
         raise _UnreadableError(f"is not an address a request can be sent to ({exc})") from exc
