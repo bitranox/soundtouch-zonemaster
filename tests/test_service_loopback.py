@@ -3595,28 +3595,46 @@ async def test_a_calibration_the_database_refuses_is_said_once_and_the_house_goe
     the house stood down because somebody pressed four keys while the database was unwell. It is
     said once instead, and the numbers the house runs on stay what they were, because nothing was
     stored to read back. The dial afterwards is the proof the worker outlived it.
+
+    The channel is put back on after the refusal as after a calibration that worked, because the
+    person is standing there waiting to hear that it is over. Putting it back is a no-op while the
+    stream runs, so the test holds the refused write on the store's thread, stops the stream while
+    it is held, and requires the stream to be running again once the refusal has been said.
     """
     options = _dialable_world(world, tmp_path, dial_window_s=0.5)
     logs: list[str] = []
+    gate = threading.Event()
 
-    async with _running_with_a_store_that_can_fail(options, logs) as (service, store):
-        store.preference_writes_fail = True
-        await _both_wake(world)
-        await _gesture(STUDIO_IP)
-        await eventually(lambda: any("calibration" in line for line in logs), "the calibration began")
-        for n in range(4):
-            await _press_preset(world.studio, STUDIO_ID, 1 + n % 2, hold_s=0.9)
-            await asyncio.sleep(0.3)
-        await eventually(lambda: any("the hold becomes" in line for line in logs), "it read both", timeout=15.0)
-        await eventually(lambda: store.refused_preference_writes == 1, "the one write was refused")
-        await eventually(
-            lambda: any(line.startswith(f"{ERROR_KIND}: ") and "calibration" in line for line in logs),
-            "the refusal was said",
-        )
+    try:
+        async with _running_with_a_store_that_can_fail(options, logs) as (service, store):
+            store.preference_writes_fail = True
+            store.preference_gate = gate
+            await _both_wake(world)
+            await _gesture(STUDIO_IP)
+            await eventually(lambda: any("calibration" in line for line in logs), "the calibration began")
+            for n in range(4):
+                await _press_preset(world.studio, STUDIO_ID, 1 + n % 2, hold_s=0.9)
+                await asyncio.sleep(0.3)
+            await eventually(lambda: any("the hold becomes" in line for line in logs), "it read both", timeout=15.0)
 
-        await _press_preset(world.studio, STUDIO_ID, 1)
-        await _press_preset(world.studio, STUDIO_ID, 2)
-        await eventually(lambda: _playing(service).endswith("?c=12"), "the service still dials")
+            master = service.master
+            assert master is not None
+            await master.stop_station()
+            assert _station_url(service) is None, "the stream is stopped while the write is held"
+            gate.set()
+            await eventually(lambda: store.refused_preference_writes == 1, "the one write was refused")
+            await eventually(
+                lambda: any(line.startswith(f"{ERROR_KIND}: ") and "calibration" in line for line in logs),
+                "the refusal was said",
+            )
+            await eventually(lambda: _station_url(service) is not None, "the channel was put back on after the refusal")
+            assert _playing(service).endswith("?c=1")
+
+            await _press_preset(world.studio, STUDIO_ID, 1)
+            await _press_preset(world.studio, STUDIO_ID, 2)
+            await eventually(lambda: _playing(service).endswith("?c=12"), "the service still dials")
+    finally:
+        gate.set()
 
     refused = [line for line in logs if line.startswith(f"{ERROR_KIND}: ") and "calibration" in line]
     assert len(refused) == 1, refused
