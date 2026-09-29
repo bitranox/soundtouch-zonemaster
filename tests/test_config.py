@@ -24,6 +24,7 @@ configuration file and nothing else validates it on the way.
 from __future__ import annotations
 
 import dataclasses
+import re
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, get_type_hints
@@ -354,6 +355,25 @@ def test_a_config_file_that_will_not_parse_is_one_refusal_type_naming_the_file(
 
     with pytest.raises(ConfigInputError, match=str(broken)):
         get_config()
+
+
+def test_a_dotenv_that_is_not_text_is_the_same_refusal_naming_the_file_and_not_its_content(
+    isolated_config_layers: Path,
+) -> None:
+    """The ``.env`` is a layer like the files, so bytes in it that are not UTF-8 are refused the same way.
+
+    This is what the floor of ``lib_layered_config>=6.0.0`` is for: releases before it raised a
+    bare ``UnicodeDecodeError`` here, which no command catches, so one stray byte in a ``.env``
+    ended a start on a traceback that named no file. The line may be the one holding the database
+    password, so the refusal says WHERE and never what it read there.
+    """
+    dotenv = isolated_config_layers / ".env"
+    dotenv.parent.mkdir(parents=True)
+    dotenv.write_bytes(b"SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP=192.0.2.1\nX=\xff\xfeNOT-A-SECRET\n")
+
+    with pytest.raises(ConfigInputError, match=re.escape(str(dotenv))) as caught:
+        get_config(dotenv_path=str(dotenv))
+    assert "NOT-A-SECRET" not in str(caught.value)
 
 
 def test_a_section_written_as_something_other_than_a_table_reads_as_nothing_said(

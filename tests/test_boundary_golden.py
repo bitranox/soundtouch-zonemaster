@@ -25,10 +25,10 @@ disagreement, and what this corpus is for is knowing WHICH frames a change moved
 
 **Where old and new differ, this file states the difference rather than hiding it.** Each delta is
 named in the test that meets it, with what the old code did and why the new answer is the same
-decision reached a different way. There are fourteen. Deltas 6 to 9 are the options corpus's and
+decision reached a different way. There are fifteen. Deltas 6 to 9 are the options corpus's and
 are written out where that corpus is replayed; deltas 10 to 14 are a different species from all the
-others and the comment at each one says so - every delta from 1 to 9 is the SAME behaviour reached
-another way, while 10 to 14 are deliberate REPAIRS that supersede what the old code did. The
+others and the comment at each one says so - every delta from 1 to 9, and 15, is the SAME behaviour
+reached another way, while 10 to 14 are deliberate REPAIRS that supersede what the old code did. The
 recorded case keeps the old answer, because that is what a corpus is for; the assertion beside it
 is what the code does now, and why:
 
@@ -68,6 +68,12 @@ is what the code does now, and why:
    "not 12 hex digits" although the archive's own device ids were case-insensitive everywhere else.
    It is accepted and folded to upper case now, the same rule ``membership.consoles_allowed``
    already applies to a console's id.
+15. A refusal whose cause is ``lib_layered_config``'s own exception carries the library's words
+   after ``refused: ``, and the library chooses them: 6.0.0 reworded every parse failure and
+   dropped the parser's text. What is OURS is unchanged and stays under test - the type, the
+   prefix, the cause, the words passed through verbatim, the envelopes around them, and that they
+   still name the file and the line an operator has to open. Only the library's sentence is taken
+   from this run rather than from the archive.
 """
 
 from __future__ import annotations
@@ -1339,6 +1345,53 @@ def refusal_matches(caught: Exception, recorded: dict[str, Any], work: Path) -> 
         assert getattr(caught, "exit_code", None) == recorded["exit_code"]
 
 
+LIBRARY_CAUSES = frozenset({"LayerLoadError"})
+"""The recorded causes that are ``lib_layered_config``'s own exceptions, whose words are its (delta 15)."""
+
+REFUSED = "refused: "
+"""The prefix the configuration adapter puts before every refusal it passes on."""
+
+
+def in_this_librarys_words(caught: Exception, expect: dict[str, Any], *, work: Path, names: Path) -> dict[str, Any]:
+    """DELTA 15: the recorded refusal with the library's sentence replaced by the one this run got.
+
+    Everything the adapter decides is asserted here first, so the substitution can hide nothing of
+    ours: the cause is the recorded library exception, the message is ``refused: `` plus that
+    exception's own words and nothing else, and those words still name the file (``names``) and the
+    line the archive's did. The envelopes are handed back with the same substitution, so their
+    shape stays compared byte for byte.
+    """
+    raises = cast("dict[str, Any]", expect["raises"])
+    cause = caught.__cause__
+    assert cause is not None, "the library's exception is kept as the cause"
+    assert type(cause).__name__ == raises["cause"]
+    recorded = cast("str", here(raises["message"], work))
+    assert recorded.startswith(REFUSED)
+    said = str(cause)
+    assert str(caught) == f"{REFUSED}{said}", "the library's words are passed on verbatim, after our prefix"
+    assert str(names) in said, "and they still name the file somebody has to open"
+    line = re.search(r"line (\d+)", recorded)
+    assert line is not None, "the recorded refusal named a line"
+    assert re.search(rf"\bline {line.group(1)}\b", said), "and so does this run's, the same one"
+
+    def reworded(text: str) -> str:
+        text = here(text, work)
+        for old, new in (
+            (json.dumps(recorded)[1:-1], json.dumps(f"{REFUSED}{said}")[1:-1]),
+            (recorded, f"{REFUSED}{said}"),
+        ):
+            text = text.replace(old, new)
+        return text
+
+    reworded_expect: dict[str, Any] = {**expect, "raises": {**raises, "message": f"{REFUSED}{said}"}}
+    if "envelopes" in expect:
+        reworded_expect["envelopes"] = {
+            label: {stream: reworded(text) for stream, text in cast("dict[str, str]", shapes).items()}
+            for label, shapes in cast("dict[str, Any]", expect["envelopes"]).items()
+        }
+    return reworded_expect
+
+
 def envelopes_match(caught: Exception, recorded: dict[str, Any], command: str, work: Path) -> None:
     """The three shapes a refusal is reported in, byte for byte against what the archive wrote."""
     for label, mode in (
@@ -1521,6 +1574,10 @@ def replay_layers(case: dict[str, Any], work: Path, root: Path, monkeypatch: pyt
                 get_config(profile=given.get("profile")), list(cast("list[str]", given.get("sets", [])))
             )
             service_settings(merged.config)
+        if cast("dict[str, Any]", expect["raises"]).get("cause") in LIBRARY_CAUSES:
+            expect = in_this_librarys_words(
+                caught.value, expect, work=work, names=root / "xdg" / LAYEREDCONF_SLUG / "config.toml"
+            )
         refusal_matches(caught.value, cast("dict[str, Any]", expect["raises"]), work)
         if "envelopes" in expect:
             envelopes_match(caught.value, cast("dict[str, Any]", expect["envelopes"]), service_command, work)

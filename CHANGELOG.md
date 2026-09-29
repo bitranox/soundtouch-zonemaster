@@ -45,6 +45,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Requires `lib_layered_config` 6.0.0. A config file that will not parse is refused in the library's
+  new words, `<path> is not valid TOML (line N, column M)`, without the parser's text; a `.env` that
+  is not UTF-8 is now the same refusal naming the file, where it was a traceback. A number in an
+  environment variable stays text unless it reads back the same (`0640`, `1.50`), and an UNQUOTED
+  JSON array or object in `.env` is now a list or table, as in the environment: quote a
+  `database.password` there that looks like one.
 - `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
   `membership.consoles_allowed` already applies to a console's id: a lower-case id is no longer
   refused.
