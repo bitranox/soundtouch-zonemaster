@@ -4665,6 +4665,11 @@ async def _quiet(passes: Callable[[], int], *, for_s: float = 0.3, within_s: flo
     return seen
 
 
+def _questions(logs: list[str], name: str) -> int:
+    """How many times a box's answer to "what are you playing" was read, taken or dropped alike."""
+    return sum(line.startswith(f"probe: {name}") for line in logs)
+
+
 async def test_a_preference_take_asks_for_a_pass_only_when_the_console_list_moved(world: World, tmp_path: Path) -> None:
     """Who belongs is the only thing a preference changes that the pass acts on.
 
@@ -4745,6 +4750,9 @@ async def test_a_console_put_on_the_list_while_the_house_runs_is_watched_and_joi
         await eventually(lambda: CONSOLE_IP in _slaves(service), "and taken in on its first wake", timeout=within_s)
         reads = [path for path in world.registry.paths if path == DEVICES_PATH]
         assert len(reads) == 2, f"one read at start and one for the take, not a read per loop turn: {len(reads)}"
+        # The take's read asked only the box new to the book: a box asked at start is not asked again.
+        assert _questions(logs, CONSOLE_NAME) == 1, "the console was asked once"
+        assert _questions(logs, "Bose Hallway") == 1, "and a box asked at start was not asked again"
 
 
 async def test_a_console_put_on_the_list_while_it_plays_the_house_stream_is_taken_in_at_once(
@@ -4795,6 +4803,12 @@ async def test_a_box_the_registry_adds_after_the_start_is_taken_in_on_its_first_
         await eventually(lambda: _said(logs, f"Bose Hallway: {SourceName.STANDBY}"), "and asked what it is playing")
         await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
         await eventually(lambda: HALLWAY_IP in _slaves(service), "and taken in on its first wake", timeout=5.0)
+        # Two more reads: the poll reads, then asks, then waits, so the question that followed the
+        # first of them has been answered by the time the second starts.
+        read = world.registry.paths.count(DEVICES_PATH)
+        await eventually(lambda: world.registry.paths.count(DEVICES_PATH) >= read + 2, "the poll went on reading")
+        assert _questions(logs, "Bose Hallway") == 1, "the late box was asked once, not on every read"
+        assert _questions(logs, "Bose Studio") == 1, "and a box asked at start was not asked again"
 
 
 def _listed_mid_run(world: World, *late: str) -> list[dict[str, object]]:
