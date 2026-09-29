@@ -98,7 +98,8 @@ a network black hole, a half-open connection with no RST - and libpq would sit i
 the kernel's retransmission limit, about fifteen minutes. A stop queues its last state write
 behind such a call. Keepalives find a silent peer while nothing is being sent (5 s idle, then
 three probes 2 s apart), and ``tcp_user_timeout`` (milliseconds) bounds data sent and never
-acknowledged. Both are libpq connect parameters, so every connection the engine makes has them."""
+acknowledged. Both are libpq connect parameters, so every connection the engine makes has them.
+They are defaults: one given in ``database.url``'s query is the operator's, and that one is used."""
 _ELSEWHERE = "give it as database.password (or keep it in ~/.pgpass) instead"
 """Where a password belongs, for a refusal of one found in the URL: the setting the boundary reads."""
 _WRITE = "house_write"
@@ -464,7 +465,9 @@ class HouseDatabase:
         connect_args: dict[str, object] = {
             "connect_timeout": _POSTGRES_TIMEOUT_S,
             "options": f"-c statement_timeout={_POSTGRES_TIMEOUT_S * 1000}",
-            **_DEAD_PEER,
+            # Only what the URL does not set itself: SQLAlchemy lays connect_args over the URL's
+            # query, so a default here would silently replace a value the operator wrote there.
+            **{name: value for name, value in _DEAD_PEER.items() if name not in self.url.query},
         }
         if self._password is not None:
             # The one place the value is revealed: the driver's own connect argument, which no

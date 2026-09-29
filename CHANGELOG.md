@@ -93,7 +93,8 @@ All notable changes to this project are documented here. The format follows
   under `--redact`, not only the values it prints. Nothing narrates on that path today, but a
   future line (a migration, an import) can no longer defeat `--redact` by naming it anyway.
 - A PostgreSQL server whose host vanished without closing the connection (a network black hole)
-  is noticed within seconds: every connection now sets TCP keepalives and `tcp_user_timeout`.
+  is noticed within seconds: every connection now sets TCP keepalives and `tcp_user_timeout`,
+  each unless `database.url` gives that parameter itself.
   Before, a call on such a connection waited in the kernel for about fifteen minutes, because
   `statement_timeout` is enforced by the server and its cancel never arrives.
 - A stop no longer waits on a house database that stopped answering, so the zone is always

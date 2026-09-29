@@ -156,6 +156,26 @@ def test_a_postgresql_connection_notices_a_server_that_vanished_in_seconds(house
     assert probe_side == _DEAD_PEER_PARAMETERS
 
 
+def test_a_keepalive_parameter_given_in_the_url_wins_over_the_default(house_database: str) -> None:
+    """The dead-peer parameters are defaults, and an operator who tuned one in ``database.url`` meant it.
+
+    SQLAlchemy lays ``connect_args`` over what the URL's query gives the driver, so a default put
+    there unconditionally would silently replace a value the operator wrote - on a network where a
+    link is slow to answer, say. The two named here keep the URL's values; the three not named keep
+    the defaults, which is the control that the defaults still arrive beside them.
+    """
+    if not house_database.startswith("postgresql"):
+        pytest.skip("a SQLite file has no peer to lose")
+    tuned = make_url(house_database).update_query_dict({"keepalives_idle": "7", "tcp_user_timeout": "20000"})
+    database = _opened(tuned.render_as_string(hide_password=True))
+    try:
+        with database.reading() as connection:
+            store_side = _libpq_parameters(connection)
+    finally:
+        database.close()
+    assert store_side == {**_DEAD_PEER_PARAMETERS, "keepalives_idle": "7", "tcp_user_timeout": "20000"}
+
+
 def test_an_old_sqlite_is_refused_by_name_before_strict_tables_would_fail_confusingly(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
