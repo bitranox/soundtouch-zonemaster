@@ -19,8 +19,6 @@ from .constants import PRESET_KEYS
 from .state import ServiceState
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
-
     from ...domain.channellist import Channel
     from ...domain.events import SpeakerEvent
     from ...domain.speakers import Speaker
@@ -118,28 +116,29 @@ class ChannelBook(ServiceState):
                 return speaker
         return None
 
-    def _noted_switched_on(self, event: SpeakerEvent, *, ahead_of: Collection[str] = ()) -> None:
-        """Remember, in order, which boxes have been seen out of standby.
+    def _noted_switched_on(self, event: SpeakerEvent, *, at: int | None = None) -> bool:
+        """Remember, in order, which boxes have been seen out of standby; say whether this one was placed.
 
         Fed from BOTH ways the service learns a source: the frames a box sends, and the question
         every box is asked what it is playing when the registry first lists it. A box that was
         already on when the service started is switched on as far as the house is concerned, and
         it is the one a person is standing at.
 
-        A frame goes to the end, in the order the reader took it. An answer goes ahead of
-        ``ahead_of`` - the boxes asked in the same round, listed after it, whose answers were taken
-        first - because nothing in two answers says which box was switched on first, and the
-        registry's order is the one that does not depend on how fast a radio replies.
+        A frame goes to the end, in the order the reader took it. An answer goes to ``at``, the
+        place its round keeps for it (``SpeakerBook``'s ``_AskedTogether``): the round's boxes in
+        the registry's order, at the point the list had reached when the round opened, because
+        nothing in two answers says which box was switched on first, and every answer describes a
+        box that was on before any frame read while the round was out.
         """
         if event.source is None or event.source == SourceName.STANDBY or not event.device_id:
-            return
+            return False
         if event.device_id in self._switched_on:
-            return
-        for index, device_id in enumerate(self._switched_on):
-            if device_id in ahead_of:
-                self._switched_on.insert(index, event.device_id)
-                return
-        self._switched_on.append(event.device_id)
+            return False
+        if at is None:
+            self._switched_on.append(event.device_id)
+        else:
+            self._switched_on.insert(at, event.device_id)
+        return True
 
     async def _presets_of(self, speaker: Speaker) -> dict[int, PresetStation | None]:
         """The six preset keys of one box, with ``None`` where a key is not set.

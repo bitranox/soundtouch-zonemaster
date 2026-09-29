@@ -1869,6 +1869,76 @@ async def test_the_list_is_seeded_from_the_box_listed_first_whichever_answered_f
         await eventually(lambda: _channels_of(options).numbers_in_order() == ("1", "3"), "the studio seeded it")
 
 
+@pytest.mark.parametrize(
+    "frame_before_second_answer",
+    [
+        pytest.param(False, id="second-answer-then-frame"),
+        pytest.param(True, id="frame-then-second-answer"),
+    ],
+)
+async def test_a_box_switched_on_while_a_round_is_out_comes_after_that_round_s_boxes(
+    world: World, tmp_path: Path, frame_before_second_answer: bool
+) -> None:
+    """A round's boxes stand together where the round opened; a frame during it goes after them.
+
+    The hallway and the console are listed mid-run, both already on, and asked together; the
+    studio, known and asleep since the start, is switched on by a person while their answers are
+    on the wire. The channel list is empty, so whichever box stands first seeds it. The round's
+    boxes were on before the question went out, which is before the studio's frame, so the
+    hallway - listed first of its round - must seed in both arms.
+
+    What differs between the arms is only which the reader took first, the console's answer or
+    the studio's frame, and that is reply speed. A rule that places each answer relative to the
+    answers already taken, and a frame at the end, gave [hallway, console, studio] when the
+    console's answer came first and [studio, hallway, console] when the frame did, so the studio
+    seeded in exactly the arm where the console was slow. The hallway's answer is held until both
+    others are in, in both arms.
+    """
+    entries = _listed_mid_run(world, HALLWAY_ID, CONSOLE_ID)
+    world.hallway.now_playing = now_playing_document(device_id=HALLWAY_ID, source=RADIO)
+    world.console.now_playing = now_playing_document(device_id=CONSOLE_ID, source=RADIO)
+    world.hallway.presets = {
+        1: _preset(f"{world.station_url}?c=1", "Superfly"),
+        3: _preset(f"{world.station_url}?c=3", "Technikum"),
+    }
+    world.console.presets = {2: _preset(f"{world.station_url}?c=2", "The console")}
+    world.studio.presets = {4: _preset(f"{world.station_url}?c=4", "The studio")}
+    hallway_released, console_released = asyncio.Event(), asyncio.Event()
+    world.hallway.held["/now_playing"] = hallway_released
+    world.console.held["/now_playing"] = console_released
+    options = replace(_options(world, tmp_path, seed=True), consoles_allowed=(CONSOLE_ID,))
+    logs: list[str] = []
+    frames = _Frames()
+
+    async def the_console_answers() -> None:
+        console_released.set()
+        await eventually(lambda: _said(logs, f"probe: Bose Cinema: {RADIO}"), "the console's answer was taken")
+
+    async with _running(options, logs, ports=_relaying(frames)) as service:
+        try:
+            await eventually(lambda: _said(logs, f"probe: Bose Studio: {SourceName.STANDBY}"), "the studio was asleep")
+            world.registry.body = json.dumps(entries)
+            await eventually(lambda: "/now_playing" in world.hallway.paths(), "the hallway was asked what it plays")
+            await eventually(lambda: "/now_playing" in world.console.paths(), "the console was asked what it plays")
+            if not frame_before_second_answer:
+                await the_console_answers()
+            await world.studio.notify(now_playing_frame(device_id=STUDIO_ID, source=RADIO))
+            await eventually(
+                lambda: _read_to_the_end(service, frames, STUDIO_ID, "nowPlayingUpdated"),
+                "the reader read the studio switching on while the round was out",
+            )
+            if frame_before_second_answer:
+                await the_console_answers()
+            assert not hallway_released.is_set(), "the control: the hallway's answer was still on the wire"
+            assert _channels_of(options).channels == (), "seeded while a box of the round had still to answer"
+        finally:
+            hallway_released.set()
+            console_released.set()
+        await eventually(lambda: _said(logs, f"probe: Bose Hallway: {RADIO}"), "the hallway's answer was taken")
+        await eventually(lambda: _channels_of(options).channels != (), "the list was seeded once the round was over")
+        assert _channels_of(options).numbers_in_order() == ("1", "3"), "the hallway, first of its round, seeded it"
+
+
 async def test_a_box_is_asked_for_its_presets_only_once(world: World, tmp_path: Path) -> None:
     """A box that answered with nothing must not be asked again on every frame it sends."""
     world.studio.presets = {}

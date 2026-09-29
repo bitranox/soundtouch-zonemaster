@@ -219,8 +219,9 @@ class ServiceState:
         The first of them seeds the channel list when there is none (user, 2026-09-07). The house
         should not have to carry the name of a box in a unit file, and the box somebody switches on
         is the box they are standing at. Boxes placed by one round of answers to "what are you
-        playing" stand among themselves in the registry's order, not in the order they replied
-        (``ChannelBook._noted_switched_on``).
+        playing" stand together, where the list had got to when the round opened, and among
+        themselves in the registry's order, not in the order they replied; a box a frame reports
+        switched on while the round is out goes after them (``ChannelBook._noted_switched_on``).
         """
         self._asked_for_presets: set[str] = set()
         """Boxes already asked for their presets, so none is asked twice.
@@ -281,7 +282,9 @@ class ServiceState:
         """How many rounds of "what are you playing" are waiting for answers; the list is not seeded meanwhile.
 
         A count rather than a flag, although the start and then the registry poll ask one round at
-        a time: nothing about the seeding rule depends on that, so nothing here should either."""
+        a time. Where a round's answers go in ``_switched_on`` DOES depend on that - each round
+        keeps its place as a position, and a second round inserting ahead of it would move it - so
+        a change that lets two rounds overlap has to revisit ``SpeakerBook``'s ``_AskedTogether``."""
         self._source_frames: dict[str, int] = {}
         """How many frames of its own each box has named its source in, counted by the reader.
 

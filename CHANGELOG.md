@@ -57,6 +57,10 @@ All notable changes to this project are documented here. The format follows
   into the zone and switched back on: an answer is dropped when the speaker has reported what it is
   playing in a notification of its own since it was asked. Each answer is also taken the moment it
   arrives, so one speaker slow to answer no longer holds back the others asked with it.
+- When the channel list is empty and is seeded from a speaker's presets, the speakers asked
+  together stand in the registry's order, ahead of any speaker a person switches on while their
+  answers are still on the way. Which speaker seeds the list no longer depends on which radio
+  answered fastest.
 - `channels export` now reads the house database once and writes the file atomically, so the
   reported channel count can no longer disagree with the exported text (it used to read the store
   twice in two separate transactions).

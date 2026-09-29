@@ -30,24 +30,37 @@ __all__ = ["SpeakerBook"]
 
 
 class _AskedTogether:
-    """The boxes one round of "what are you playing" asked, in the order the registry listed them.
+    """The boxes one round of "what are you playing" asked, and where in ``_switched_on`` they go.
 
     Their answers land in whatever order the boxes reply, and each is taken the moment it lands.
     Which of them was switched on first is something no answer can say, so among themselves they
-    stand in the registry's order in ``_switched_on`` - which box seeds the channel list must not
-    come down to which radio replied fastest.
+    stand in the registry's order - which box seeds the channel list must not come down to which
+    radio replied fastest.
+
+    And they stand together, at the place the list had reached when the round OPENED. Every box
+    that answers "on" was on before the question went out, so it was on before any frame the
+    reader takes while the round is out, and a frame goes to the end of the list. Placed relative
+    to the answers already taken instead, a box switched on by a person mid-round went ahead of
+    the whole round whenever its frame beat the first answer, and behind the late ones otherwise -
+    reply speed again, one level up.
+
+    The place is a position, which holds because nothing else inserts into the list: frames only
+    append, and one round is out at a time (``ServiceState._rounds_out``).
     """
 
-    def __init__(self, device_ids: Iterable[str]) -> None:
+    def __init__(self, device_ids: Iterable[str], *, opens_at: int) -> None:
         self._order = tuple(device_ids)
-        self._taken: set[str] = set()
+        self._opens_at = opens_at
+        self._placed: set[str] = set()
 
-    def taken(self, device_id: str) -> frozenset[str]:
-        """Note one box's answer as taken, and name those it goes ahead of: listed after it, taken before it."""
-        later = self._order[self._order.index(device_id) + 1 :]
-        ahead_of = frozenset(other for other in later if other in self._taken)
-        self._taken.add(device_id)
-        return ahead_of
+    def slot_for(self, device_id: str) -> int:
+        """Where this box's answer goes: after the round's boxes listed before it that are placed already."""
+        earlier = self._order[: self._order.index(device_id)]
+        return self._opens_at + sum(1 for other in earlier if other in self._placed)
+
+    def placed(self, device_id: str) -> None:
+        """Note that this box's answer took a place in the list, so later-listed answers go after it."""
+        self._placed.add(device_id)
 
 
 class SpeakerBook(ChannelBook):
@@ -194,10 +207,11 @@ class SpeakerBook(ChannelBook):
         """
         # In the order the registry listed them. The questions all go out at once, so this is not
         # the order they are asked in; it is the order their answers take among themselves in
-        # ``_switched_on``, whichever of them replies first.
+        # ``_switched_on``, whichever of them replies first - and they take it where the list has
+        # got to NOW, ahead of any box a frame reports switched on while they are being asked.
         asked = [speaker for device_id, speaker in self._speakers.items() if device_id in self._not_asked_yet]
         self._not_asked_yet.clear()
-        together = _AskedTogether(speaker.device_id for speaker in asked)
+        together = _AskedTogether((speaker.device_id for speaker in asked), opens_at=len(self._switched_on))
         self._rounds_out += 1
         try:
             await asyncio.gather(*(self._ask_what_it_is_playing(speaker, together) for speaker in asked))
@@ -230,7 +244,8 @@ class SpeakerBook(ChannelBook):
             )
             return
         self.log("probe", f"{speaker.name}: {event.source}")
-        self._noted_switched_on(event, ahead_of=together.taken(speaker.device_id))
+        if self._noted_switched_on(event, at=together.slot_for(speaker.device_id)):
+            together.placed(speaker.device_id)
         self.policy.observe(event)
         # A pass now rather than once every box asked with it has answered: an answer can put a
         # box in the zone (it plays the house's stream), and the pass is what acts on that.
