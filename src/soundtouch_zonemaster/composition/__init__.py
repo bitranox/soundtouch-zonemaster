@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from ..adapters.aftertouch import registry
 from ..adapters.files.house_store import SqlHouseStore
+from ..adapters.files.store_worker import StoreWorker
 from ..adapters.logging.narration import log
 from ..adapters.mpd.client import MpdControl
 from ..adapters.soundtouch import observer, speaker_http, wire
@@ -95,6 +96,7 @@ def build_production() -> AppServices:
     return AppServices(
         zone_ports=ZoneServicePorts(
             open_store=open_house_store,
+            off_the_loop=StoreWorker,
             fetch_speakers=registry.fetch_speakers,
             watch_speaker=observer.SpeakerObserver,
             open_zone_master=ZoneMaster,
@@ -134,12 +136,14 @@ if TYPE_CHECKING:
     # into its typed field; these are not assigned anywhere, so without this block the two
     # commands, the master's two shapes and the store itself would reach the flat with nothing
     # having compared them to anything. The store's pair states what the factory's return only
-    # implies: that the ADAPTER, whose switch() hands back a DbSwitch, is a HouseStore whose
-    # switch the service watches as a SwitchReader - and it keeps saying so if the factory is ever
-    # annotated with the adapter's own type. A run of pyright reads this; nothing executes it.
+    # implies: that the ADAPTER is a HouseStore, and that the worker the service runs it on, whose
+    # switch() hands back a DbSwitch, is a ServiceStore whose switch the service watches as a
+    # SwitchReader - and it keeps saying so if the factory is ever annotated with the adapter's own
+    # type. A run of pyright reads this; nothing executes it.
     _run_service: port_types.RunService = hold_the_zone
     _run_zone: port_types.RunZone = run_prototype
     _master_is_a_zone_master_port: port_types.ZoneMasterPort = ZoneMaster(bind_ip="", device_id="", log=log)
     _master_is_a_prototype_master: port_types.PrototypeMaster = ZoneMaster(bind_ip="", device_id="", log=log)
     _open_store: port_types.OpenHouseStore = open_house_store
     _store_is_a_house_store: port_types.HouseStore = SqlHouseStore("", log=log)
+    _worker_is_a_service_store: port_types.ServiceStore = StoreWorker(SqlHouseStore("", log=log), log=log)

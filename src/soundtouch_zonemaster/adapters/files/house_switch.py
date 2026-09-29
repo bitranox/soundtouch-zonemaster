@@ -30,7 +30,7 @@ from ...domain.switch import OFF
 from .house_schema import SWITCH
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable
     from pathlib import Path
 
     from sqlalchemy.engine import Connection
@@ -73,10 +73,21 @@ def write_switch(connection: Connection, *, on: bool) -> bool:
 
 
 class DbSwitch:
-    """The switch as the service reads it: now, or watched for as long as it runs."""
+    """The switch as the service reads it: now, or watched for as long as it runs.
+
+    ``is_on`` is awaited, because the read it stands for runs off the service's event loop
+    (``store_worker.py``): the poll comes round every second, and on PostgreSQL each one is a
+    network round trip the zone's clock would otherwise wait out.
+    """
 
     def __init__(
-        self, is_on: Callable[[], bool], *, where: str, log: LogFn, poll_s: float, ignored_file: Path | None
+        self,
+        is_on: Callable[[], Awaitable[bool]],
+        *,
+        where: str,
+        log: LogFn,
+        poll_s: float,
+        ignored_file: Path | None,
     ) -> None:
         self._is_on = is_on
         self.where = where
@@ -84,15 +95,15 @@ class DbSwitch:
         self.poll_s = poll_s
         self.ignored_file = ignored_file
 
-    def is_on(self) -> bool:
-        return self._is_on()
+    async def is_on(self) -> bool:
+        return await self._is_on()
 
     async def watch(self) -> AsyncGenerator[bool, None]:
         """Yield the value now, and again each time it changes. Never yields the same value twice."""
         last: bool | None = None
         noticed = False
         while True:
-            current = self.is_on()
+            current = await self.is_on()
             if current != last:
                 self.log("switch", f"{self.where}: {'on' if current else 'off'}")
                 last = current

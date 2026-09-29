@@ -37,12 +37,12 @@ class ZoneService(KeyReading):
         and an old file that cannot be read refuses the start the same way. It is closed LAST,
         because the stand-down still writes where MPD was.
         """
-        self.store.open(exclusive=True)
+        await self.store.open(exclusive=True)
         try:
-            self.store.import_legacy(self.options.legacy)
+            await self.store.import_legacy(self.options.legacy)
             await self._hold()
         finally:
-            self.store.close()
+            await self.store.close()
 
     async def _hold(self) -> None:
         """Hold the house until cancelled; the stand-down is in a ``finally``, as in the prototype.
@@ -82,7 +82,7 @@ class ZoneService(KeyReading):
 
     async def _start_up(self) -> None:
         """Everything that has to be true before the first event is read."""
-        state = self.store.load_state()
+        state = await self.store.load_state()
         self._channel = state.channel
         self._believed = state.members
         self._muted = dict(state.muted)
@@ -98,7 +98,7 @@ class ZoneService(KeyReading):
             self.log("zone", f"out of multiroom, from the last run: {self._names(state.out_of_multiroom)}")
         # Before the registry is read: which consoles may be watched is one of them, and the
         # registry read is where that is decided.
-        self._take_the_preferences(self.store.load_preferences())
+        self._take_the_preferences(await self.store.load_preferences())
         # At once rather than on the dialling worker's first turn: nobody can be mid-gesture before
         # the first event is read, and a digit read before that turn would be read on the options.
         self._settle_the_dial_numbers()
@@ -106,7 +106,7 @@ class ZoneService(KeyReading):
         self.log("state", f"{len(state.members)} member(s) remembered from the last run")
         # Before anything reads the registry: an unusable channel list must stop the service here,
         # not once a speaker wakes and there is nothing to play.
-        self._channels = self.store.load_channels()
+        self._channels = await self.store.load_channels()
         # In the background and not awaited: the first document a speaker is shown for a relative
         # channel is absolute only once the bmx registry has named its base, and without this the
         # first station of every run built that document before anything had asked. A registry
@@ -122,5 +122,5 @@ class ZoneService(KeyReading):
         await self._put_back_any_volume_we_took_away()
         await self._seed_the_channels()
         await self._ask_the_speakers_what_they_are_playing()
-        self._on = self.switch.is_on()
+        self._on = await self.switch.is_on()
         await self._reconcile()

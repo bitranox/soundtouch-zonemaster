@@ -130,7 +130,7 @@ class ZoneReconcile(VolumeGuard):
             # speakers is an empty answer that would write the house out of the file, which is the
             # only memory a restart has.
             if self._speakers:
-                self._write_down(believed)
+                await self._write_down(believed)
             if not self._on:
                 await self._stand_down()
                 return
@@ -644,13 +644,13 @@ class ZoneReconcile(VolumeGuard):
             await self._mpd_would_not(f"channel {number}", exc)
             return
         if status.ran_out() and self._stops_at_its_end(number):
-            self._forget_where_it_was(number)
+            await self._forget_where_it_was(number)
             return
         if status.elapsed is None or status.song is None:
             return
         file = await self._the_file_at(number, status.song)
         self._positions[number] = Place(track=status.song, seconds=status.elapsed, file=file)
-        self._save_the_state()
+        await self._save_the_state()
 
     async def _the_file_at(self, number: str, track: int) -> str | None:
         """The path of that queue entry, for a directory channel, whose order can change under it.
@@ -675,12 +675,12 @@ class ZoneReconcile(VolumeGuard):
         channel = self._channels.by_number(number)
         return channel is not None and channel.end is ChannelEnd.STOP
 
-    def _forget_where_it_was(self, number: str) -> None:
+    async def _forget_where_it_was(self, number: str) -> None:
         """Drop a channel's place, so it starts from the beginning the next time it is dialled."""
         if self._positions.pop(number, None) is None:
             return
         self.log("mpd", f"channel {number} ran out, so it starts from the beginning next time")
-        self._save_the_state()
+        await self._save_the_state()
 
     async def _mpd_would_not(self, what: str, exc: Exception) -> None:
         """Say what MPD did not do, and throw the connection away so the next attempt is fresh.

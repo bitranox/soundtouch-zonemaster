@@ -1,5 +1,9 @@
 """The house store: the one object the service and the CLI reach the database through.
 
+The CLI calls it directly, one verb per process. The service calls it only through a
+``StoreWorker`` (``store_worker.py``), which runs every call on a thread of its own, because the
+service's event loop also times the zone; nothing here knows or needs to know which thread it is on.
+
 It opens nothing until :meth:`open`, so building one costs nothing and a service can be
 constructed in a test without touching a disk. Every other method refuses with ``StoreError``
 before ``open`` and after ``close``, because a silent no-op there would let a test pass while the
@@ -28,7 +32,7 @@ from .house_channels import read_channels, write_channels
 from .house_db import HouseDatabase, reason_for
 from .house_preferences import delete_preference, read_preferences, write_preference
 from .house_state import read_state, write_state
-from .house_switch import DbSwitch, read_switch, write_switch
+from .house_switch import read_switch, write_switch
 from .legacy_import import import_legacy
 
 if TYPE_CHECKING:
@@ -152,9 +156,6 @@ class SqlHouseStore:
     def set_switch(self, *, on: bool) -> bool:
         with self._guarded(), self._db.writing() as connection:
             return write_switch(connection, on=on)
-
-    def switch(self, *, poll_s: float, ignored_file: Path | None) -> DbSwitch:
-        return DbSwitch(self.is_on, where=self.where, log=self.log, poll_s=poll_s, ignored_file=ignored_file)
 
     def load_preferences(self) -> tuple[PreferenceRow, ...]:
         with self._guarded(), self._db.reading() as connection:

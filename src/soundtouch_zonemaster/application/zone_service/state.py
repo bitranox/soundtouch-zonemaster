@@ -11,7 +11,9 @@ them.
 
 The one thing here that is not a field is the saved STATE, which is written from a single place
 on purpose: membership changes and a dialled channel both land in it, and a writer per caller
-would have lost every channel somebody dialled without the zone also changing.
+would have lost every channel somebody dialled without the zone also changing. It is written OFF
+the event loop, like every call into the house database (``ServiceStore``): awaited where the
+caller may wait, and queued where it may not.
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from ...domain.calibration import Calibration, Gesture
 from ...domain.channellist import ChannelList
 from ...domain.dialling import Dialler
 from ...domain.housevolume import HouseVolume
+from ...domain.logfn import ERROR_KIND
 from ...domain.longpress import LongPresses
 from ...domain.membership import Membership
 from ...domain.presses import Presses
@@ -161,11 +164,14 @@ class ServiceState:
         It is not closed on a stand-down: the switch going off ends the ZONE, and MPD holding a
         socket open costs nothing, while reconnecting per channel change would cost a round trip
         in front of the one exchange whose ORDER the house can hear."""
-        self.store = ports.open_store(options.database, password=options.database_password, log=log)
+        self.store = ports.off_the_loop(
+            ports.open_store(options.database, password=options.database_password, log=log), log=log
+        )
         """The house database. Opened by ``run`` before anything is taken from the house, closed last.
 
-        Built here and not opened, so constructing a service touches no disk; the switch below is
-        handed out now because it reads through the store only when it is asked."""
+        Built here and not opened, so constructing a service touches no disk and starts no thread;
+        the switch below is handed out now because it reads through the store only when it is
+        asked. Every call into it runs off this loop, which also times the zone."""
         self.switch = self.store.switch(poll_s=options.switch_poll_s, ignored_file=options.switch_file)
         self.policy = Membership(
             master_device_id=options.device_id,
@@ -371,7 +377,7 @@ class ServiceState:
         self._dial_numbers_wanted: tuple[float, float] | None = None
         """A window and hold the preferences asked for, held until nobody is dialling or holding a key."""
 
-    def _write_down(self, believed: frozenset[str]) -> None:
+    async def _write_down(self, believed: frozenset[str]) -> None:
         """Record who the zone belongs to, so that a restart does not start from nothing.
 
         Sorted, because a set has no order and a file that reshuffles itself reads as one that
@@ -383,25 +389,57 @@ class ServiceState:
         if ordered == self._believed:
             return
         self._believed = ordered
-        self._save_the_state()
+        await self._save_the_state()
         self.log("state", f"the zone belongs to: {', '.join(ordered) or 'nobody'}")
 
-    def _save_the_state(self) -> None:
-        """Write down what a restart starts from. One writer, so the two halves cannot drift.
+    async def _save_the_state(self) -> None:
+        """Write down what a restart starts from, and return once it is written.
 
-        Membership changes and a dialled channel both land here: writing only on a membership
-        change would have lost every channel somebody dialled without the zone also changing.
+        For every caller that may wait, which is every caller but the reader's. Awaiting is what
+        keeps an order some of them depend on: a join writes a box's level down BEFORE it mutes
+        the box, so a service that dies in between still finds the level on its next start. A
+        failed write raises here, as the store's own did, and is said as well.
+
+        Shielded, so that a caller cancelled while it waits leaves the write itself alone: the
+        store writes it anyway, and the line saying it failed must still be able to see how it
+        ended rather than only that its caller stopped listening.
         """
-        self.store.save_state(
-            ZoneState(
-                channel=self._channel,
-                members=self._believed,
-                muted=dict(self._muted),
-                out_of_multiroom=tuple(sorted(self._out_of_multiroom)),
-                positions=dict(self._positions),
-                owed_volume=dict(self._owed_volume),
-            ),
+        await asyncio.shield(self._queue_the_state())
+
+    def _queue_the_state(self) -> asyncio.Future[None]:
+        """Write down what a restart starts from, queued NOW behind any save still on its way.
+
+        One writer, so the two halves cannot drift: membership changes and a dialled channel both
+        land here, and writing only on a membership change would have lost every channel somebody
+        dialled without the zone also changing. The state is taken at the call and the store
+        writes saves in the order they were queued, so the house always ends on the latest one.
+
+        The reader calls this and goes on, because the reader may never wait. A failure there has
+        nobody to raise into, so every failure is said; the service goes on, and nothing is lost
+        for good by one, because every save writes the whole state and the next writes this one's.
+        """
+        write = asyncio.ensure_future(
+            self.store.save_state(
+                ZoneState(
+                    channel=self._channel,
+                    members=self._believed,
+                    muted=dict(self._muted),
+                    out_of_multiroom=tuple(sorted(self._out_of_multiroom)),
+                    positions=dict(self._positions),
+                    owed_volume=dict(self._owed_volume),
+                ),
+            )
         )
+        write.add_done_callback(self._say_a_state_write_failed)
+        return write
+
+    def _say_a_state_write_failed(self, write: asyncio.Future[None]) -> None:
+        """Say a save that failed, however it was asked for."""
+        if write.cancelled():
+            return
+        failure = write.exception()
+        if failure is not None:
+            self.log(ERROR_KIND, f"the house state was not saved ({type(failure).__name__}: {failure})")
 
     def _names(self, device_ids: Sequence[str]) -> str:
         """The boxes named the way a person reads them, for one log line about several of them."""

@@ -92,8 +92,12 @@ def test_the_watch_reports_a_change_once_and_names_a_file_nobody_reads(tmp_path:
     state = {"on": True}
     lines: list[str] = []
     old_file = tmp_path / "zone.switch"
+
+    async def is_on() -> bool:
+        return state["on"]
+
     switch = DbSwitch(
-        lambda: state["on"],
+        is_on,
         where="house.sqlite",
         log=lambda kind, text: lines.append(f"{kind}: {text}"),
         poll_s=0.01,

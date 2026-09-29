@@ -39,6 +39,11 @@ All notable changes to this project are documented here. The format follows
   words about the record field (for `device_id` an explicit null is refused rather than falling back
   to this host's MAC address, which is what a value given nowhere does). Previously
   only `database.url` was refused this way.
+- The service's house database calls no longer run on the event loop that times the zone: every
+  one - the state saves, the switch and preference polls, the channel list, open and close - runs
+  on one thread of its own, in the order it was asked for, and a stop closes the database only
+  after every write asked for before it. A state save that fails where a key press is read is
+  logged and the service goes on, rather than ending the run.
 
 ### Fixed
 

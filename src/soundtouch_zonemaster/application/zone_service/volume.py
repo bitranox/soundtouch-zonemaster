@@ -95,12 +95,12 @@ class VolumeGuard(SpeakerBook):
             await self._join_silent(speaker, level, owed)
             return -1
         self._muted[speaker.device_id] = target
-        self._save_the_state()
+        await self._save_the_state()
         try:
             await self._write_volume(speaker, 0)
         except Exception as exc:  # noqa: BLE001 - same failure, and the note must come back out
             self._muted.pop(speaker.device_id, None)
-            self._owe_again(speaker, owed)
+            await self._owe_again(speaker, owed)
             self.log("zone", f"{speaker.name}: could not be turned down ({type(exc).__name__}), joining as it is")
             return -1
         return target
@@ -125,21 +125,21 @@ class VolumeGuard(SpeakerBook):
         """
         if level <= 0:
             if owed:
-                self._save_the_state()
+                await self._save_the_state()
             return
         try:
             await self._write_volume(speaker, 0)
         except Exception as exc:  # noqa: BLE001 - it joins at its own level, and still owes the steps
-            self._owe_again(speaker, owed)
+            await self._owe_again(speaker, owed)
             self.log("zone", f"{speaker.name}: could not be turned down ({type(exc).__name__}), joining as it is")
             return
-        self._save_the_state()
+        await self._save_the_state()
 
-    def _owe_again(self, speaker: Speaker, owed: int) -> None:
+    async def _owe_again(self, speaker: Speaker, owed: int) -> None:
         """Put back steps a join took and then could not apply, so the next join takes them."""
         if owed:
             self._owed_volume = owe(self._owed_volume, [speaker.device_id], owed)
-        self._save_the_state()
+        await self._save_the_state()
 
     async def _turn_it_back_up(self, speaker: Speaker, level: int, *, fade: bool) -> None:
         """Put one box back where it was: at once, or in steps on a task of its own.
@@ -239,7 +239,7 @@ class VolumeGuard(SpeakerBook):
             self.log("zone", f"{speaker.name}: volume not put back ({type(exc).__name__}); a later pass will")
             return
         self._muted.pop(speaker.device_id, None)
-        self._save_the_state()
+        await self._save_the_state()
 
     def _house_stepped(self, source_id: str, step: int) -> None:
         """Move every other box by the step a person just made at ``source_id`` (rank 191).
@@ -272,7 +272,7 @@ class VolumeGuard(SpeakerBook):
                 owed.append(device_id)
         self._owed_volume = owe(self._owed_volume, owed, step)
         if noted or owed:
-            self._save_the_state()
+            self._queue_the_state()
         self.log(
             "volume",
             f"house {step:+d} from {self._name(source_id)}: {self._names(written) or 'nobody'} now"
@@ -371,4 +371,4 @@ class VolumeGuard(SpeakerBook):
                 continue
             self.log("zone", f"{speaker.name}: volume put back to {level} after a join that did not finish")
             self._muted.pop(device_id, None)
-            self._save_the_state()
+            await self._save_the_state()

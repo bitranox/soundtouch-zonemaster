@@ -4,9 +4,9 @@ Most of these are a **callable Protocol** rather than a class with methods, beca
 the old code actually reached for: ten module-level functions and three constructors. Naming each
 one on its own keeps the substitution the same size as the thing being substituted - a test that
 wants a different volume reader supplies a different function, not an object implementing every
-method it does not care about. The ones that ARE objects - the house store and the switch it
-hands out, one speaker's watch, MPD's control connection and the two views of a master - are
-objects because that is what the adapter hands back.
+method it does not care about. The ones that ARE objects - the house store, the service's view
+of it and the switch that view hands out, one speaker's watch, MPD's control connection and the
+two views of a master - are objects because that is what the adapter hands back.
 
 They are bundled into two records, one per program, so a constructor takes ONE argument rather
 than one per port, and so that a new port cannot be forgotten at a call site: adding a field to
@@ -67,9 +67,11 @@ __all__ = [
     "RunZone",
     "SelectStation",
     "ServiceCommands",
+    "ServiceStore",
     "SetVolume",
     "SpeakerWatch",
     "StationSource",
+    "StoreOffTheLoop",
     "SwitchReader",
     "WatchSpeaker",
     "ZoneMasterPort",
@@ -82,9 +84,12 @@ __all__ = [
 
 
 class SwitchReader(Protocol):
-    """The switch as the service uses it: read it now, or follow it for as long as we run."""
+    """The switch as the service uses it: read it now, or follow it for as long as we run.
 
-    def is_on(self) -> bool: ...
+    Both are awaited, because both read the database and the service reads nothing on its loop.
+    """
+
+    async def is_on(self) -> bool: ...
 
     def watch(self) -> AsyncGenerator[bool, None]: ...
 
@@ -130,8 +135,6 @@ class HouseStore(Protocol):
 
     def set_switch(self, *, on: bool) -> bool: ...
 
-    def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader: ...
-
     def load_preferences(self) -> tuple[PreferenceRow, ...]: ...
 
     def set_preference(
@@ -149,6 +152,64 @@ class OpenHouseStore(Protocol):
     ``None`` passes nothing, and the driver finds its own (``~/.pgpass`` for PostgreSQL)."""
 
     def __call__(self, database: str, *, password: Secret | None, log: LogFn) -> HouseStore: ...
+
+
+class ServiceStore(Protocol):
+    """The house database as the SERVICE reaches it: every call awaited, and none run on its loop.
+
+    The loop that holds the house also times the zone - the clock on UDP 40005 and the frames on
+    TCP 40003 are answered from it - so a store call made there takes its time out of the audio.
+    Measured 2026-09-29: a state save on PostgreSQL took up to 10.75 ms, and one on SQLite, whose
+    ``synchronous = FULL`` is deliberate, stalled for 20 to 24 ms, which is most of a frame period.
+
+    Only what the service calls is here; the CLI's verbs are one-shot processes with no zone to
+    time and keep the plain :class:`HouseStore`. ``where`` is that store's, unchanged.
+
+    **The three writes are queued when they are CALLED, not when they are awaited**, in call order,
+    and each runs after everything queued before it. That is what lets a caller that may not wait -
+    the reader, which a person's key press reaches - still have its save written in its place: it
+    asks and goes on, and the next save cannot overtake it. A write once asked for is written even
+    when whoever awaits it is cancelled, and ``close`` runs after every write asked for before it;
+    a stop therefore loses nothing the house decided before it. A failed write raises where it is
+    awaited, as :class:`~soundtouch_zonemaster.application.errors.StoreError`, like the store's own.
+    """
+
+    where: str
+
+    async def open(self, *, exclusive: bool) -> None: ...
+
+    async def close(self) -> None: ...
+
+    async def import_legacy(self, files: LegacyFiles) -> None: ...
+
+    async def load_state(self) -> ZoneState: ...
+
+    def save_state(self, state: ZoneState) -> Awaitable[None]: ...
+
+    async def load_channels(self) -> ChannelList: ...
+
+    def save_channels(self, channels: ChannelList) -> Awaitable[None]: ...
+
+    async def load_preferences(self) -> tuple[PreferenceRow, ...]: ...
+
+    def set_preference(
+        self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
+    ) -> Awaitable[PreferenceRow | None]: ...
+
+    def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader: ...
+
+
+class StoreOffTheLoop(Protocol):
+    """Take a store the service has built and not opened, and hand back the one it calls instead.
+
+    A port rather than something the service does itself, because the mechanism is a thread and
+    threads are the edge's business: ``application`` decides THAT the store is kept off its loop,
+    and the adapter decides how. It is a port of its own rather than folded into ``open_store``,
+    so the store the service is handed stays one a test can wrap at that seam, while what runs it
+    is still the production answer.
+    """
+
+    def __call__(self, store: HouseStore, /, *, log: LogFn) -> ServiceStore: ...
 
 
 # --- the speakers, and the service next door --------------------------------------------------
@@ -480,6 +541,7 @@ class ZoneServicePorts:
     """
 
     open_store: OpenHouseStore
+    off_the_loop: StoreOffTheLoop
     fetch_speakers: FetchSpeakers
     watch_speaker: WatchSpeaker
     open_zone_master: OpenZoneMaster

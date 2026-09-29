@@ -28,6 +28,7 @@ import json
 import os
 import socket
 import sqlite3
+import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
@@ -38,6 +39,7 @@ from mpdfake import HOST as MPD_HOST
 from mpdfake import FakeMpd
 from registry_double import FakeRegistry, devices_at
 from service_log import recording_into
+from slow_store import SlowStore
 from speaker_double import (
     FakeSpeaker,
     key_body,
@@ -88,7 +90,6 @@ if TYPE_CHECKING:
         AddressOf,
         HouseStore,
         SpeakerWatch,
-        SwitchReader,
         ZoneServicePorts,
     )
     from soundtouch_zonemaster.domain.logfn import LogFn
@@ -4102,6 +4103,8 @@ class _StoreThatCanFail:
     def __init__(self, real: HouseStore) -> None:
         self._real = real
         self.saving_state_fails = False
+        self.saves_to_fail = 0
+        """How many of the NEXT saves fail, each once, before the store writes again."""
         self.reading_preferences_fails = False
         self.where = real.where
 
@@ -4118,7 +4121,8 @@ class _StoreThatCanFail:
         return self._real.load_state()
 
     def save_state(self, state: ZoneState) -> None:
-        if self.saving_state_fails:
+        if self.saving_state_fails or self.saves_to_fail > 0:
+            self.saves_to_fail = max(0, self.saves_to_fail - 1)
             message = "simulated: the house database refused the write"
             raise StoreError(message)
         self._real.save_state(state)
@@ -4140,9 +4144,6 @@ class _StoreThatCanFail:
 
     def set_switch(self, *, on: bool) -> bool:
         return self._real.set_switch(on=on)
-
-    def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader:
-        return self._real.switch(poll_s=poll_s, ignored_file=ignored_file)
 
     def load_preferences(self) -> tuple[PreferenceRow, ...]:
         if self.reading_preferences_fails:
@@ -4243,6 +4244,174 @@ async def test_a_store_that_cannot_save_state_does_not_stop_the_dissolve(world: 
                 "the failed write was logged rather than swallowed",
             )
         assert positions_of(options) == {}, "the position that failed to save is not there afterwards"
+
+
+STALL_S = 0.2
+"""How long every call to the slow store below sleeps: most of ten frame periods, so a loop that
+waited for one would miss its clock and its frames by a margin no scheduler could explain."""
+
+
+@asynccontextmanager
+async def _running_on_a_slow_store(
+    options: ServiceOptions, logs: list[str], *, stall_s: float
+) -> AsyncGenerator[tuple[ZoneService, SlowStore], None]:
+    """The real wiring, except the store the service opens is a :class:`SlowStore` over the real one.
+
+    Injected at the ``open_store`` port, the seam the service takes its store through, so what the
+    service does with it - which thread, in which order, and whether the loop waits - is the
+    production wiring's answer and not the test's.
+    """
+    created: list[SlowStore] = []
+
+    def _open_store(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
+        store = SlowStore(open_house_store(database, password=password, log=log), stall_s=stall_s)
+        created.append(store)
+        return store
+
+    ports = replace(build_production().zone_ports, open_store=_open_store)
+    service = ZoneService(options, log=recording_into(logs), ports=ports)
+    task = asyncio.create_task(service.run())
+    try:
+        await eventually(lambda: len(created) == 1, "the service opened its store")
+        yield service, created[0]
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+async def _beat(gaps: list[float]) -> None:
+    """Turn on the loop every few milliseconds and write down how long each turn really took.
+
+    A task of the service's own loop, so it can only run when nothing else holds that loop: a gap
+    far longer than the sleep is the loop having been kept from turning, which is exactly what the
+    zone's clock and frames would feel.
+    """
+    last = time.monotonic()
+    while True:
+        await asyncio.sleep(0.005)
+        now = time.monotonic()
+        gaps.append(now - last)
+        last = now
+
+
+async def test_the_loop_keeps_turning_while_the_house_database_is_slow(world: World, tmp_path: Path) -> None:
+    """No database call runs on the event loop, on either backend (backlog rank 199).
+
+    The loop that serves the house also times the zone: the clock on UDP 40005 and the frames on
+    TCP 40003 are answered from it. Measured 2026-09-29, a state save on PostgreSQL took up to
+    10.75 ms and one on SQLite, with ``synchronous = FULL``, stalled for 20 to 24 ms - most of a
+    frame period, on that loop. Every call here sleeps far longer than either, so the gap it would
+    leave in the heartbeat cannot be mistaken for scheduling noise.
+    """
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    gaps: list[float] = []
+    beating = asyncio.create_task(_beat(gaps))
+    try:
+        async with _running_on_a_slow_store(options, logs, stall_s=STALL_S) as (_service, store):
+            # One box waking is enough: the pass that takes it writes down who the zone belongs
+            # to, which is a state save, and the switch and the preferences are polled throughout.
+            await world.studio.notify(now_playing_frame(device_id=STUDIO_ID, source=RADIO))
+            await eventually(
+                lambda: bool(store.named("save_state")) and len(store.named("is_on")) >= 2,
+                "the service saved its state and polled the switch, both through the slow store",
+            )
+    finally:
+        beating.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await beating
+    assert store.stalls >= 5, "the control: the database really was slow, call after call"
+    assert gaps, "the control: the heartbeat ran"
+    assert max(gaps) < STALL_S / 2, f"the loop stood still for {max(gaps) * 1000:.0f} ms while the database worked"
+
+
+async def test_every_database_call_the_service_makes_runs_on_one_thread_that_ends_with_the_run(
+    world: World, tmp_path: Path
+) -> None:
+    """One thread, and never the loop's: open first, every read and write, close last, all there.
+
+    One, because a single worker is what keeps two saves in the order they were asked for and keeps
+    a SQLite connection on the thread that made it; and it must be gone once the run has ended, or
+    every restart in a long-lived process would leave one behind.
+    """
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    loop_thread = threading.current_thread()
+
+    async with _running_on_a_slow_store(options, logs, stall_s=0.0) as (_service, store):
+        await _both_wake(world)
+        await eventually(
+            lambda: bool(store.named("save_state")) and len(store.named("is_on")) >= 2,
+            "the service saved its state and polled the switch",
+        )
+
+    names = [call.name for call in store.calls]
+    assert names[0] == "open", names[:3]
+    assert names[-1] == "close", names[-3:]
+    threads = {call.thread for call in store.calls}
+    assert len(threads) == 1, sorted(thread.name for thread in threads)
+    (worker,) = threads
+    assert worker is not loop_thread, "a database call ran on the event loop"
+    assert not worker.is_alive(), "the database thread outlived the run"
+
+
+async def test_a_write_still_queued_when_the_service_stops_is_written_before_the_database_is_closed(
+    world: World, tmp_path: Path
+) -> None:
+    """A stop must not lose what the house decided just before it.
+
+    A double thumbs down is read on the reader, which may not wait, so its save is queued rather
+    than awaited - and here that save is slow enough to still be running when the stop has done
+    everything else and comes to close the database. The run ends only once it has landed, and
+    every save queued behind it: a restart must find the box still out.
+    """
+    options = _rotation_world(world, tmp_path, numbers=("1", "12", "13"))
+    logs: list[str] = []
+
+    async with _running_on_a_slow_store(options, logs, stall_s=0.0) as (_service, store):
+        await _both_wake(world)
+        # Both fades have put their boxes back and saved that, so the next save is the reader's.
+        await eventually(lambda: not _state_of(options).muted, "the joins have finished writing")
+        store.save_stalls = [1.5]
+        await _double_tap_key(STUDIO_IP, KeyName.THUMBS_DOWN)
+        await eventually(
+            lambda: any("out of multiroom, on its own from here" in line for line in logs), "the double tap was read"
+        )
+        assert STUDIO_ID not in out_of_multiroom(options), "the control: the write is still on its way at the stop"
+
+    assert out_of_multiroom(options) == (STUDIO_ID,), "the queued write reached the database before it was closed"
+    assert store.calls[-1].name == "close", [call.name for call in store.calls[-3:]]
+
+
+async def test_a_save_the_reader_could_not_wait_for_is_said_when_it_fails_and_the_house_goes_on(
+    world: World, tmp_path: Path
+) -> None:
+    """A double thumbs down is read on the reader, which queues its save and goes on.
+
+    So a save that fails there has nobody to raise into. It must be said - a lost write is the one
+    thing worth a line - and it must not take the service with it: the decision is still held,
+    and the next save writes the whole state again.
+    """
+    options = _rotation_world(world, tmp_path, numbers=("1", "12", "13"))
+    logs: list[str] = []
+
+    async with _running_with_a_store_that_can_fail(options, logs) as (service, store):
+        await _both_wake(world)
+        # Both fades have put their boxes back and saved that, so the next save is the reader's.
+        await eventually(lambda: not _state_of(options).muted, "the joins have finished writing")
+        store.saves_to_fail = 1
+        await _double_tap_key(STUDIO_IP, KeyName.THUMBS_DOWN)
+
+        await eventually(
+            lambda: any(line.startswith(f"{ERROR_KIND}: the house state was not saved") for line in logs),
+            "the failed save was said",
+        )
+        await eventually(lambda: STUDIO_IP not in _slaves(service), "the house went on and let the studio go")
+        assert service.master is not None, "the zone is still held"
+        await eventually(
+            lambda: out_of_multiroom(options) == (STUDIO_ID,), "the next save wrote the decision the failed one lost"
+        )
 
 
 async def test_the_position_survives_a_restart_and_the_book_goes_on_where_it_stopped(

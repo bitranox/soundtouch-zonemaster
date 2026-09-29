@@ -98,6 +98,7 @@ from soundtouch_zonemaster.adapters.config.overrides import apply_set_overrides
 from soundtouch_zonemaster.adapters.config.settings_map import service_settings, unknown_settings
 from soundtouch_zonemaster.adapters.files.channel_file import ChannelFileError, load_channels, save_channels
 from soundtouch_zonemaster.adapters.files.state_file import LegacyState, load_state, save_state
+from soundtouch_zonemaster.adapters.files.store_worker import StoreWorker
 from soundtouch_zonemaster.adapters.soundtouch.http_api import HttpApi, Request, key_press, parse_request
 from soundtouch_zonemaster.adapters.soundtouch.observer import parse_frame, parse_now_playing
 from soundtouch_zonemaster.adapters.soundtouch.orion import OrionBase
@@ -1074,6 +1075,7 @@ def wired_service(
     )
     ports = ZoneServicePorts(
         open_store=open_store,
+        off_the_loop=StoreWorker,
         fetch_speakers=fetch_speakers,
         watch_speaker=watch_speaker,
         open_zone_master=open_zone_master,

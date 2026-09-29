@@ -31,7 +31,7 @@ __all__ = ["ChannelBook"]
 class ChannelBook(ServiceState):
     """The channel list this house dials, and everything that decides what is in it."""
 
-    def _thumbed(self, device_id: str, *, in_rotation: bool) -> None:
+    async def _thumbed(self, device_id: str, *, in_rotation: bool) -> None:
         """A thumb press: the playing channel leaves the rotation, or comes back into it.
 
         The last channel in the rotation is refused rather than taken out. An empty rotation leaves
@@ -52,7 +52,7 @@ class ChannelBook(ServiceState):
             self.log("dial", f"{name} thumbed down {channel.number}: refused, it is the last channel there is")
             return
         self._channels = self._channels.with_rotation(channel.number, in_rotation=in_rotation)
-        self.store.save_channels(self._channels)
+        await self.store.save_channels(self._channels)
         where = "back in the rotation" if in_rotation else "out of the rotation"
         self.log("dial", f"{name} thumbed {verb} {channel.number}: {where}")
 
@@ -106,7 +106,7 @@ class ChannelBook(ServiceState):
                 self.log("channels", f"{speaker.name} has no presets; the next box switched on gets the chance")
                 return
             self._channels = seeded
-            self.store.save_channels(seeded)
+            await self.store.save_channels(seeded)
 
     def _first_unasked_speaker(self) -> Speaker | None:
         """The earliest box seen out of standby that has not been asked for its presets yet."""

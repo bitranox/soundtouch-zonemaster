@@ -150,7 +150,7 @@ class Dialling(PreferenceBook):
         (``_select_on_its_own``).
         """
         self._out_of_multiroom.discard(device_id)
-        self._save_the_state()
+        self._queue_the_state()
         self.log("zone", f"{self._name(device_id)} was switched on: back into multiroom")
 
     def _may_choose_the_channel(self, device_id: str) -> bool:
@@ -293,11 +293,11 @@ class Dialling(PreferenceBook):
         measured = ((PreferenceName.WINDOW, result.window_s), (PreferenceName.HOLD, result.hold_s))
         for name, value in measured:
             if value is not None:
-                self.store.set_preference(name, value, source=PreferenceSource.CALIBRATION)
+                await self.store.set_preference(name, value, source=PreferenceSource.CALIBRATION)
         if any(value is not None for _, value in measured):
             # Read back rather than applied from ``result``: what the service runs on is then
             # exactly what the database holds, and what a restart will read.
-            self._take_the_preferences(self.store.load_preferences())
+            self._take_the_preferences(await self.store.load_preferences())
         async with self._lock:
             master = self.master
             if master is not None:
@@ -341,7 +341,7 @@ class Dialling(PreferenceBook):
                 await self._dialled_on_its_own(device_id, channel)
                 return None
             self._channel = number
-            self._save_the_state()
+            await self._save_the_state()
             self._take_in_the_box_that_dialled(device_id)
             # Every completed number asks for a pass, whether or not it starts anything here. A
             # zone that is still empty is left alone on purpose one branch down, and _take_in also
@@ -427,7 +427,7 @@ class Dialling(PreferenceBook):
         if hold.key in ROTATION_OF:
             # A held thumb is the rotation (user, 2026-09-25): a hold cannot happen by brushing a
             # key, which is what took channels out by accident when a single tap did this.
-            self._thumbed(device_id, in_rotation=ROTATION_OF[hold.key])
+            await self._thumbed(device_id, in_rotation=ROTATION_OF[hold.key])
             return
         if hold.key not in STEP_OF:
             return
@@ -480,7 +480,7 @@ class Dialling(PreferenceBook):
         else:
             self._out_of_multiroom.add(device_id)
             self.log("zone", f"{said}: out of multiroom, on its own from here")
-        self._save_the_state()
+        self._queue_the_state()
         self._wanted.set()
 
     async def _stepped(self, device_id: str, steps: int, *, held: bool = False) -> None:

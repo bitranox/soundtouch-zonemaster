@@ -115,7 +115,7 @@ class PreferenceBook(ZoneReconcile):
         while True:
             await asyncio.sleep(self.options.switch_poll_s)
             try:
-                rows = self.store.load_preferences()
+                rows = await self.store.load_preferences()
             except StoreError as exc:
                 if not failing:
                     self.log(ERROR_KIND, f"{exc}; keeping the preferences already in use")
