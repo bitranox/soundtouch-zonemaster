@@ -69,7 +69,7 @@ from soundtouch_zonemaster.application.zone_service.service import ZoneService
 from soundtouch_zonemaster.composition import build_production, hold_the_zone, open_house_store
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.dialling import WINDOW_DEFAULT_S, WINDOW_FLOOR_S
-from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, KeyName, KeyState, SourceName
+from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, FrameKind, KeyName, KeyState, SourceName
 from soundtouch_zonemaster.domain.events import SpeakerEvent
 from soundtouch_zonemaster.domain.logfn import ERROR_KIND
 from soundtouch_zonemaster.domain.longpress import HOLD_THRESHOLD_DEFAULT_S
@@ -463,6 +463,12 @@ def _relaying(frames: _Frames) -> ZoneServicePorts:
         )
 
     return replace(production, watch_speaker=watch)
+
+
+def _read_to_the_end(service: ZoneService, frames: _Frames, device_id: str, kind: str) -> bool:
+    """Whether the reader has taken a frame of ``kind`` from ``device_id`` and done with it."""
+    put = any(event.device_id == device_id and event.kind == kind for event in frames.put)
+    return put and service.events.empty()
 
 
 def the_master(service: ZoneService) -> ZoneMaster:
@@ -5022,6 +5028,46 @@ async def test_an_answer_the_box_contradicted_on_the_way_is_dropped_and_leaves_i
 
         await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
         await eventually(lambda: HALLWAY_IP in _slaves(service), "the control: a real wake takes it in", timeout=5.0)
+
+
+async def test_a_frame_that_names_no_source_leaves_an_answer_on_the_way_standing(world: World, tmp_path: Path) -> None:
+    """A touch says nothing about what a box plays, so the answer read after it is still news.
+
+    Only a frame in which the box NAMES its source is newer than an answer to "what are you
+    playing". A ``userActivityUpdate`` is a person touching the box and carries no source at all,
+    and if it counted, a box somebody walked past while its answer was on the wire would be left
+    unplaced - read as awake - and its next wake would not be taken as one.
+
+    The hallway is listed mid-run and asleep; its answer is held back after the headers, it sends
+    a touch, and the answer is released only once the reader has read that touch to the end. The
+    answer must be TAKEN, and the liveness pair shows the placing mattered: the box's first wake
+    afterwards takes it in.
+    """
+    entries = _listed_mid_run(world, HALLWAY_ID)
+    released = asyncio.Event()
+    world.hallway.held["/now_playing"] = released
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    frames = _Frames()
+
+    async with _running(options, logs, ports=_relaying(frames)) as service:
+        try:
+            await eventually(lambda: _said(logs, f"({STUDIO_ID}) at {STUDIO_IP}"), "the start read the registry")
+            world.registry.body = json.dumps(entries)
+            await eventually(lambda: "/now_playing" in world.hallway.paths(), "the hallway was asked what it plays")
+            await world.hallway.notify(user_activity_frame(device_id=HALLWAY_ID))
+            await eventually(
+                lambda: _read_to_the_end(service, frames, HALLWAY_ID, FrameKind.USER_ACTIVITY_UPDATE),
+                "the reader read the touch before the answer arrived",
+            )
+        finally:
+            released.set()
+        await eventually(lambda: _answered(logs, "Bose Hallway", SourceName.STANDBY), "the held answer arrived")
+        assert _said(logs, f"probe: Bose Hallway: {SourceName.STANDBY}"), "the answer was taken, not dropped"
+        assert service.policy.is_asleep(HALLWAY_ID), "and it placed the box: asleep"
+
+        await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
+        await eventually(lambda: HALLWAY_IP in _slaves(service), "so its first wake takes it in", timeout=5.0)
 
 
 async def test_each_answer_is_taken_as_it_arrives_and_a_slow_box_holds_up_no_other(
