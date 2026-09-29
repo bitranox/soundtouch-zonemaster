@@ -9,9 +9,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy.exc import OperationalError
+from switch_race import InThread, a_person_writing, wait_until_a_writer_waits
 
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
+from soundtouch_zonemaster.adapters.files.house_switch import write_switch
 from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
 from soundtouch_zonemaster.application.options import LegacyFiles
@@ -451,3 +453,42 @@ def test_close_resets_the_store_even_when_the_underlying_close_raises(house_data
         store.close()
     finally:
         displaced.release()
+
+
+@pytest.mark.parametrize(
+    ("held", "person", "changed"),
+    [
+        ("on", "off", False),
+        ("never set", "off", False),
+        ("on", "on", True),
+    ],
+)
+def test_a_switch_a_person_sets_while_another_writer_waits_is_the_one_that_writer_compares_with(
+    house_database: str, held: str, person: str, *, changed: bool
+) -> None:
+    """``changed`` is what a deploy decides whether to turn the house back on by, so it must be true.
+
+    The person's ``switch`` write is held uncommitted, the store's write starts behind it, and the
+    person commits once the store waits. Under READ COMMITTED a writer that reads the switch before
+    it locks anything read the word from before the person, then wrote over theirs and said it had
+    turned the house off. The switch is locked first, so the read waits and sees the person's word.
+    A row nobody ever set is covered too: there is no row to lock then, which is why the lock is
+    the table's. The last arm is the control: a person's write that leaves the house on still lets
+    the store's off count as the change it is.
+    """
+    if not house_database.startswith("postgresql"):
+        pytest.skip("SQLite's writer takes BEGIN IMMEDIATE before it reads, so no other write can come between")
+    store = _store(house_database)
+    store.open(exclusive=False)
+    try:
+        if held == "on":
+            store.set_switch(on=True)
+        with a_person_writing(house_database) as their:
+            write_switch(their, on=person == "on")
+            writer = InThread(lambda: store.set_switch(on=False))
+            wait_until_a_writer_waits(house_database)
+            their.commit()
+            assert writer.result() is changed
+        assert store.is_on() is False
+    finally:
+        store.close()

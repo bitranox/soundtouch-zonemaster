@@ -23,7 +23,10 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from service_database import created_by_the_service
+from sqlalchemy import text
+from switch_race import InThread, a_person_writing, wait_until_a_writer_waits
 
+from soundtouch_zonemaster.adapters.files.house_switch import write_switch
 from soundtouch_zonemaster.composition import open_house_store
 from soundtouch_zonemaster.domain.state import ZoneState
 
@@ -33,6 +36,8 @@ from service_venv import main
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from sqlalchemy.engine import Connection
 
 
 def _quiet(_kind: str, _text: str) -> None:
@@ -391,6 +396,57 @@ def test_a_conditional_set_switch_writes_only_over_the_stamp_it_names(
     assert put_back["data"]["written"] is True, "the control: the stamp the row holds is written over"
     assert put_back["data"]["on"] is True
     assert _switch_row(database) == "on"
+
+
+_THE_OLD_SERVICE_S_SWITCH_OFF = (
+    "DELETE FROM switch",
+    "INSERT INTO switch (id, word, changed_at) VALUES (1, 'off', '2026-09-29T12:00:00+00:00')",
+)
+"""``switch off`` as the 0.5.2 service writes it: the row deleted, and a new one inserted."""
+
+
+def _a_person_switches_off(connection: Connection, *, how: str) -> None:
+    if how == "upsert":
+        write_switch(connection, on=False)
+        return
+    for statement in _THE_OLD_SERVICE_S_SWITCH_OFF:
+        connection.execute(text(statement))
+
+
+@pytest.mark.parametrize("how", ["upsert", "delete and insert"])
+def test_a_switch_off_a_person_commits_while_the_deploy_waits_to_write_is_no_change_of_the_deploy_s(
+    house_database: str, isolated_config_layers: Path, how: str
+) -> None:
+    """A deploy's switch-off must not claim a person's switch-off as its own.
+
+    ``changed`` is how the deploy knows the switch-off was its own, and only its own is turned back
+    on at the end. The person's write is held uncommitted, the helper's ``set-switch off`` starts
+    behind it, and the person commits once the helper waits. A helper that read the switch before
+    locking it read ON, wrote OFF over the person's row and answered ``changed``, and the deploy
+    then turned the house back on. The helper locks the switch itself before reading, whichever
+    release is installed: the person may be the new service (an upsert) or the 0.5.2 one, which
+    deletes the row and inserts another.
+    """
+    if not house_database.startswith("postgresql"):
+        pytest.skip("SQLite's writer takes BEGIN IMMEDIATE before it reads, so no other write can come between")
+    store = open_house_store(house_database, password=None, log=_quiet)
+    store.open(exclusive=True)
+    try:
+        store.set_switch(on=True)
+    finally:
+        store.close()
+    _host_layer(isolated_config_layers, f'[database]\nurl = "{house_database}"\n')
+
+    with a_person_writing(house_database) as their:
+        _a_person_switches_off(their, how=how)
+        deploy = InThread(lambda: service_venv.set_switch(default=Path("unused.sqlite"), on=False))
+        wait_until_a_writer_waits(house_database)
+        their.commit()
+        switched = deploy.result()
+
+    assert switched.changed is False, "the person turned the house off, not the deploy"
+    assert switched.on is False
+    assert switched.written is True
 
 
 def test_set_switch_refuses_a_database_that_is_not_there(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

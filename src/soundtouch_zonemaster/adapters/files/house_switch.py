@@ -11,6 +11,11 @@ delete-then-insert under READ COMMITTED lets two writers collide on PostgreSQL (
 the store WITHOUT the writer lock precisely so a person can turn the house off while the service
 runs, which means two ``switch`` invocations really can land at the same moment.
 
+**Every write locks the switch before it reads it** (:func:`hold_the_switch`). The answer a write
+gives, whether the house changed, is what a deploy decides by whether to turn the house back on
+later, and under READ COMMITTED a person's ``switch off`` committing between a writer's read and
+its write would make that answer a change the writer never made.
+
 **The old file is watched too, for one reason.** Anybody who has operated this house writes
 ``off`` into ``zone.switch``, and after the move nothing reads it any more, so the house keeps
 playing with no sign of why. The watch says so once each time that file appears, naming it and
@@ -37,9 +42,13 @@ if TYPE_CHECKING:
 
     from ...domain.logfn import LogFn
 
-__all__ = ["ON", "DbSwitch", "read_switch", "write_switch"]
+__all__ = ["ON", "DbSwitch", "hold_the_switch", "read_switch", "write_switch"]
 
 ON = "on"
+
+_LOCK_THE_SWITCH = "LOCK TABLE switch IN SHARE ROW EXCLUSIVE MODE"
+"""The lock a switch write takes on PostgreSQL. SHARE ROW EXCLUSIVE conflicts with itself and with
+every INSERT, UPDATE and DELETE, and with no plain SELECT, so the service's poll never waits on it."""
 
 
 def read_switch(connection: Connection) -> bool | None:
@@ -48,16 +57,36 @@ def read_switch(connection: Connection) -> bool | None:
     return None if word is None else str(word) != OFF
 
 
+def hold_the_switch(connection: Connection) -> None:
+    """Take the switch for the rest of the caller's transaction, before anything in it reads it.
+
+    On PostgreSQL this is a lock on the TABLE rather than ``SELECT ... FOR UPDATE`` on the row, for
+    two cases a row lock misses. A switch nobody ever set has no row to lock, so two first writes
+    would still both read "never set". And the 0.5.2 service's ``switch`` deletes the row and
+    inserts a new one; a ``FOR UPDATE`` that waited on the deleted row finds nothing once it may
+    go on, and reads the switch as never set. The table lock waits for every other writer's
+    transaction to end, and the read after it, a new statement under READ COMMITTED, sees what
+    that writer committed. On SQLite there is nothing to take: the write transaction began with
+    ``BEGIN IMMEDIATE``, which already holds the database's one write lock.
+
+    ``tools/service_venv.py`` takes the same lock itself, because it runs against whichever
+    release is installed, and 0.5.2 has no such function.
+    """
+    if connection.dialect.name == "postgresql":
+        connection.exec_driver_sql(_LOCK_THE_SWITCH)
+
+
 def write_switch(connection: Connection, *, on: bool) -> bool:
     """Set it, and say whether what the service READS changed. The caller holds the transaction.
 
     A switch never set already reads as on, so setting it on is no change even though a row
     appears: the answer is about the house, not about the table.
 
-    One statement, on both backends: two ``switch`` invocations landing at the same instant race
-    on the SELECT that decides ``changed``, never on the write itself, and each still leaves the
-    row holding exactly what it asked for.
+    One statement for the write, on both backends, after :func:`hold_the_switch`: two ``switch``
+    invocations landing at the same instant queue on the lock, so each reads what the other wrote
+    and each still leaves the row holding exactly what it asked for.
     """
+    hold_the_switch(connection)
     before = read_switch(connection)
     row = {"id": 1, "word": ON if on else OFF, "changed_at": datetime.now(UTC).isoformat()}
     replaced = {"word": row["word"], "changed_at": row["changed_at"]}

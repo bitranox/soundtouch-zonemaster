@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -27,6 +28,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from sqlalchemy import text
+from switch_race import a_person_writing, wait_until_a_writer_waits
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from deploy_service import HouseView, VenvHouse
@@ -305,3 +308,44 @@ def test_a_switch_off_over_one_already_off_says_it_changed_nothing_through_the_o
     assert switched.written is True
     assert switched.changed is False
     assert _switch_row(install.database) == "off"
+
+
+def test_a_switch_off_a_person_commits_while_the_deploy_waits_is_no_change_through_the_old_package(
+    old_package: Path, tmp_path: Path, house_database: str, isolated_config_layers: Path
+) -> None:
+    """The deploy's switch-off runs against the package being replaced, so that is where it must lock.
+
+    0.5.2's ``write_switch`` takes no lock and reads nothing the helper uses; the helper's own read
+    is what ``changed`` comes from. The person's ``switch off`` is written the way the 0.5.2 service
+    writes it, the row deleted and another inserted, and held uncommitted while the helper's
+    ``set-switch off`` starts behind it on a house the old package created. Once the helper waits
+    the person commits, and the helper must answer that its switch-off changed nothing.
+    """
+    if not house_database.startswith("postgresql"):
+        pytest.skip("SQLite's writer takes BEGIN IMMEDIATE before it reads, so no other write can come between")
+    made = _run(["-c", _MAKE_A_HOUSE, house_database, "on"], old_package=old_package, cwd=tmp_path)
+    assert made.returncode == 0, made.stderr
+    host = isolated_config_layers / "etc" / "soundtouch-zonemaster" / "hosts" / f"{socket.gethostname()}.toml"
+    host.parent.mkdir(parents=True)
+    host.write_text(f'[database]\nurl = "{house_database}"\n', encoding="utf-8")
+    argv = [sys.executable, str(HELPER), "--json-bare", "set-switch", "off", "--default", str(tmp_path / "unused")]
+
+    with a_person_writing(house_database) as their:
+        their.execute(text("DELETE FROM switch"))
+        their.execute(text("INSERT INTO switch (id, word, changed_at) VALUES (1, 'off', '2026-09-29T12:00:00+00:00')"))
+        helper = subprocess.Popen(  # noqa: S603 - argv list: this interpreter, and arguments built in this file
+            argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=tmp_path, env=_env(old_package)
+        )
+        try:
+            wait_until_a_writer_waits(house_database)
+            their.commit()
+            out, err = helper.communicate(timeout=30)
+        finally:
+            if helper.poll() is None:
+                helper.kill()
+                helper.communicate()
+
+    assert helper.returncode == 0, err
+    switched = json.loads(out)["data"]
+    assert switched["changed"] is False, "the person turned the house off, not the deploy"
+    assert switched["on"] is False

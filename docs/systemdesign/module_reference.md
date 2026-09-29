@@ -61,7 +61,7 @@ Complete (v0.2.0+, the template rebuild)
   - `house_schema.py`  -  The tables, as one SQLAlchemy `MetaData` the migrations are held to
   - `migrations/`  -  Alembic: `env.py` and `versions/` (written by hand; `tests/test_house_db.py` holds them to `house_schema.py`; `0002_house_preferences.py` moves the calibrated window and hold out of the `zone` row and into the `preference` table)
   - `house_state.py`  -  The state, as rows: one table per collection field of ZoneState, replaced whole on every write
-  - `house_switch.py`  -  The switch, as one row; off only when the row says so; DbSwitch is the service's watch
+  - `house_switch.py`  -  The switch, as one row; off only when the row says so; every write locks it before reading it (`hold_the_switch`); DbSwitch is the service's watch
   - `house_channels.py`  -  The channel list, as rows ordered by `position` (never `rowid`), checked by the same rules the channel file is
   - `house_preferences.py`  -  The preferences, as rows: one per preference somebody set, an UPSERT never a delete-then-insert
   - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
@@ -135,7 +135,7 @@ Complete (v0.2.0+, the template rebuild)
 ### Tools (shipped to the service's machine and run there, beside `_click.py`)
 - `tools/deploy_service.py`  -  One deploy: backup, switch off and wait (bounded) for the zone to empty, stop, install through `install_service.py`, the one-distribution venv check, start and watch the unit stay up, then put the switch back - only while the switch row still holds the deploy's own switch-off (`set-switch on --if-changed-at`), so a `switch off` somebody ran in between stands, and one run during the backup (which leaves the deploy's switch-off nothing to change) leaves nothing to put back; the envelope's `switch_restored`/`switch_note` say which. A failure before the stop puts the switch back the same way
 - `tools/install_service.py`  -  The venv, the wheel, and a new house database seeded with the switch OFF
-- `tools/service_venv.py`  -  Run by the service venv's python: `seed-switch`, `show`, `set-switch on|off [--if-changed-at STAMP]` (answers the row's `changed_at`; the conditional form is one UPDATE), `backup`, `distributions`. Runs against the package being REPLACED too (v0.5.2 on the house's machine), standing in for what that package lacks
+- `tools/service_venv.py`  -  Run by the service venv's python: `seed-switch`, `show`, `set-switch on|off [--if-changed-at STAMP]` (answers the row's `changed_at`; the conditional form is one UPDATE; on PostgreSQL the switch is locked before it is read, so `changed` is never a person's write taken for the deploy's), `backup`, `distributions`. Runs against the package being REPLACED too (v0.5.2 on the house's machine), standing in for what that package lacks
 
 ### Tests
 - `tests/test_boundary_golden.py`  -  The golden corpus: one test per replayed case over eight fixture files

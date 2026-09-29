@@ -30,7 +30,9 @@ The verbs:
     the row holds afterwards. With ``--if-changed-at`` it is set only while the row still holds
     exactly that stamp, in one statement, so the check and the write cannot be separated by
     another writer: that is how a deploy puts back the switch it turned off without overriding a
-    ``switch off`` somebody ran in the minutes between (``written`` says which happened).
+    ``switch off`` somebody ran in the minutes between (``written`` says which happened). Either
+    way the switch is locked before it is read, so ``changed`` never takes a person's ``switch
+    off`` committed a moment earlier for this write's own.
 ``backup --to DIR``
     A consistent copy through SQLite's backup API, which is safe while the service writes (a
     plain copy of a WAL database can miss what is still in the ``-wal`` file). A PostgreSQL
@@ -348,12 +350,36 @@ def write_switch_if_unchanged(connection: Connection, *, on: bool, changed_at: s
     return result.rowcount == 1
 
 
+_LOCK_THE_SWITCH = "LOCK TABLE switch IN SHARE ROW EXCLUSIVE MODE"
+"""The package's ``house_switch.hold_the_switch``, spelled out here because 0.5.2 has no such function."""
+
+
+def hold_the_switch(connection: Connection) -> None:
+    """Take the switch for the rest of the transaction before reading it; PostgreSQL only.
+
+    ``set-switch`` reads the switch, writes it and answers ``changed`` from the two, and a deploy
+    keeps its switch-off's stamp - the one it turns the house back on over - only when ``changed``
+    says the switch-off was its own. Under READ COMMITTED a person's ``switch off`` committing
+    between the read and the write made the deploy's write look like the change, and the deploy
+    then turned the house back on over the person's word. So the lock comes first and the read
+    waits for the person. It is taken HERE, not left to the package's ``write_switch``: this
+    runs against whichever release is installed, and in 0.5.2 that function neither locks nor
+    reads before it deletes the row. Why a table lock rather than ``FOR UPDATE`` is the package's
+    ``hold_the_switch`` docstring; on SQLite the ``BEGIN IMMEDIATE`` of every write already holds
+    the database's one write lock.
+    """
+    if connection.dialect.name == "postgresql":
+        connection.exec_driver_sql(_LOCK_THE_SWITCH)
+
+
 def set_switch(*, default: Path, on: bool, if_changed_at: str | None = None) -> SwitchReport:
     """Set it and read it back in one transaction, in a database that already holds a house schema.
 
     A database without one is refused rather than opened, because opening would create it: only
     the service and the installer do that. With ``if_changed_at`` it is set only while the row
     still holds that stamp (:func:`write_switch_if_unchanged`), and the report says whether it was.
+    The switch is locked before it is read (:func:`hold_the_switch`), so ``changed`` compares with
+    what the row held when this write took it, not with what it held a moment earlier.
     """
     setting, password, _configured = configured_database(default=default)
     if not house_schema_exists(setting, password):
@@ -363,6 +389,7 @@ def set_switch(*, default: Path, on: bool, if_changed_at: str | None = None) -> 
     house.open(exclusive=False, create=False)
     try:
         with house.writing() as connection:
+            hold_the_switch(connection)
             before = read_switch(connection)
             if if_changed_at is None:
                 written = True

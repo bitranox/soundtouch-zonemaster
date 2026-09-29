@@ -82,6 +82,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- On PostgreSQL a switch write (the `switch` verb, the service's own, and the deploy's
+  `set-switch`) locks the switch before it reads it, so a `switch off` a person commits between that
+  read and the write is no longer reported as the writer's change. A deploy's switch-off took such
+  a `switch off` for its own and turned the house back on at the end; through the 0.5.2 package
+  being replaced it failed on a duplicate key instead.
 - `prefs`, `prefs set` and `prefs unset` read a preference the environment gives as text the way
   the service run does. Under `lib_layered_config` 6.0.0 a value such as
   `SOUNDTOUCH_ZONEMASTER___DIALLING__WINDOW_S=0.80` (the variable `50-dialling.toml` names) arrives
