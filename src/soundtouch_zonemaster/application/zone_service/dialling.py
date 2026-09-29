@@ -340,14 +340,18 @@ class Dialling(PreferenceBook):
             if device_id in self._out_of_multiroom:
                 await self._dialled_on_its_own(device_id, channel)
                 return None
+            # Everything the check above decides is done before the first await: the reader does
+            # not take this lock, and a double thumbs down read while the save was on its way
+            # would otherwise take the box out between the check and the mark that takes it in.
             self._channel = number
-            await self._save_the_state()
+            saved = self._write_the_state()
             self._take_in_the_box_that_dialled(device_id)
             # Every completed number asks for a pass, whether or not it starts anything here. A
             # zone that is still empty is left alone on purpose one branch down, and _take_in also
             # declines to start a station while a number is open - so without this the box that
             # dialled would wait for some unrelated event to bring a pass around.
             self._wanted.set()
+            await saved
             master = self.master
             if master is None:
                 # Nobody is holding the house, so there is nothing to switch; the number is
