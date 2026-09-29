@@ -1077,8 +1077,9 @@ def wired_service(
         fetch_speakers=fetch_speakers,
         watch_speaker=watch_speaker,
         open_zone_master=open_zone_master,
-        # The real resolver: the corpus has no relative channel, so it answers every url as given
-        # and never asks a registry, which is what the recorded logs were made without.
+        # The real resolver: the corpus has no relative channel, so it answers every url as given.
+        # The start still reads the registry once in the background; that says only lines of the
+        # kind "source", and the comparisons below read the kinds the corpus recorded, one by one.
         open_locations=OrionBase,
         read_volume=read_volume,
         set_volume=set_volume,

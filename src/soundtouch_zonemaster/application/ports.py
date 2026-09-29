@@ -333,6 +333,15 @@ class LocationResolver(Protocol):
         """
         ...
 
+    def warm(self) -> None:
+        """Start reading the registry now, in the background, so the first document a speaker is shown can be absolute.
+
+        Called once when the service starts, long before the first station: a person switching a
+        box on is seconds or hours away, and the read takes milliseconds. Never waits; a read
+        already running, or a base already named, starts nothing more.
+        """
+        ...
+
     def forget(self, url: str) -> None:
         """A fetch of ``url`` failed before a byte came back, so the base it was completed against is suspect."""
         ...

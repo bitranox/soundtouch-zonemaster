@@ -253,8 +253,8 @@ class ServiceState:
 
         One for the whole run rather than one per master, because a box out of multiroom dials for
         itself while nobody holds the house, and its ``/select`` must name the same base the zone's
-        fetch does. Building it reads nothing: the registry is asked the first time a relative
-        location needs it."""
+        fetch does. Building it reads nothing: the start warms it (``ZoneService._start_up``), in
+        the background, so the run's first station can be shown to a speaker absolute."""
 
     def _no_speaker_known_yet(self) -> None:
         """The speaker book at its empty start: who the boxes are, and what has been asked of them.

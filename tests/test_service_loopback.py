@@ -53,7 +53,7 @@ from soundtouch_zonemaster.adapters.aftertouch.registry import DEVICES_PATH
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
-from soundtouch_zonemaster.adapters.soundtouch.orion import ORION_FALLBACK_PATH
+from soundtouch_zonemaster.adapters.soundtouch.orion import ORION_FALLBACK_PATH, OrionBase
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
 from soundtouch_zonemaster.adapters.soundtouch.speaker_http import SPEAKER_HTTP_TIMEOUT_S, http_get
@@ -2678,6 +2678,20 @@ ORION_RELATIVE = "/station?data=eyJuYW1lIjoiT3Jpb24ifQ%3D%3D"
 """A channel as AfterTouch writes a preset: the base is left to whoever plays it."""
 
 
+def _patient_locations(service_url: str, /, *, log: LogFn) -> OrionBase:
+    """The production resolver with a registry deadline no test waits out: a held read stays held."""
+    return OrionBase(service_url, log=log, timeout_s=60.0)
+
+
+def _registry_reads_running() -> bool:
+    """Whether a read of the bmx registry is still running anywhere on this loop."""
+    return any(
+        getattr(task.get_coro(), "__qualname__", "") == "OrionBase._base"
+        for task in asyncio.all_tasks()
+        if not task.done()
+    )
+
+
 def _orion_world(world: World, tmp_path: Path, *, relative: tuple[str, ...]) -> ServiceOptions:
     """Channels 1, 12 and 13, the ones named in ``relative`` written as a RELATIVE Orion location."""
     options = _options(world, tmp_path, seed=True, dial_window_s=0.5)
@@ -2712,17 +2726,22 @@ def _station_name(service: ZoneService) -> str | None:
     return master.station.name if master is not None and master.station is not None else None
 
 
-async def test_a_relative_channel_reaches_a_box_absolute_once_the_registry_has_named_its_base(
+async def test_a_relative_channel_reaches_every_box_absolute_from_the_run_s_first_station(
     world: World, tmp_path: Path
 ) -> None:
     """What a speaker is SENT is absolute only against a base the registry has already named.
 
-    The run's first station is built before anything has read the registry, so the item the zone
-    shows its slaves carries the location as stored - which a speaker completes through its own
-    registry - and building it starts the read that completes every later one, the same read the
-    zone's own fetch waits for. From then on each document a box is sent carries the absolute
-    location: the item of the next channel the zone plays, the ``/select`` that hands a released
-    box its channel, and the ``/select`` of a number dialled on a box out of multiroom.
+    The service reads the registry in the background as it starts, so by the time a box is
+    switched on the base is known, and the run's FIRST station already shows its slaves the
+    absolute location. Before that read existed, building that first item was what started it,
+    and every run began with its slaves shown the location as stored. The barrier is the read's
+    own log line, never a station: that is the precondition the rule states, and in the house a
+    person switches a box on seconds or hours after the start, not milliseconds.
+
+    From then on each document a box is sent carries the absolute location too: the item of the
+    next channel the zone plays, the ``/select`` that hands a released box its channel, and the
+    ``/select`` of a number dialled on a box out of multiroom. One registry read serves the whole
+    run, the zone's own fetch included.
     """
     station_base = world.station_url.removesuffix("/live")
     world.registry.bodies["/bmx/registry/v1/services"] = json.dumps(
@@ -2733,11 +2752,15 @@ async def test_a_relative_channel_reaches_a_box_absolute_once_the_registry_has_n
     logs: list[str] = []
 
     async with _running(options, logs) as service:
+        await eventually(
+            lambda: _said(logs, f"bmx registry names {RADIO} at {station_base}/orion"),
+            "the start read the bmx registry without a station asking for it",
+        )
         await _both_wake(world)
         await eventually(lambda: _station_name(service) == "C1", "the zone plays channel 1")
         # What a slave reads back from the master's own HTTP face: the item the zone is playing.
         first = await http_get(MASTER, "/now_playing")
-        assert f'location="{ORION_RELATIVE}"' in first, "built before any base was known: as stored"
+        assert f'location="{absolute}"' in first, "the run's first station is shown to its slaves absolute"
         await eventually(
             lambda: any(f"GET /orion{ORION_RELATIVE} " in fetch for fetch in world.fetches),
             "the zone fetched it at the base the registry names",
@@ -2788,7 +2811,7 @@ async def test_a_relative_channel_is_sent_as_stored_when_the_registry_cannot_say
         assert world.studio.played[-1] == ORION_RELATIVE, "sent as stored"
         await eventually(
             lambda: "/bmx/registry/v1/services" in world.registry.paths,
-            "and the document started a registry read, so the next one can be absolute",
+            "and the registry was asked, so a later document could be absolute had it answered",
         )
 
     selections = [body for box in (world.studio, world.hallway) for body in box.bodies_for("/select")]
@@ -2804,8 +2827,9 @@ async def test_a_number_dialled_while_an_earlier_one_waits_on_the_registry_is_th
     Channel starts run as concurrent tasks and ``play`` takes its generation on entry, so a start
     that waited for anything BEFORE ``play`` - the registry, for the item the zone shows its slaves -
     let a number dialled after it reach ``play`` first and then lose to it: the house played 12
-    while it recorded 13. The registry is held here from the moment 12 is dialled until 13 plays,
-    and released only then, which is exactly the order that inverted the two.
+    while it recorded 13. The registry is held here from the start - the start's own read of it is
+    what 12's fetch queues behind - until 13 plays, and released only then, which is exactly the
+    order that inverted the two.
     """
     station_base = world.station_url.removesuffix("/live")
     world.registry.bodies["/bmx/registry/v1/services"] = json.dumps(
@@ -2815,9 +2839,12 @@ async def test_a_number_dialled_while_an_earlier_one_waits_on_the_registry_is_th
     world.registry.held["/bmx/registry/v1/services"] = answer
     options = _orion_world(world, tmp_path, relative=("12",))
     logs: list[str] = []
+    # The read the start begins is the one 12's fetch queues behind, so it must outlast the whole
+    # test rather than give up after the shipped two seconds and let 12 through on the fallback.
+    ports = replace(build_production().zone_ports, open_locations=_patient_locations)
 
     try:
-        async with _running(options, logs) as service:
+        async with _running(options, logs, ports=ports) as service:
             await _both_wake(world)
             await eventually(lambda: _station_name(service) == "C1", "the zone plays channel 1")
 
@@ -2825,8 +2852,9 @@ async def test_a_number_dialled_while_an_earlier_one_waits_on_the_registry_is_th
             await _press_preset(world.studio, STUDIO_ID, 2)
             await eventually(lambda: _said(logs, "dialled 12: C12"), "12 was dialled")
             await eventually(
-                lambda: "/bmx/registry/v1/services" in world.registry.paths, "and 12 is waiting on the registry"
+                lambda: "/bmx/registry/v1/services" in world.registry.paths, "and the registry is being read"
             )
+            assert not _said(logs, "relative location ->"), "the control: 12's fetch is still waiting on it"
             await _press_preset(world.studio, STUDIO_ID, 1)
             await _press_preset(world.studio, STUDIO_ID, 3)
             await eventually(lambda: _station_name(service) == "C13", "the later number plays")
@@ -2843,6 +2871,33 @@ async def test_a_number_dialled_while_an_earlier_one_waits_on_the_registry_is_th
         answer.set()
 
     assert _state_of(options).channel == "13", "the number the house records is the one it plays"
+
+
+async def test_stopping_the_service_ends_a_registry_read_still_waiting_on_an_answer(
+    world: World, tmp_path: Path
+) -> None:
+    """A stop does not wait out the bmx registry, and leaves no read of it running behind it.
+
+    The start reads the registry in the background, and a registry that took the connection and
+    said nothing holds that read for as long as its deadline - which is stretched here past the
+    test, so what ends the read can only be the stop. A read left behind would go on holding a
+    connection to a neighbour after the service has gone.
+    """
+    answer = asyncio.Event()
+    world.registry.held["/bmx/registry/v1/services"] = answer
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    ports = replace(build_production().zone_ports, open_locations=_patient_locations)
+
+    try:
+        async with _running(options, logs, ports=ports):
+            await eventually(
+                lambda: "/bmx/registry/v1/services" in world.registry.paths, "the start is reading the registry"
+            )
+            assert _registry_reads_running(), "the control: the read is still waiting when the stop comes"
+        assert not _registry_reads_running(), "a registry read outlived the service"
+    finally:
+        answer.set()
 
 
 @pytest.mark.parametrize(

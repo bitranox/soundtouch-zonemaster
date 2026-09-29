@@ -512,6 +512,27 @@ async def test_any_number_of_speaker_documents_start_one_background_read() -> No
     assert server.asked.count(BMX_REGISTRY_PATH) == 1
 
 
+async def test_warming_reads_the_registry_so_the_first_speaker_document_is_already_absolute() -> None:
+    """What the service does as it starts: one read, not waited for, and no document needed to begin it.
+
+    The fetch that follows queues behind the warming read under the resolver's lock rather than
+    reading again, and warming a resolver whose base is known reads nothing more.
+    """
+    routes = {BMX_REGISTRY_PATH: _registry(LOCAL_INTERNET_RADIO="{base}/orion")}
+    async with _Server(routes, delays={BMX_REGISTRY_PATH: 0.2}) as server:
+        logs: list[str] = []
+        orion = _resolver(server.base, logs)
+        orion.warm()
+        await _until_the_registry_was_asked(server)
+        fetched = await orion.absolute(RELATIVE)
+        first = orion.for_a_speaker(RELATIVE)
+        orion.warm()
+        await asyncio.sleep(0.1)
+    assert first == fetched == f"{server.base}/orion{RELATIVE}", "the first document is absolute"
+    assert server.asked.count(BMX_REGISTRY_PATH) == 1, "one read: the warming one, shared by the fetch"
+    assert not any("as stored" in line for line in logs), logs
+
+
 async def test_an_absolute_location_is_handed_to_a_speaker_as_it_is_and_reads_nothing() -> None:
     async with _Server({}) as server:
         orion = _resolver(server.base, [])

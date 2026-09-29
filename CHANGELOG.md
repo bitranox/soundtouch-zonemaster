@@ -23,7 +23,9 @@ All notable changes to this project are documented here. The format follows
   registry has named its base; before that, and whenever the registry cannot say, it carries the
   location as stored, for the speaker to complete through its own registry, and never the
   fallback. Building it never waits for the registry: it starts a background read instead, so a
-  later one can be absolute. The prototype reads `[registry] url` too.
+  later one can be absolute. The service starts that read itself as it starts, without waiting
+  for it, so the first station a box is switched on to is normally absolute already. The
+  prototype reads `[registry] url` too.
   The absolute form (`http://.../orion/station?data=...`) and the legacy
   `/custom/v1/playback/...` form still work unchanged; every other bare path is still refused.
 

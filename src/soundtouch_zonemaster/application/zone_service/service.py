@@ -107,6 +107,11 @@ class ZoneService(KeyReading):
         # Before anything reads the registry: an unusable channel list must stop the service here,
         # not once a speaker wakes and there is nothing to play.
         self._channels = self.store.load_channels()
+        # In the background and not awaited: the first document a speaker is shown for a relative
+        # channel is absolute only once the bmx registry has named its base, and without this the
+        # first station of every run built that document before anything had asked. A registry
+        # that is slow or gone costs nothing here - the read is bounded, and the stand-down ends it.
+        self.locations.warm()
         await self._read_the_registry()
         # AFTER the registry, not before it: the saved state remembers a device id and a level, and
         # the address to send that level to is what the registry answers. Called any earlier it

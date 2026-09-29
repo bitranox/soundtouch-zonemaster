@@ -150,7 +150,8 @@ class OrionBase:
 
     A speaker document never waits for any of this (:meth:`for_a_speaker`): it takes the base if
     the registry has already named one, and otherwise starts the read in the background, through
-    the same lock, so the fetch and the document share it.
+    the same lock, so the fetch and the document share it. The service starts that read itself
+    when it starts (:meth:`warm`), so by the time a box is switched on the base is usually known.
     """
 
     service_url: str = DEFAULT_BASE_URL
@@ -198,6 +199,15 @@ class OrionBase:
         self._read_in_the_background()
         self.log("source", f"{location} goes to a speaker as stored: the bmx registry has named no base yet")
         return location
+
+    def warm(self) -> None:
+        """Read the registry in the background now, rather than when the first relative location needs it.
+
+        Otherwise the run's first station shows its slaves the location as stored, because
+        building that document is what would have started the read. The read is the one a
+        document starts, bounded by ``timeout_s`` like every other, and :meth:`close` ends it.
+        """
+        self._read_in_the_background()
 
     async def close(self) -> None:
         """End the background read, if one is still waiting on the registry.
