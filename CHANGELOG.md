@@ -29,7 +29,6 @@ All notable changes to this project are documented here. The format follows
   prototype reads `[registry] url` too.
   The absolute form (`http://.../orion/station?data=...`) and the legacy
   `/custom/v1/playback/...` form still work unchanged; every other bare path is still refused.
-
 - `tools/deploy_service.py`: one tested deploy, shipped to the service host and run there. It backs up
   the house database (the sqlite3 backup API, safe in WAL mode), switches the house off and waits,
   bounded, for the zone to empty, stops the unit, installs through `tools/install_service.py`, refuses a
@@ -69,7 +68,6 @@ All notable changes to this project are documented here. The format follows
   on one thread of its own, in the order it was asked for, and a stop closes the database only
   after every write asked for before it. A state save that fails where a key press is read is
   logged and the service goes on, rather than ending the run.
-
 - On PostgreSQL a schema migration is no longer cut off by the store's 5 s statement timeout; the
   timeout is lifted for the migration's own transaction only.
 
@@ -122,7 +120,9 @@ All notable changes to this project are documented here. The format follows
   only if the database answers again before the process exits; otherwise it is lost with the
   process, and the close's error line says how many writes that is. A failed state save is also
   logged once rather than twice.
-
+- A fade whose final save the house database refuses is now said once in the house log. The fade
+  runs on a task nobody awaits, so the failure used to surface only as asyncio's own "Task
+  exception was never retrieved", outside the house log, whenever the task was collected.
 - A house database that fails to open or migrate is refused with its own error again; a lock release
   that failed while closing it could replace that error with an unrelated one.
 
