@@ -1813,6 +1813,54 @@ async def test_a_box_that_appears_later_can_still_seed_the_list(world: World, tm
         await eventually(lambda: _channels_of(options).numbers_in_order() == ("1",), "and seeded once it woke")
 
 
+@pytest.mark.parametrize("listed_mid_run", [pytest.param(False, id="at-start"), pytest.param(True, id="mid-run")])
+async def test_the_list_is_seeded_from_the_box_listed_first_not_the_one_that_answered_first(
+    world: World, tmp_path: Path, listed_mid_run: bool
+) -> None:
+    """Two boxes already on, asked together: the one the registry lists first seeds, whoever replies first.
+
+    Neither was switched on in front of the service, so which of them was on "first" is not
+    something either answer can say; the registry's order decides, as it did before each answer
+    was taken as it arrived. Here the first-listed box answers LAST, so a list that follows the
+    replies would come from the other box - the "which radio replied fastest" the seeding's own
+    docstring names as the defect.
+
+    At start nothing seeds before every answer is in anyway, so that arm pins the ORDER the
+    answers are written down in. Mid-run - a first registry read that failed, say - each answer
+    asks for a pass the moment it lands, so that arm pins that no pass seeds while a box asked in
+    the same round has still to answer.
+    """
+    entries = _listed_mid_run(world, STUDIO_ID, HALLWAY_ID) if listed_mid_run else None
+    world.studio.now_playing = now_playing_document(device_id=STUDIO_ID, source=RADIO)
+    world.hallway.now_playing = now_playing_document(device_id=HALLWAY_ID, source=RADIO)
+    world.studio.presets = {
+        1: _preset(f"{world.station_url}?c=1", "Superfly"),
+        3: _preset(f"{world.station_url}?c=3", "Technikum"),
+    }
+    world.hallway.presets = {2: _preset(f"{world.station_url}?c=2", "The other box")}
+    released = asyncio.Event()
+    world.studio.held["/now_playing"] = released
+    options = _options(world, tmp_path, seed=True)
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        try:
+            if entries is not None:
+                await eventually(lambda: DEVICES_PATH in world.registry.paths, "the start read the registry")
+                world.registry.body = json.dumps(entries)
+            await eventually(lambda: "/now_playing" in world.studio.paths(), "the studio was asked what it plays")
+            await eventually(lambda: _said(logs, f"probe: Bose Hallway: {RADIO}"), "the hallway answered first")
+            registry_lines = [line for line in logs if line.startswith("registry: Bose ")]
+            assert registry_lines[0].startswith("registry: Bose Studio"), f"the control: listed first {registry_lines}"
+            # A seeding that was going to run on the hallway's answer runs within a loop turn or
+            # two on loopback; this is margin over it.
+            await asyncio.sleep(0.5)
+            assert _channels_of(options).channels == (), "seeded while the first-listed box had still to answer"
+        finally:
+            released.set()
+        await eventually(lambda: _channels_of(options).numbers_in_order() == ("1", "3"), "the studio seeded it")
+
+
 async def test_a_box_is_asked_for_its_presets_only_once(world: World, tmp_path: Path) -> None:
     """A box that answered with nothing must not be asked again on every frame it sends."""
     world.studio.presets = {}

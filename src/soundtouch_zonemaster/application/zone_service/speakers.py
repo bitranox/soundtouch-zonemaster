@@ -21,10 +21,33 @@ from ..errors import RegistryError
 from .channels import ChannelBook
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from ...domain.events import SpeakerEvent
     from ...domain.speakers import Speaker
 
 __all__ = ["SpeakerBook"]
+
+
+class _AskedTogether:
+    """The boxes one round of "what are you playing" asked, in the order the registry listed them.
+
+    Their answers land in whatever order the boxes reply, and each is taken the moment it lands.
+    Which of them was switched on first is something no answer can say, so among themselves they
+    stand in the registry's order in ``_switched_on`` - which box seeds the channel list must not
+    come down to which radio replied fastest.
+    """
+
+    def __init__(self, device_ids: Iterable[str]) -> None:
+        self._order = tuple(device_ids)
+        self._taken: set[str] = set()
+
+    def taken(self, device_id: str) -> frozenset[str]:
+        """Note one box's answer as taken, and name those it goes ahead of: listed after it, taken before it."""
+        later = self._order[self._order.index(device_id) + 1 :]
+        ahead_of = frozenset(other for other in later if other in self._taken)
+        self._taken.add(device_id)
+        return ahead_of
 
 
 class SpeakerBook(ChannelBook):
@@ -165,14 +188,23 @@ class SpeakerBook(ChannelBook):
         about it, and taken in only on its SECOND wake.
 
         All at once, and each answer is taken the moment it arrives: a box slow to answer - up to
-        the HTTP timeout - must not hold back what another box has already said.
+        the HTTP timeout - must not hold back what another box has already said. While the round
+        is out the channel list is not seeded (``ChannelBook._seed_the_channels``): the answers
+        still to come may belong ahead of the ones already in.
         """
-        # In the order the registry listed them, which is the order the start has always asked in.
+        # In the order the registry listed them. The questions all go out at once, so this is not
+        # the order they are asked in; it is the order their answers take among themselves in
+        # ``_switched_on``, whichever of them replies first.
         asked = [speaker for device_id, speaker in self._speakers.items() if device_id in self._not_asked_yet]
         self._not_asked_yet.clear()
-        await asyncio.gather(*(self._ask_what_it_is_playing(speaker) for speaker in asked))
+        together = _AskedTogether(speaker.device_id for speaker in asked)
+        self._rounds_out += 1
+        try:
+            await asyncio.gather(*(self._ask_what_it_is_playing(speaker, together) for speaker in asked))
+        finally:
+            self._rounds_out -= 1
 
-    async def _ask_what_it_is_playing(self, speaker: Speaker) -> None:
+    async def _ask_what_it_is_playing(self, speaker: Speaker, together: _AskedTogether) -> None:
         """Ask one box, and take its answer unless the box has said something newer itself since.
 
         An answer is what the box said when the question ARRIVED, and it can be seconds old by the
@@ -198,7 +230,7 @@ class SpeakerBook(ChannelBook):
             )
             return
         self.log("probe", f"{speaker.name}: {event.source}")
-        self._noted_switched_on(event)
+        self._noted_switched_on(event, ahead_of=together.taken(speaker.device_id))
         self.policy.observe(event)
         # A pass now rather than once every box asked with it has answered: an answer can put a
         # box in the zone (it plays the house's stream), and the pass is what acts on that.

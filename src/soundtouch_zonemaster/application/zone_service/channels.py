@@ -19,6 +19,8 @@ from .constants import PRESET_KEYS
 from .state import ServiceState
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+
     from ...domain.channellist import Channel
     from ...domain.events import SpeakerEvent
     from ...domain.speakers import Speaker
@@ -72,8 +74,14 @@ class ChannelBook(ServiceState):
         answered LAST wrote its own list over the other's, in memory and on disk, with no log line
         anywhere saying two had been asked. It also decided the list by which radio replied fastest
         rather than by which box was switched on first, which is the rule this function states.
+
+        Not while a round of "what are you playing" is out, for the same reason. Each answer asks
+        for a pass the moment it lands, and the boxes asked together stand in the registry's order
+        among themselves, so a pass seeding on the first answer in would choose the box that
+        replied fastest over one listed before it that had still to reply. The round asks for a
+        pass when it is over, and that one seeds.
         """
-        if self._channels.channels:
+        if self._channels.channels or self._rounds_out:
             return
         async with self._seeding:
             # Re-read INSIDE the lock: the caller that held it may have just filled the list, and
@@ -110,18 +118,28 @@ class ChannelBook(ServiceState):
                 return speaker
         return None
 
-    def _noted_switched_on(self, event: SpeakerEvent) -> None:
+    def _noted_switched_on(self, event: SpeakerEvent, *, ahead_of: Collection[str] = ()) -> None:
         """Remember, in order, which boxes have been seen out of standby.
 
-        Fed from BOTH ways the service learns a source: the frames a box sends, and the one probe
-        at start that asks every box what it is playing. A box that was already on when the
-        service started is switched on as far as the house is concerned, and it is the one a
-        person is standing at.
+        Fed from BOTH ways the service learns a source: the frames a box sends, and the question
+        every box is asked what it is playing when the registry first lists it. A box that was
+        already on when the service started is switched on as far as the house is concerned, and
+        it is the one a person is standing at.
+
+        A frame goes to the end, in the order the reader took it. An answer goes ahead of
+        ``ahead_of`` - the boxes asked in the same round, listed after it, whose answers were taken
+        first - because nothing in two answers says which box was switched on first, and the
+        registry's order is the one that does not depend on how fast a radio replies.
         """
         if event.source is None or event.source == SourceName.STANDBY or not event.device_id:
             return
-        if event.device_id not in self._switched_on:
-            self._switched_on.append(event.device_id)
+        if event.device_id in self._switched_on:
+            return
+        for index, device_id in enumerate(self._switched_on):
+            if device_id in ahead_of:
+                self._switched_on.insert(index, event.device_id)
+                return
+        self._switched_on.append(event.device_id)
 
     async def _presets_of(self, speaker: Speaker) -> dict[int, PresetStation | None]:
         """The six preset keys of one box, with ``None`` where a key is not set.

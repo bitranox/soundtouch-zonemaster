@@ -212,7 +212,9 @@ class ServiceState:
 
         The first of them seeds the channel list when there is none (user, 2026-09-07). The house
         should not have to carry the name of a box in a unit file, and the box somebody switches on
-        is the box they are standing at.
+        is the box they are standing at. Boxes placed by one round of answers to "what are you
+        playing" stand among themselves in the registry's order, not in the order they replied
+        (``ChannelBook._noted_switched_on``).
         """
         self._asked_for_presets: set[str] = set()
         """Boxes already asked for their presets, so none is asked twice.
@@ -269,6 +271,11 @@ class ServiceState:
         never asked reads its first frame after a wake as "playing its own radio" rather than as the
         wake it is. At start that is every box; after it, a box added to the device list mid-run,
         or a console a preference has just allowed and the registry read then lets in."""
+        self._rounds_out = 0
+        """How many rounds of "what are you playing" are waiting for answers; the list is not seeded meanwhile.
+
+        A count rather than a flag, although the start and then the registry poll ask one round at
+        a time: nothing about the seeding rule depends on that, so nothing here should either."""
         self._source_frames: dict[str, int] = {}
         """How many frames of its own each box has named its source in, counted by the reader.
 
