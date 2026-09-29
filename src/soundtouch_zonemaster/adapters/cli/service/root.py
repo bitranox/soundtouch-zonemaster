@@ -218,13 +218,16 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
         report_failure(exc, command=service_command, mode=shared.mode)
         ctx.exit(ExitCode.REFUSED)
     except StoreError as exc:
-        # The database, or an old file it was to import, cannot be used. That is a refused start
-        # naming the file, and an answer rather than a crash: a stack under it would bury the one
-        # line a person has to act on. This branch wraps the WHOLE run, not only its start, on the
-        # invariant that nothing past open() and import_legacy() (both inside run_service, before
-        # a port is bound or a speaker touched) can raise a StoreError - if the service ever grows
-        # a path that reopens or reuses the store later in its life, a StoreError from THAT would
-        # be reported here as a refused start too, which it would not be.
+        # The database, or an old file it was to import, cannot be used, and the message names it:
+        # an answer rather than a crash, because a stack under it would bury the one line a person
+        # has to act on. This branch wraps the WHOLE run, not only its start. Most StoreErrors come
+        # from open() and import_legacy(), before a port is bound or a speaker touched, and are a
+        # refused start. Not all: a save the service awaits later in its life - a pass writing down
+        # who the zone belongs to, a join writing a level down before it mutes - raises the same
+        # error out of the run once the database stops taking writes. That one arrives here only
+        # after the service's finally has dissolved the zone and closed the store, and is reported
+        # the same way, as ERROR with the database's message: a run that could not go on, which is
+        # true of it, though it is not a refused start.
         report_failure(exc, command=service_command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
     except Exception as exc:  # noqa: BLE001 - CLI edge
