@@ -825,9 +825,11 @@ _APP_LAYER = ("etc", "xdg", "soundtouch-zonemaster")
 def test_config_deploy_sets_each_layer_s_modes_itself_whatever_the_umask(
     monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path
 ) -> None:
-    """lib_layered_config 6.0.0 sets the modes rather than leaving them to the umask: the user
-    layer 700/600, because a user file may hold the database password, and the app and host
-    layers 755/644. A umask of zero is the control that the modes are set, not inherited."""
+    """The deploy sets the modes rather than leaving them to the umask: the user layer 700/600,
+    because a user file may hold the database password, and the app and host layers 755/644.
+    lib_layered_config 5.7.0 already set exactly these, and 6.0.0 still does; what 6.0.0 added is
+    that a layer may configure them (the next test). A umask of zero is the control that the modes
+    are set, not inherited."""
     previous = os.umask(0)
     try:
         for target in ("user", "app"):

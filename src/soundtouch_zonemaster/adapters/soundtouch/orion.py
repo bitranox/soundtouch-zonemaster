@@ -11,13 +11,16 @@ The stored channel keeps the location it was given. What a SPEAKER is sent is th
 only when the registry has already NAMED its base: that url is exactly what the speaker would
 compute from its own registry. Otherwise a speaker is sent the location as stored, for it to
 complete through its own registry - in the moments before the first read answers, and for as long
-as the registry cannot be read, which is asked again every minute (``REGISTRY_RETRY_S``). That
-speakers resolve a STORED relative preset is proven; that one resolves a relative location handed
-to it in a ``/select`` is NOT yet measured on a real box, which is one more reason the service
-reads the registry as it starts. What a speaker is sent is never the fallback: the fallback is a
-guess built from ``[registry] url``, whose shipped value is the loopback, so a box handed it would
-ask itself for the station - and a box keeps what it stores. One :class:`OrionBase` per service
-answers both the fetch and every speaker document, so the two can never name different bases.
+as the registry cannot be read. Nothing asks it again on a timer: a registry that could not be read
+is left alone for a minute (``REGISTRY_RETRY_S``), and the first speaker document or station fetch
+after that asks again, as does the first one after a failed fetch drops a named base
+(:meth:`OrionBase.forget`). That speakers resolve a STORED relative preset is proven; that one
+resolves a relative location handed to it in a ``/select`` is NOT yet measured on a real box,
+which is one more reason the service reads the registry as it starts. What a speaker is sent is
+never the fallback: the fallback is a guess built from ``[registry] url``, whose shipped value is
+the loopback, so a box handed it would ask itself for the station - and a box keeps what it
+stores. One :class:`OrionBase` per service answers both the fetch and every speaker document, so
+the two can never name different bases.
 """
 
 from __future__ import annotations
@@ -74,8 +77,9 @@ REGISTRY_RETRY_S = 60.0
 """How long a registry that could not be read is left alone before it is asked again.
 
 A stalled registry costs :data:`REGISTRY_TIMEOUT_S` once, rather than on every station start and
-every reconnect of a dropped stream; the fallback answers in the meantime, and a minute later the
-registry gets its next chance, so a neighbour that recovered is found again.
+every reconnect of a dropped stream; the fallback answers in the meantime. It is not a timer: the
+registry gets its next chance at the first speaker document or station fetch once this has passed,
+so a neighbour that recovered is found again by whatever next needs a base.
 """
 
 REGISTRY_MAX_BYTES = 64 * 1024

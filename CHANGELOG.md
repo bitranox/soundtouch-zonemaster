@@ -15,14 +15,15 @@ All notable changes to this project are documented here. The format follows
   cannot be read within 2 s, answers an error or a redirect, sends more than 64 KiB, names a
   base with a query or fragment in it, or sits at an address no request can be sent to (a
   mistyped `[registry] url`), falls back to
-  `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion`, says so in the log, and is asked
-  again a minute later rather than on every station start. A station fetch that fails against the
-  base the registry named makes the next one read the registry again, so an Orion adapter that
+  `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion`, says so in the log, and is left
+  alone for a minute rather than asked on every station start; the first station start or speaker
+  document after that minute asks it again (there is no timer). A station fetch that fails against
+  the base the registry named makes the next one read the registry again, so an Orion adapter that
   moved is found. The channel list keeps the location exactly as given. What a speaker is sent - a
   `/select`, or the item the zone shows its slaves - carries the absolute location only once the
-  registry has named its base; before that, and for as long as the registry cannot be read (it is
-  asked again every minute), it carries the location as stored, for the speaker to complete
-  through its own registry, and never the fallback. Speakers are proven to resolve a stored
+  registry has named its base; before that, and for as long as the registry cannot be read, it
+  carries the location as stored, for the speaker to complete through its own registry, and never
+  the fallback. Speakers are proven to resolve a stored
   relative preset; a `/select` carrying a relative location has not been measured on a real
   speaker yet. Building what a speaker is sent never waits for the registry: it starts a
   background read instead, so a later document can be absolute. The service starts that read

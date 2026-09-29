@@ -207,7 +207,8 @@ the `LOCAL_INTERNET_RADIO` base URL in the service's BMX registry
 (`<[registry] url>/bmx/registry/v1/services`), which is how a speaker completes it, and the
 master reads the same registry once per run to do the same; if the registry cannot be read
 within 2 s it uses `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion`, logs that, and
-asks the registry again a minute later. The channel keeps the location as written. What a
+leaves the registry alone for a minute: the first station start or speaker document after that
+asks it again (there is no timer). The channel keeps the location as written. What a
 speaker is sent, in a `/select` or in the item the zone shows its slaves, is the absolute
 location only once the registry has named its base - what the speaker would compute from its
 own registry - and otherwise the location as written, for the speaker to complete through its own

@@ -94,7 +94,9 @@ five seconds), so a close gives up only on a call that has already outlived ever
 sets itself. The house's unit gives a stop sixty seconds before it kills, and this close is the
 last thing the stop waits for. Ahead of it, on an MPD channel, the stand-down first asks MPD where
 it had got to: a status, and for a directory channel the queue after it, each bounded by
-``MPD_TIMEOUT_S`` (five seconds), so up to ten seconds from a daemon that has stopped answering.
+``MPD_TIMEOUT_S`` (five seconds). A daemon that has stopped answering costs one of those, because a
+status that times out ends the reading; the full ten needs a status that answers just inside its
+bound and then a queue answer that stalls.
 Then come at most three seconds for the save (``STAND_DOWN_SAVE_S``) and the dissolve, which waits
 up to eight seconds (the speaker HTTP timeout) for each box it cannot reach, one box after another.
 At worst that is 5 + 5 + 3 + 8 per unreachable box + 10: four make 55 s, inside the sixty; five
