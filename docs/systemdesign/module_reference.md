@@ -12,29 +12,32 @@ Complete (v0.2.0+, the template rebuild)
 - `src/soundtouch_zonemaster/domain/enums.py`  -  Every fixed wire value the master sends or matches, as a StrEnum
 - `src/soundtouch_zonemaster/domain/events.py`  -  One record for both ways a speaker speaks: a frame, or a key it forwarded
 - `src/soundtouch_zonemaster/domain/speakers.py`  -  Speaker, ProtectedSpeaker, first_protected (the never_touch check)
-- `src/soundtouch_zonemaster/domain/station.py`  -  The station request read from a ContentItem
+- `src/soundtouch_zonemaster/domain/station.py`  -  A station to play, and the one way to read one out of a ContentItem (and what a relative Orion location is)
 - `src/soundtouch_zonemaster/domain/logfn.py`  -  The LogFn protocol the narration adapter implements
-- `src/soundtouch_zonemaster/domain/xmlfmt.py`  -  Escaping for the served XML by POSITION, and the one way to read a value back
+- `src/soundtouch_zonemaster/domain/xmlfmt.py`  -  Escaping for the served XML by POSITION (writing only; reading is `adapters/soundtouch/xmlread.py`)
 - `src/soundtouch_zonemaster/domain/zonexml.py`  -  Every XML document a speaker sees, built in one place
 - `src/soundtouch_zonemaster/domain/frames.py`  -  MP3/ADTS frame starts in the ring, numbered (FrameIndex)
 - `src/soundtouch_zonemaster/domain/timeline.py`  -  Where the zone is in a stream: a straight line in frames from t0
 - `src/soundtouch_zonemaster/domain/presses.py`  -  Which selections a person made, and which are our own station change echoed
 - `src/soundtouch_zonemaster/domain/longpress.py`  -  How long each key was held: a thumb held is the rotation, tapped twice is multiroom
+- `src/soundtouch_zonemaster/domain/housevolume.py`  -  A thumb tapped once then volume: which report steps the house, and what a box is owed
 - `src/soundtouch_zonemaster/domain/membership.py`  -  Who belongs in the zone, decided from what the speakers said
 - `src/soundtouch_zonemaster/domain/channellist.py`  -  The house's channels: the dialable numbers, the ladder, the list rule
 - `src/soundtouch_zonemaster/domain/dialling.py`  -  One digit buffer per speaker, and the one wait time above all of them
 - `src/soundtouch_zonemaster/domain/calibration.py`  -  The gesture that starts a calibration, and the window it measures
 - `src/soundtouch_zonemaster/domain/state.py`  -  ZoneState: the house's state, what survives a restart
 - `src/soundtouch_zonemaster/domain/switch.py`  -  The switch rule: off only when the switch row says so
+- `src/soundtouch_zonemaster/domain/mpd.py`  -  MpdStatus: what MPD said about itself, in words both sides of the port may name
+- `src/soundtouch_zonemaster/domain/playorder.py`  -  The order a directory channel plays in, and where a held next/previous lands
 - `src/soundtouch_zonemaster/domain/preferences.py`  -  The five house preferences a person may change while the service runs: one rule for the value and the stored row alike
 - `src/soundtouch_zonemaster/domain/database_url.py`  -  Whether a database setting carries a password, and how to show one without it
 - `src/soundtouch_zonemaster/domain/secret.py`  -  Secret: a password the records carry, shown as `***` everywhere and read only through `reveal()`
 
 ### Application Layer
-- `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse
-- `src/soundtouch_zonemaster/application/errors.py`  -  PortsBusyError, RegistryError
-- `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy; every default lives on a field
-- `src/soundtouch_zonemaster/application/ports.py`  -  Protocols for adapter functions plus HouseStore (the state, the channel list, the switch and the house preferences in one database - a SQLite file, or PostgreSQL) and OpenHouseStore (its opener), bundled as ZoneServicePorts, PrototypePorts and ServiceCommands
+- `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse (checks and folds to upper case), tcp_port_or_refuse, preference_or_refuse
+- `src/soundtouch_zonemaster/application/errors.py`  -  PortsBusyError, RegistryError, MpdError (MpdRefusalError, NotInMpdError), StoreError (StoreBusyError, StoreMissingError)
+- `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy, LegacyFiles; every default lives on a field, and both records hold a device id in upper case however they were built
+- `src/soundtouch_zonemaster/application/ports.py`  -  The Protocols the service and the prototype reach the world through: HouseStore (the state, the channel list, the switch and the house preferences in one database - a SQLite file, or PostgreSQL) and OpenHouseStore (its opener); ServiceStore, the same store as the SERVICE calls it (every call awaited, writes queued in call order when called) and StoreOffTheLoop, which turns one into the other; LocationResolver and OpenLocationResolver (the relative Orion location, completed for the master's fetch and for a speaker apart); the speaker, MPD and master ports. Bundled as ZoneServicePorts (whose `off_the_loop` and `open_locations` fields carry the two newer openers), PrototypePorts and ServiceCommands
 - `src/soundtouch_zonemaster/application/prototype.py`  -  The prototype's run: options in, the run loop it drives
 - `src/soundtouch_zonemaster/application/zone_service/`  -  The service loop as a chain of nine classes, one file each:
   - `constants.py`  -  The constants more than one class in the chain reads
@@ -63,20 +66,25 @@ Complete (v0.2.0+, the template rebuild)
   - `house_preferences.py`  -  The preferences, as rows: one per preference somebody set, an UPSERT never a delete-then-insert
   - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
   - `house_store.py`  -  SqlHouseStore: the state, the channel list, the switch and the house preferences, in one database
+  - `store_worker.py`  -  StoreWorker, the ServiceStore the service calls: the house store off the event loop on one daemon thread of its own, every call run in the order asked; writes queued when called and kept when their awaiter is cancelled; a close that waits at most `STOP_BOUND_S` (10 s) and says what it left behind
+- `src/soundtouch_zonemaster/adapters/http_client.py`  -  Every httpx client, built with no timeout of its own: each call's deadline is asyncio's, because an anyio deadline can swallow a stop
 - `src/soundtouch_zonemaster/adapters/aftertouch/registry.py`  -  Who the speakers are, read from AfterTouch's own device list
+- `src/soundtouch_zonemaster/adapters/mpd/client.py`  -  MPD's line protocol on 6600: connect, quote, command, refusal (the control side only)
 - `src/soundtouch_zonemaster/adapters/soundtouch/`  -  The zone protocol as a master speaks it:
   - `zone_master.py`  -  ZoneMaster: the zone itself - lifecycle, station, slaves, transport book
   - `placement.py`  -  Where each slave sits: its PLAY time, first byte, the four books
   - `connections.py`  -  The transport and data connections a slave opens, their frame loops
   - `http_api.py`  -  The speaker HTTP API served on 8090; the /slaveMsg face a test drives
   - `source.py`  -  Station URL resolution, the fetch loop, the bounded ring buffer
-  - `orion.py`  -  Completes a relative Orion location (`/station?data=...`) from the service's BMX registry, one resolver per service run, read in the background as the service starts and shared by the master's fetch (which waits for the registry) and every document a speaker is sent (absolute only against a base the registry already named, never waiting)
+  - `orion.py`  -  OrionBase, the LocationResolver: completes a relative Orion location (`/station?data=...`) from the service's BMX registry, one resolver per service run, read in the background as the service starts and shared by the master's fetch (which waits for the registry, else takes the fallback path) and every document a speaker is sent (absolute only against a base the registry already named, never waiting, never the fallback; before that the relative form goes out, which speakers are proven to resolve in a STORED preset and not yet measured in a `/select`)
   - `observer.py`  -  One WebSocket per speaker: what a box says while NOT in the zone
   - `clock.py`  -  The UDP 40005 sync server (BOSE901); one record per client, evicted on silence
   - `ipc.py`  -  The length-prefixed IPC envelope both TCP channels speak (MAX_FRAME_BYTES)
   - `reports.py`  -  The trackData a slave sends with every state report
   - `speaker_http.py`  -  The httpx verbs one speaker answers (GET/POST on its own 8090)
   - `wire.py`  -  The one place application's names meet the wire's values (encryption_type)
+  - `xmlread.py`  -  The ONE way a speaker document is parsed: at most 64 KiB, no DOCTYPE, depth 32, `None` for anything else
+  - `xmlmodels.py`  -  The documents it reads, as pydantic-xml models (ContentItem, keyData, ...)
   - `pb/`  -  protoc output for the schemas it speaks (never hand-edit; regenerate from `research/proto`)
 - `src/soundtouch_zonemaster/adapters/config/`  -  The six-layer configuration:
   - `loader.py`  -  defaults -> app -> host -> user -> dotenv -> env, command line above all
@@ -86,7 +94,7 @@ Complete (v0.2.0+, the template rebuild)
   - `deploy.py`  -  config-deploy: the files this machine needs, written where the layers read them
   - `errors.py`  -  ConfigInputError: everything the adapter raises, one type
   - `defaultconfig.toml`  -  The header that explains the layers; carries no settings itself
-  - `defaultconfig.d/10..80.toml`  -  One file per scope, where the settings live
+  - `defaultconfig.d/10..90.toml`  -  One file per scope, where the settings live
 - `src/soundtouch_zonemaster/adapters/logging/narration.py`  -  LogRouting and log: the log callable every part is handed
 - `src/soundtouch_zonemaster/adapters/cli/`  -  The boundary both commands share, and each command's own module:
   - `typed_click.py`  -  The typed rich-click facade
@@ -122,6 +130,12 @@ Complete (v0.2.0+, the template rebuild)
 - `adapters/config/defaultconfig.d/60-switch.toml`  -  Switch poll interval
 - `adapters/config/defaultconfig.d/70-observer.toml`  -  Observer reconnect backoff
 - `adapters/config/defaultconfig.d/80-prototype.toml`  -  `[prototype] never_touch`, shipped empty (a house names its own boxes in its host layer)
+- `adapters/config/defaultconfig.d/90-mpd.toml`  -  Where MPD answers, and how far back an MPD channel starts (the rewind, a house preference)
+
+### Tools (shipped to the service's machine and run there, beside `_click.py`)
+- `tools/deploy_service.py`  -  One deploy: backup, switch off and wait (bounded) for the zone to empty, stop, install through `install_service.py`, the one-distribution venv check, start and watch the unit stay up, then put the switch back - only while the switch row still holds the deploy's own switch-off (`set-switch on --if-changed-at`), so a `switch off` somebody ran in between stands; the envelope's `switch_restored`/`switch_note` say which. A failure before the stop puts the switch back the same way
+- `tools/install_service.py`  -  The venv, the wheel, and a new house database seeded with the switch OFF
+- `tools/service_venv.py`  -  Run by the service venv's python: `seed-switch`, `show`, `set-switch on|off [--if-changed-at STAMP]` (answers the row's `changed_at`; the conditional form is one UPDATE), `backup`, `distributions`. Runs against the package being REPLACED too (v0.5.2 on the house's machine), standing in for what that package lacks
 
 ### Tests
 - `tests/test_boundary_golden.py`  -  The golden corpus: one test per replayed case over eight fixture files
@@ -132,6 +146,9 @@ Complete (v0.2.0+, the template rebuild)
 - `tests/test_zonemaster_cli.py`  -  The prototype command
 - `tests/test_ports.py`  -  Protocol conformance of build_production's wiring
 - `tests/test_service_loopback.py`  -  The loopback e2e with a fake slave
+- `tests/test_store_worker.py`  -  The store off the loop: one thread, the order asked, bounded close
+- `tests/test_deploy_service.py`  -  A deploy against a fake systemd and a fake house that keep state; the real helper once
+- `tests/test_service_venv.py`, `tests/test_service_venv_old_package.py`  -  The helper against a real SQLite house, under this package and under v0.5.2's
 - `tests/hang_watchdog.py`  -  pytest plugin that dumps tasks, servers and sockets INSIDE a hang and kills the run; armed by itself when `CI=true`, opt-in locally with `-p hang_watchdog`
 - `tests/registry_double.py`, `tests/speaker_double.py`  -  Real-ish fakes the loopback drives over real sockets
 
@@ -324,4 +341,4 @@ Never run two suites at once: the tests bind fixed ports 40002/40003/40005/8090.
 
 ---
 
-**Last Updated:** 2026-09-27 (the house preferences)
+**Last Updated:** 2026-09-29 (the store worker, the Orion resolver, the deploy tools)
