@@ -296,10 +296,11 @@ class Dialling(PreferenceBook):
         moment it is asked and keeps it whoever stops waiting, so a stop that cancels this worker
         right after the last press still stores the calibration whole.
 
-        A database that refuses the write, or the read-back, costs the calibration and nothing
-        else: it is said once, the house goes on with the numbers it already had, and the channel
-        still starts again. Let through, the refusal would end this worker, and with it the whole
-        service - the house stood down because somebody pressed four keys.
+        A database that refuses the write, or the read-back, is said once and costs nothing else:
+        the channel still starts again. Let through, the refusal would end this worker, and with it
+        the whole service - the house stood down because somebody pressed four keys. The two
+        failures are said apart because they leave the house in different places
+        (:meth:`_keep_the_calibration`).
         """
         deadline = self._calibration.deadline()
         if deadline is None or deadline > at:
@@ -312,12 +313,7 @@ class Dialling(PreferenceBook):
             if value is not None
         }
         if measured:
-            try:
-                await self._keep_the_calibration(
-                    self.store.set_preferences(measured, source=PreferenceSource.CALIBRATION)
-                )
-            except StoreError as exc:
-                self.log(ERROR_KIND, f"calibration: not stored, so the house keeps the numbers it had: {exc}")
+            await self._keep_the_calibration(self.store.set_preferences(measured, source=PreferenceSource.CALIBRATION))
         async with self._lock:
             master = self.master
             if master is not None:
@@ -328,9 +324,27 @@ class Dialling(PreferenceBook):
 
         Read back rather than applied from what was measured: what the service runs on is then
         exactly what the database holds, and what a restart will read.
+
+        Each failure is said as what it left behind. A refused write stored nothing - the write is
+        all or nothing - so the house keeps the numbers it had. A read-back that fails comes AFTER
+        a write that landed: the calibration is stored, and the preference watch takes it in at its
+        next read that works, so saying "not stored" there would send somebody looking for a
+        calibration the database already holds.
         """
-        await written
-        self._take_the_preferences(await self.store.load_preferences())
+        try:
+            await written
+        except StoreError as exc:
+            self.log(ERROR_KIND, f"calibration: not stored, so the house keeps the numbers it had: {exc}")
+            return
+        try:
+            rows = await self.store.load_preferences()
+        except StoreError as exc:
+            self.log(
+                ERROR_KIND,
+                f"calibration: stored, but not read back ({exc}); the house takes it in at its next preference read",
+            )
+            return
+        self._take_the_preferences(rows)
 
     async def _dialled_number(self, device_id: str, number: str) -> None:
         """One completed number: the channel for the WHOLE zone, or nothing at all.

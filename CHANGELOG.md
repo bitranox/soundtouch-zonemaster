@@ -85,7 +85,9 @@ All notable changes to this project are documented here. The format follows
   house database in one transaction, so a refusal of either stores neither. It used to write them
   one at a time, and a refused hold left the window behind for the service to run on.
 - A calibration the house database refuses is said once in the log, and the service goes on with
-  the dialling window and hold threshold it already had. It used to end the whole service.
+  the dialling window and hold threshold it already had. It used to end the whole service. One
+  stored but not read back afterwards is said as stored, and the service takes it in at its next
+  preference read.
 - A console added to `membership.consoles_allowed` while the service runs is watched at once rather
   than from the next speaker-registry read (`registry.poll_s`, 30 s by default): the service reads
   the registry straight away and asks the console what it is playing. One already playing the

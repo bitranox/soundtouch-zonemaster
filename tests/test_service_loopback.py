@@ -3626,6 +3626,44 @@ async def test_a_calibration_the_database_refuses_is_said_once_and_the_house_goe
     assert len(stood_down) == 1, "the only stand-down is the test's own stop at the end"
 
 
+async def test_a_calibration_stored_but_not_read_back_says_it_was_stored_and_is_taken_in_later(
+    world: World, tmp_path: Path
+) -> None:
+    """The line says what happened: the write landed and only the read-back failed.
+
+    "Not stored, so the house keeps the numbers it had" was said for both failures once, and for
+    this one it is false twice over: the database holds the calibration, and the preference watch
+    takes it in at its next read that works, so the house does NOT keep the old numbers for long.
+    The take-in afterwards is the proof that the second half of the sentence is true as well.
+    """
+    options = _dialable_world(world, tmp_path, dial_window_s=0.5)
+    logs: list[str] = []
+
+    async with _running_with_a_store_that_can_fail(options, logs) as (_service, store):
+        await _both_wake(world)
+        store.reading_preferences_fails = True
+        await _gesture(STUDIO_IP)
+        await eventually(lambda: any("calibration started" in line for line in logs), "the calibration began")
+        for n in range(4):
+            await _press_preset(world.studio, STUDIO_ID, 1 + n % 2, hold_s=0.9)
+            await asyncio.sleep(0.3)
+        await eventually(lambda: any("the hold becomes" in line for line in logs), "it read both", timeout=15.0)
+        await eventually(
+            lambda: any(line.startswith(f"{ERROR_KIND}: ") and "calibration" in line for line in logs),
+            "the failed read-back was said",
+        )
+        said = [line for line in logs if line.startswith(f"{ERROR_KIND}: ") and "calibration" in line]
+        assert len(said) == 1, said
+        assert "calibration: stored" in said[0], said[0]
+        assert "not stored" not in said[0], said[0]
+        assert set(_preferences_of(options)) == {"dialling.window_s", "dialling.hold_threshold_s"}
+
+        store.reading_preferences_fails = False
+        await eventually(
+            lambda: any("calibrated at" in line for line in logs), "the watch took the stored calibration in"
+        )
+
+
 _REFUSE_THE_HOLD = """
 CREATE TRIGGER refuse_the_hold BEFORE INSERT ON preference
 WHEN NEW.name = 'dialling.hold_threshold_s'
