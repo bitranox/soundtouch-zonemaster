@@ -214,6 +214,7 @@ async def _read_base(registry: str, *, timeout_s: float) -> str:
     registry is the service's own, at the address it was configured with, and an answer sending
     the master somewhere else is not a registry answering.
     """
+    _require_an_address(registry)
     try:
         # The deadline is asyncio's, never httpx's (adapters/http_client.py says why).
         async with asyncio.timeout(timeout_s), client_without_deadline() as client:
@@ -229,6 +230,23 @@ async def _read_base(registry: str, *, timeout_s: float) -> str:
     if base is None:
         raise _UnreadableError(f"names no usable http base for {SourceName.LOCAL_INTERNET_RADIO}")
     return base
+
+
+def _require_an_address(url: str) -> None:
+    """:class:`_UnreadableError` when no request can be sent to ``url`` at all.
+
+    A mistyped ``[registry] url`` fails in ways that are not ``httpx.HTTPError``: a control
+    character or a host that is no name raises ``httpx.InvalidURL`` while the request is built,
+    and a port past 65535 is only noticed by the socket, as an ``OverflowError`` inside anyio's
+    exception group. Either would escape to whoever asked for a location, which for a station
+    start is the one step that must not raise, so both are checked here, before anything is sent,
+    and answered the way an unreadable registry is.
+    """
+    try:
+        httpx.URL(url)
+        _ = urlsplit(url).port
+    except (httpx.InvalidURL, ValueError) as exc:
+        raise _UnreadableError(f"is not an address a request can be sent to ({exc})") from exc
 
 
 async def _bounded_body(client: httpx.AsyncClient, url: str) -> bytes:

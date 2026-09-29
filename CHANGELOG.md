@@ -12,8 +12,9 @@ All notable changes to this project are documented here. The format follows
   location, `/station?data=...`, the form AfterTouch 0.138.0 writes presets in. The master
   completes it the way a speaker does: with the `LOCAL_INTERNET_RADIO` base URL from the service's
   BMX registry (`<[registry] url>/bmx/registry/v1/services`), read once per run. A registry that
-  cannot be read within 2 s, answers an error or a redirect, sends more than 64 KiB, or names a
-  base with a query or fragment in it, falls back to
+  cannot be read within 2 s, answers an error or a redirect, sends more than 64 KiB, names a
+  base with a query or fragment in it, or sits at an address no request can be sent to (a
+  mistyped `[registry] url`), falls back to
   `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion`, says so in the log, and is asked
   again a minute later rather than on every station start. A station fetch that fails against the
   base the registry named makes the next one read the registry again, so an Orion adapter that

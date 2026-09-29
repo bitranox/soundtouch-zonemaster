@@ -274,6 +274,32 @@ async def test_an_unreachable_registry_falls_back_without_waiting_for_ever() -> 
     assert any("registry" in line for line in logs)
 
 
+@pytest.mark.parametrize(
+    "service_url",
+    [
+        # Neither is an httpx.HTTPError: a port past 65535 surfaces from the socket layer as an
+        # OverflowError inside an exception group, and a control character as httpx.InvalidURL.
+        pytest.param("http://127.0.0.1:99999", id="port-out-of-range"),
+        pytest.param("http://127.0.0.1:8000/\x01", id="control-character-in-the-path"),
+        pytest.param("http://☃☃..example", id="host-that-is-no-name"),
+    ],
+)
+async def test_a_registry_url_no_request_can_be_sent_to_falls_back_and_backs_off(service_url: str) -> None:
+    """A mistyped ``[registry] url`` is the registry not answering, never an exception to the caller.
+
+    A station start sits behind this call and must not raise from it, so the address is refused
+    the way an unreadable registry is: the fallback answers, the log says why, and the back-off is
+    recorded, which the second lookup shows by saying nothing new.
+    """
+    logs: list[str] = []
+    orion = _resolver(service_url, logs)
+    first = await orion.absolute(RELATIVE)
+    second = await orion.absolute(RELATIVE)
+    assert first == second == f"{service_url}{ORION_FALLBACK_PATH}{RELATIVE}"
+    refusals = [line for line in logs if "is not an address a request can be sent to" in line]
+    assert len(refusals) == 1, f"refused once and then remembered for its back-off: {logs}"
+
+
 async def test_a_registry_that_accepts_and_never_answers_costs_its_timeout_and_no_more() -> None:
     """The failure a refused port cannot show: a connection that is taken and then left silent.
 
