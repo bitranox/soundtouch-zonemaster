@@ -337,6 +337,7 @@ tests/                  framing against captured bytes; a loopback run with a fa
 tools/                  the deploy (the first three are shipped to the service's machine and run there)
   deploy_service.py     one deploy: backup, switch off and wait for the zone to empty, stop, install,
                         a one-distribution check, start and watch the unit stay up, switch back on
+                        unless somebody set the switch themselves in the meantime
   install_service.py    the venv, the wheel, and a new house database seeded with the switch OFF
   service_venv.py       run by the service venv's python: the switch, the members, a backup
   export_public.py      the anonymized export; beside it, the private name list's example

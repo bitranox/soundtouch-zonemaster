@@ -361,6 +361,38 @@ def test_set_switch_changes_the_row(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert _switch_row(database) == "off"
 
 
+def test_a_conditional_set_switch_writes_only_over_the_stamp_it_names(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--if-changed-at`` is how a deploy puts back its own switch-off and nobody else's.
+
+    The deploy's ``off`` answers with the row's stamp. A person's ``switch off`` after it gives the
+    row a new one, and the deploy's ``on`` naming the old stamp then writes nothing and says so;
+    naming the stamp the row really holds, it writes. Judged by the file, not only the envelope.
+    """
+    database = created_by_the_service(tmp_path / "zonemaster.sqlite")
+    _code, deploys_off = _drive(["set-switch", "off", "--default", str(database)], capsys)
+    own = deploys_off["data"]["changed_at"]
+    assert deploys_off["data"]["written"] is True
+    assert own
+
+    _set_switch(database, on=False)  # the person's switch off, through the service's own store
+    code, refused = _drive(["set-switch", "on", "--if-changed-at", own, "--default", str(database)], capsys)
+
+    assert code == 0, "a switch somebody set is an answer, not an error"
+    assert refused["data"]["written"] is False
+    assert refused["data"]["on"] is False
+    assert refused["data"]["changed_at"] != own
+    assert _switch_row(database) == "off"
+
+    _code, put_back = _drive(
+        ["set-switch", "on", "--if-changed-at", refused["data"]["changed_at"], "--default", str(database)], capsys
+    )
+    assert put_back["data"]["written"] is True, "the control: the stamp the row holds is written over"
+    assert put_back["data"]["on"] is True
+    assert _switch_row(database) == "on"
+
+
 def test_set_switch_refuses_a_database_that_is_not_there(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Only the service and the installer create the database; a switch verb answering a typo with a
     new, empty one is the failure the store verbs already refuse."""

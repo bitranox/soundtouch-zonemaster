@@ -43,6 +43,7 @@ from deploy_service import (
     Step,
     StepFailedError,
     StepTimedOutError,
+    SwitchView,
     Target,
     UnitMissingError,
     UnitNotActiveError,
@@ -202,6 +203,7 @@ class FakeHouse:
         distributions: tuple[str, ...] = ("pydantic", "soundtouch-zonemaster"),
         clock: FakeClock | None = None,
         interrupted_while_off: BaseException | None = None,
+        person_while_off: bool | None = None,
     ) -> None:
         self.on = on
         self.members = list(members)
@@ -214,21 +216,44 @@ class FakeHouse:
         self.interrupted_while_off = interrupted_while_off
         self.switched_at: list[tuple[bool, float]] = []
         self.backups: list[Path] = []
+        self.writes = 0
+        self.changed_at: str | None = None
+        """What the switch row's stamp is: every write, the deploy's or a person's, gives a new one."""
+        self.person_while_off = person_while_off
+        """What a person running ``switch on|off`` sets while the deploy has the house off, at the
+        first read of the drain; ``None`` is nobody."""
 
     def show(self) -> HouseView:
         if not self.on and self.interrupted_while_off is not None:
             raise self.interrupted_while_off
+        if not self.on and self.person_while_off is not None:
+            person, self.person_while_off = self.person_while_off, None
+            self.a_person_switches(on=person)
         if not self.on and self.drain_after is not None:
             self.reads_while_off += 1
             if self.reads_while_off > self.drain_after:
                 self.members = []
         return HouseView(database="db", backend="sqlite", exists=self.exists, on=self.on, members=self.members)
 
-    def set_switch(self, *, on: bool) -> None:
+    def _write(self, *, on: bool) -> None:
+        self.writes += 1
         self.on = on
+        self.changed_at = f"2026-09-29T12:00:{self.writes:02d}+00:00"
+
+    def set_switch(self, *, on: bool, if_changed_at: str | None = None) -> SwitchView:
+        """As ``service_venv set-switch`` does it, the stamp condition included."""
+        before = self.on
+        if if_changed_at is not None and if_changed_at != self.changed_at:
+            return SwitchView(database="db", on=self.on, changed=False, written=False, changed_at=self.changed_at)
+        self._write(on=on)
         self.switched.append(on)
         if self.clock is not None:
             self.switched_at.append((on, self.clock.t))
+        return SwitchView(database="db", on=on, changed=before != on, written=True, changed_at=self.changed_at)
+
+    def a_person_switches(self, *, on: bool) -> None:
+        """``soundtouch-zonemaster-service switch on|off``, run by somebody else: not the deploy's write."""
+        self._write(on=on)
 
     def backup(self, to: Path) -> BackupView:
         self.backups.append(to)
@@ -261,6 +286,7 @@ def test_a_deploy_hands_the_house_back_as_it_found_it(tmp_path: Path) -> None:
     assert systemd.verbs() == ["stop", "install", "start"]
     assert house.switched == [False, True], "off for the stop, on again once the unit is active"
     assert house.on is True
+    assert report.switch_restored is True, "the control: nobody touched it, so it went back on"
     assert systemd.state != "inactive"
     assert report.done == report.plan
     assert report.plan == [
@@ -310,6 +336,49 @@ def test_a_zone_that_does_not_empty_changes_nothing_and_answers_no(tmp_path: Pat
     assert systemd.verbs() == [], "nothing stopped, nothing installed"
     assert house.on is True
     assert "AABBCC0000A1" in str(caught.value)
+
+
+@pytest.mark.parametrize("person", [False, True], ids=["switch-off", "switch-on"])
+def test_a_switch_somebody_sets_while_the_deploy_runs_is_left_as_they_set_it(tmp_path: Path, *, person: bool) -> None:
+    """The deploy holds the house off for minutes; a person may use the switch in between.
+
+    Somebody who runs ``switch off`` while the unit is being replaced - to go to bed, or because the
+    flat should be quiet now - must not have their house switched back on by the deploy's last
+    step. The row's stamp is what tells their write from the deploy's own, so it is compared, and a
+    switch set since is left as it was set. ``switch on`` is the other arm: left on, and not
+    written a second time.
+    """
+    house = FakeHouse(on=True)
+    systemd = FakeSystemd(on_stop=lambda: house.a_person_switches(on=person))
+
+    report = deploy(_target(tmp_path), run=systemd, house=house, clock=FakeClock())
+
+    assert house.on is person, "the person's word stands"
+    assert house.switched == [False], "the deploy wrote the switch once: its own switch-off"
+    assert report.done == report.plan, "the deploy itself finished"
+    assert report.switch_restored is False
+    assert report.switch_note is not None
+    assert f"left {'on' if person else 'off'}" in report.switch_note
+    assert report.switched_off_at is not None
+    assert report.switched_off_at in report.switch_note
+
+
+def test_a_switch_off_somebody_runs_before_a_refused_deploy_puts_it_back_is_left_off(tmp_path: Path) -> None:
+    """The recovery path: a zone that will not empty puts the switch back - unless somebody set it.
+
+    The person's ``switch off`` lands during the drain; the drain then runs out and the deploy
+    refuses (exit 1), which is where it used to turn the house back on regardless. The refusal says
+    what it found instead.
+    """
+    house = FakeHouse(drain_after=None, person_while_off=False)
+
+    with pytest.raises(ZoneStillHeldError) as caught:
+        deploy(_target(tmp_path), run=FakeSystemd(), house=house, clock=FakeClock())
+
+    assert house.on is False
+    assert house.switched == [False]
+    assert "left off" in str(caught.value)
+    assert "the unit was not stopped" in str(caught.value)
 
 
 def test_a_stop_that_fails_leaves_the_house_off_and_installs_nothing(tmp_path: Path) -> None:

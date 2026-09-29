@@ -25,8 +25,12 @@ The verbs:
     The switch and the members the zone holds, read without the store: a database with no house
     schema is reported as not there and left without one (``--dry-run`` changes nothing), and a
     switch that cannot be read is refused rather than read as ON.
-``set-switch on|off``
-    Set it, in a database that already holds a house schema.
+``set-switch on|off [--if-changed-at STAMP]``
+    Set it, in a database that already holds a house schema, and answer with the ``changed_at``
+    the row holds afterwards. With ``--if-changed-at`` it is set only while the row still holds
+    exactly that stamp, in one statement, so the check and the write cannot be separated by
+    another writer: that is how a deploy puts back the switch it turned off without overriding a
+    ``switch off`` somebody ran in the minutes between (``written`` says which happened).
 ``backup --to DIR``
     A consistent copy through SQLite's backup API, which is safe while the service writes (a
     plain copy of a WAL database can miss what is still in the ``-wal`` file). A PostgreSQL
@@ -61,7 +65,7 @@ from typing import TYPE_CHECKING, NamedTuple
 import rich_click as click
 from _click import argument, current_context, option, run_cli
 from pydantic import BaseModel
-from sqlalchemy import inspect
+from sqlalchemy import inspect, select, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from soundtouch_zonemaster.adapters.cli.context import Shared, named_database
@@ -69,13 +73,15 @@ from soundtouch_zonemaster.adapters.cli.envelope import OutputMode
 from soundtouch_zonemaster.adapters.config.errors import ConfigInputError
 from soundtouch_zonemaster.adapters.files import house_db
 from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase, database_url, reason_for
+from soundtouch_zonemaster.adapters.files.house_schema import SWITCH
 from soundtouch_zonemaster.adapters.files.house_state import read_state
-from soundtouch_zonemaster.adapters.files.house_switch import read_switch, write_switch
+from soundtouch_zonemaster.adapters.files.house_switch import ON, read_switch, write_switch
 from soundtouch_zonemaster.adapters.files.switch_file import Switch
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError, StoreMissingError
 from soundtouch_zonemaster.application.outcome import OptionsError
 from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.state import ZoneState
+from soundtouch_zonemaster.domain.switch import OFF
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Sequence
@@ -145,6 +151,12 @@ class SwitchReport(BaseModel):
     database: str
     on: bool
     changed: bool
+    written: bool
+    """Whether this call wrote the row. Always, without ``--if-changed-at``; with it, only when the
+    row still held that stamp."""
+    changed_at: str | None
+    """The row's stamp after the call, ``None`` when there is no row: what a later
+    ``--if-changed-at`` names to mean "only if nobody has set it since"."""
 
 
 class BackupReport(BaseModel):
@@ -310,11 +322,38 @@ def show(*, default: Path) -> ShowReport:
     return ShowReport(database=where, backend=backend, exists=True, on=on, members=list(state.members))
 
 
-def set_switch(*, default: Path, on: bool) -> SwitchReport:
+def switch_stamp(connection: Connection) -> str | None:
+    """When the switch row was last written, as the row records it; ``None`` when there is no row."""
+    stamp = connection.scalar(select(SWITCH.c.changed_at).where(SWITCH.c.id == 1))
+    return None if stamp is None else str(stamp)
+
+
+def write_switch_if_unchanged(connection: Connection, *, on: bool, changed_at: str) -> bool:
+    """Set the switch only while its row still holds ``changed_at``; whether it did. The caller holds the transaction.
+
+    ONE conditional UPDATE rather than a read and then a write: under READ COMMITTED a ``switch
+    off`` could land between the two, and the write would then undo it - which is exactly what
+    this exists to prevent. PostgreSQL re-checks the condition against a row another transaction
+    changed while this one waited for it, and SQLite has one writer at a time, so on both a row
+    somebody set since is left alone. Built from the installed package's own table and words,
+    which a deploy's recovery meets as the OLD package: all three are in every release that has a
+    house database.
+    """
+    stamp = datetime.now(UTC).isoformat()
+    result = connection.execute(
+        update(SWITCH)
+        .where(SWITCH.c.id == 1, SWITCH.c.changed_at == changed_at)
+        .values(word=ON if on else OFF, changed_at=stamp)
+    )
+    return result.rowcount == 1
+
+
+def set_switch(*, default: Path, on: bool, if_changed_at: str | None = None) -> SwitchReport:
     """Set it and read it back in one transaction, in a database that already holds a house schema.
 
     A database without one is refused rather than opened, because opening would create it: only
-    the service and the installer do that.
+    the service and the installer do that. With ``if_changed_at`` it is set only while the row
+    still holds that stamp (:func:`write_switch_if_unchanged`), and the report says whether it was.
     """
     setting, password, _configured = configured_database(default=default)
     if not house_schema_exists(setting, password):
@@ -324,14 +363,22 @@ def set_switch(*, default: Path, on: bool) -> SwitchReport:
     house.open(exclusive=False, create=False)
     try:
         with house.writing() as connection:
-            changed = write_switch(connection, on=on)
+            before = read_switch(connection)
+            if if_changed_at is None:
+                written = True
+                write_switch(connection, on=on)
+            else:
+                written = write_switch_if_unchanged(connection, on=on, changed_at=if_changed_at)
             held = read_switch(connection)
+            stamp = switch_stamp(connection)
     except SQLAlchemyError as exc:
         message = f"{house.where}: {reason_for(exc)}"
         raise StoreError(message) from exc
     finally:
         house.close()
-    return SwitchReport(database=house.where, on=True if held is None else held, changed=changed)
+    was_on = True if before is None else before
+    now_on = True if held is None else held
+    return SwitchReport(database=house.where, on=now_on, changed=was_on != now_on, written=written, changed_at=stamp)
 
 
 def backup(*, default: Path, to: Path) -> BackupReport:
@@ -428,10 +475,16 @@ def cli_show(*, default: str) -> None:
 
 @cli.command("set-switch")
 @argument("word", type=click.Choice(["on", "off"]))
+@option(
+    "--if-changed-at",
+    "if_changed_at",
+    default=None,
+    help="set it only while the switch row still holds this changed_at (what an earlier set-switch answered)",
+)
 @option("--default", "default", required=True, help=_DEFAULT_HELP)
-def cli_set_switch(*, word: str, default: str) -> None:
+def cli_set_switch(*, word: str, default: str, if_changed_at: str | None) -> None:
     """Set the switch in a database that exists."""
-    _answer("set-switch", lambda: set_switch(default=Path(default), on=word == "on"))
+    _answer("set-switch", lambda: set_switch(default=Path(default), on=word == "on", if_changed_at=if_changed_at))
 
 
 @cli.command("backup")

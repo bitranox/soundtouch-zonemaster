@@ -241,3 +241,37 @@ def test_the_deploy_s_own_reads_and_writes_work_through_the_old_package(old_pack
     assert after.on is False
     assert _switch_row(install.database) == "off"
     assert "soundtouch-zonemaster" in house.distributions()
+
+
+def test_the_deploy_puts_back_only_its_own_switch_off_through_the_old_package(
+    old_package: Path, tmp_path: Path
+) -> None:
+    """The recovery path's put-back runs BEFORE the install, so against the package being replaced.
+
+    The conditional write is built from that package's own switch table and words, and this proves
+    they are enough: a ``switch off`` the OLD service's store wrote after the deploy's is left alone,
+    and the deploy's own is put back.
+    """
+    install = Install(prefix=tmp_path / "opt", state_dir=tmp_path / "state", wheel=tmp_path / "w.whl")
+    install.state_dir.mkdir()
+    _old_house(old_package, install.database, word="on")
+
+    def runner(argv: list[str]) -> Ran:
+        ran = _run(argv[1:], old_package=old_package, cwd=tmp_path)
+        return Ran(code=ran.returncode, stdout=ran.stdout, stderr=ran.stderr)
+
+    house = VenvHouse(install, run=runner)
+    own = house.set_switch(on=False).changed_at
+    assert own is not None
+    _old_house(old_package, install.database, word="off")  # a person's `switch off`, by the old store
+
+    left = house.set_switch(on=True, if_changed_at=own)
+
+    assert left.written is False
+    assert left.on is False
+    assert _switch_row(install.database) == "off"
+
+    assert left.changed_at is not None
+    put_back = house.set_switch(on=True, if_changed_at=left.changed_at)
+    assert put_back.written is True, "the control: over the stamp the row holds, it writes"
+    assert _switch_row(install.database) == "on"

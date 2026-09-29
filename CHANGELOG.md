@@ -34,7 +34,10 @@ All notable changes to this project are documented here. The format follows
   bounded, for the zone to empty, stops the unit, installs through `tools/install_service.py`, refuses a
   venv that still holds a second distribution or a superseded console script (checked before the house
   is touched), starts the unit and hands the house back only after the unit stayed active for a settle
-  window with no restart, then restores the switch. `--dry-run` reads without changing anything, on
+  window with no restart, then restores the switch - but only while the switch row still holds the
+  deploy's own switch-off, so a `switch off` (or `on`) somebody ran in the minutes between is left as
+  they set it and the envelope's `switch_note` says so; the same holds when a failure before the
+  stop puts the switch back. `--dry-run` reads without changing anything, on
   PostgreSQL too; every step and command is bounded; `--json` / `--json-bare` as every CLI here.
 - The installer (`tools/install_service.py`, with `tools/service_venv.py` beside it) seeds the switch into
   the configured house database (`database.url`, else `<state-dir>/zonemaster.sqlite`) in the same

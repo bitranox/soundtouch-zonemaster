@@ -34,7 +34,10 @@ The steps, in the order that matters:
    refuses its configuration exits a second later and is restarted by ``Restart=on-failure``
    again and again. It must stay active, with systemd's restart count unchanged, for twice the
    unit's ``RestartSec`` (at least ``--settle`` seconds) before the house is handed back to it.
-8. **Restore the switch** to what it was before step 3.
+8. **Restore the switch** to what it was before step 3 - but only while the switch row still holds
+   the deploy's own switch-off. A person who ran ``switch off`` (or ``on``) in the minutes between
+   has the last word: their switch is left as they set it, and the envelope's ``switch_note`` says
+   so. The same holds when a failure before the stop puts the switch back.
 
 A failure after the stop leaves the unit stopped and the switch OFF, and says which steps were
 done: a half-deployed service is not one to hand a house back to. ``--dry-run`` reads the machine,
@@ -226,6 +229,18 @@ class HouseView(BaseModel):
     members: list[str]
 
 
+class SwitchView(BaseModel):
+    """What ``service_venv.py set-switch`` says it did."""
+
+    database: str
+    on: bool
+    changed: bool
+    written: bool
+    """Whether that call wrote the row; with ``--if-changed-at``, only if nobody had set it since."""
+    changed_at: str | None
+    """The row's stamp afterwards: what the switch-off leaves, and what putting it back compares with."""
+
+
 class BackupView(BaseModel):
     database: str
     backend: str
@@ -367,7 +382,9 @@ class House(Protocol):
 
     def show(self) -> HouseView: ...
 
-    def set_switch(self, *, on: bool) -> None: ...
+    def set_switch(self, *, on: bool, if_changed_at: str | None = None) -> SwitchView:
+        """Set it; with ``if_changed_at``, only while the row still holds that stamp (atomically)."""
+        ...
 
     def backup(self, to: Path) -> BackupView: ...
 
@@ -399,10 +416,6 @@ class _Names(BaseModel):
     names: list[str]
 
 
-class _Switched(BaseModel):
-    on: bool
-
-
 class VenvHouse:
     """The real :class:`House`: ``service_venv.py`` run by the service venv's python."""
 
@@ -414,12 +427,15 @@ class VenvHouse:
     def show(self) -> HouseView:
         return self._ask(HouseView, "show", "--default", str(self._install.database))
 
-    def set_switch(self, *, on: bool) -> None:
+    def set_switch(self, *, on: bool, if_changed_at: str | None = None) -> SwitchView:
+        """Set it, and refuse an answer that says a write happened and left the other word."""
         word = "on" if on else "off"
-        switched = self._ask(_Switched, "set-switch", word, "--default", str(self._install.database))
-        if switched.on is not on:
+        condition = [] if if_changed_at is None else ["--if-changed-at", if_changed_at]
+        switched = self._ask(SwitchView, "set-switch", word, *condition, "--default", str(self._install.database))
+        if switched.written and switched.on is not on:
             message = f"service_venv set-switch {word} left the switch {'on' if switched.on else 'off'}"
             raise HouseUnreadableError(message)
+        return switched
 
     def backup(self, to: Path) -> BackupView:
         return self._ask(BackupView, "backup", "--to", str(to), "--default", str(self._install.database))
@@ -509,6 +525,13 @@ class DeployReport(BaseModel):
     unit_state: str | None = None
     settled_s: float | None = None
     """How long the started unit was watched staying active before the house was handed back."""
+    switched_off_at: str | None = None
+    """The stamp the deploy's own switch-off left on the row: the switch is put back only while the
+    row still holds it."""
+    switch_restored: bool | None = None
+    """Whether putting the switch back turned it on; ``None`` when it was never tried."""
+    switch_note: str | None = None
+    """What putting the switch back found, in words: above all, a switch somebody set meanwhile."""
 
 
 def _say(text: str) -> None:
@@ -597,7 +620,7 @@ class _Run:
         _say(self.report.backup.note)
 
     def _switch_off(self) -> None:
-        self.house.set_switch(on=False)
+        self.report.switched_off_at = self.house.set_switch(on=False).changed_at
 
     def _drain(self) -> None:
         verdict, view = poll_until(
@@ -675,7 +698,35 @@ class _Run:
         return unit_property(self.target.unit, "NRestarts", run=self.run)
 
     def _restore_switch(self) -> None:
-        self.house.set_switch(on=True)
+        _say(self.put_the_switch_back())
+
+    def put_the_switch_back(self) -> str:
+        """Turn the switch back on only if it still holds the deploy's own switch-off; say what happened.
+
+        The deploy turns the house off minutes before it hands it back, and in those minutes a
+        person may have run ``switch off`` themselves - to go to bed, or because the speakers
+        should be quiet now. Turning the switch on regardless would switch their house back on
+        behind their back. So the row is compared with the stamp the deploy's own write left, in
+        the same statement that sets it (``set-switch on --if-changed-at``), and a switch somebody
+        has set since is left as they set it.
+        """
+        report = self.report
+        own = report.switched_off_at
+        if own is None:
+            report.switch_restored = False
+            report.switch_note = "the deploy's switch-off left no stamp to compare with, so the switch is left off"
+            return report.switch_note
+        switched = self.house.set_switch(on=True, if_changed_at=own)
+        report.switch_restored = switched.written
+        if switched.written:
+            report.switch_note = "the switch is back on"
+        else:
+            word = "on" if switched.on else "off"
+            report.switch_note = (
+                f"the switch was set {word} at {switched.changed_at} by somebody else after the deploy turned it "
+                f"off at {own}, so it is left {word}"
+            )
+        return report.switch_note
 
     def _must(self, argv: list[str]) -> None:
         ran = _ran(self.run, argv)
@@ -706,9 +757,10 @@ def deploy(target: Target, *, run: Runner, house: House, clock: Clock, dry_run: 
         try:
             progress.do(step)
         except DeployRefusedError as exc:
-            _recover(progress, failed=step)
+            recovered = _recover(progress, failed=step)
             done = ", ".join(report.done) or "nothing"
-            raise type(exc)(f"{exc} (done: {done})") from exc
+            after = "" if recovered is None else f"; {recovered}"
+            raise type(exc)(f"{exc} (done: {done}{after})") from exc
         except _INTERRUPTS as exc:
             name = _SIGNAL_NAMES.get(type(exc), type(exc).__name__)
             done = ", ".join(report.done) or "nothing"
@@ -740,22 +792,26 @@ def where_it_stands(done: Sequence[Step], *, interrupted: Step) -> str:
     return f"{switch}; {unit}"
 
 
-def _recover(progress: _Run, *, failed: Step) -> None:
+def _recover(progress: _Run, *, failed: Step) -> str | None:
     """Put the switch back when the deploy fails BEFORE the stop; after it, leave the house off.
 
     Before the stop the service is still the one that was running, so the house can be handed back
-    to it exactly as it was. After the stop it cannot: whatever is installed has not been proved.
+    to it exactly as it was - unless somebody set the switch themselves after the deploy turned it
+    off, which :meth:`_Run.put_the_switch_back` leaves alone. After the stop it cannot: whatever is
+    installed has not been proved. Returns what it did in words, for the refusal to carry.
     """
     report = progress.report
     turned_off = Step.SWITCH_OFF in report.done
     if not turned_off or Step.STOP in report.done or failed == Step.STOP:
-        return
+        return None
     try:
-        progress.house.set_switch(on=True)
+        said = progress.put_the_switch_back()
     except DeployRefusedError as exc:
-        _say(f"the switch could not be put back on: {exc}")
-        return
-    _say("the switch is back on; the unit was not stopped")
+        said = f"the switch could not be put back on: {exc}"
+    else:
+        said = f"{said}; the unit was not stopped"
+    _say(said)
+    return said
 
 
 # ---------------------------------------------------------------------------------------------
