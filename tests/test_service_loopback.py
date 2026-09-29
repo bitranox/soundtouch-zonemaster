@@ -1814,17 +1814,23 @@ async def test_a_box_that_appears_later_can_still_seed_the_list(world: World, tm
         await eventually(lambda: _channels_of(options).numbers_in_order() == ("1",), "and seeded once it woke")
 
 
+@pytest.mark.parametrize(
+    "first_listed_answers_last",
+    [pytest.param(True, id="first-listed-answers-last"), pytest.param(False, id="first-listed-answers-first")],
+)
 @pytest.mark.parametrize("listed_mid_run", [pytest.param(False, id="at-start"), pytest.param(True, id="mid-run")])
-async def test_the_list_is_seeded_from_the_box_listed_first_not_the_one_that_answered_first(
-    world: World, tmp_path: Path, listed_mid_run: bool
+async def test_the_list_is_seeded_from_the_box_listed_first_whichever_answered_first(
+    world: World, tmp_path: Path, listed_mid_run: bool, first_listed_answers_last: bool
 ) -> None:
     """Two boxes already on, asked together: the one the registry lists first seeds, whoever replies first.
 
     Neither was switched on in front of the service, so which of them was on "first" is not
     something either answer can say; the registry's order decides, as it did before each answer
-    was taken as it arrived. Here the first-listed box answers LAST, so a list that follows the
+    was taken as it arrived. When the first-listed box answers LAST, a list that follows the
     replies would come from the other box - the "which radio replied fastest" the seeding's own
-    docstring names as the defect.
+    docstring names as the defect. When it answers FIRST, the later answer must not be put ahead
+    of it: a rule that sends every answer to the front of what its round has placed so far agrees
+    with the registry only while the replies come in reverse order.
 
     At start nothing seeds before every answer is in anyway, so that arm pins the ORDER the
     answers are written down in. Mid-run - a first registry read that failed, say - each answer
@@ -1839,8 +1845,9 @@ async def test_the_list_is_seeded_from_the_box_listed_first_not_the_one_that_ans
         3: _preset(f"{world.station_url}?c=3", "Technikum"),
     }
     world.hallway.presets = {2: _preset(f"{world.station_url}?c=2", "The other box")}
+    slow, fast = (world.studio, "Bose Hallway") if first_listed_answers_last else (world.hallway, "Bose Studio")
     released = asyncio.Event()
-    world.studio.held["/now_playing"] = released
+    slow.held["/now_playing"] = released
     options = _options(world, tmp_path, seed=True)
     logs: list[str] = []
 
@@ -1849,14 +1856,14 @@ async def test_the_list_is_seeded_from_the_box_listed_first_not_the_one_that_ans
             if entries is not None:
                 await eventually(lambda: DEVICES_PATH in world.registry.paths, "the start read the registry")
                 world.registry.body = json.dumps(entries)
-            await eventually(lambda: "/now_playing" in world.studio.paths(), "the studio was asked what it plays")
-            await eventually(lambda: _said(logs, f"probe: Bose Hallway: {RADIO}"), "the hallway answered first")
+            await eventually(lambda: "/now_playing" in slow.paths(), "the slow box was asked what it plays")
+            await eventually(lambda: _said(logs, f"probe: {fast}: {RADIO}"), "the other box answered first")
             registry_lines = [line for line in logs if line.startswith("registry: Bose ")]
             assert registry_lines[0].startswith("registry: Bose Studio"), f"the control: listed first {registry_lines}"
-            # A seeding that was going to run on the hallway's answer runs within a loop turn or
-            # two on loopback; this is margin over it.
+            # A seeding that was going to run on the first answer runs within a loop turn or two
+            # on loopback; this is margin over it.
             await asyncio.sleep(0.5)
-            assert _channels_of(options).channels == (), "seeded while the first-listed box had still to answer"
+            assert _channels_of(options).channels == (), "seeded while a box of the same round had still to answer"
         finally:
             released.set()
         await eventually(lambda: _channels_of(options).numbers_in_order() == ("1", "3"), "the studio seeded it")
