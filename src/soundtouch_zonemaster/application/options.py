@@ -97,6 +97,15 @@ milliseconds.
 """
 
 
+def _hold(record: object, name: str, value: object) -> None:
+    """Put the normalised form of a field back on a frozen record, from its own ``__post_init__``.
+
+    ``object.__setattr__`` is the documented way a frozen dataclass sets a field after its
+    ``__init__``; it is wrapped so each use says which field is being normalised, not how.
+    """
+    object.__setattr__(record, name, value)
+
+
 def default_device_id() -> str:
     """This host's MAC as a speaker-shaped device id."""
     return f"{uuid.getnode():012X}"
@@ -137,13 +146,17 @@ class Options:
     """``[registry] url``: the service whose BMX registry completes a relative Orion preset."""
 
     def __post_init__(self) -> None:
-        """Refuse a device id that is not one.
+        """Refuse a device id that is not one, and hold the one that is in upper case.
+
+        Folded HERE rather than only at the CLI boundary, because a record is also built by
+        callers that are not the CLI, and a speaker's report of whose stream it plays is compared
+        with this id exactly: kept lower-case, it would name the master as somebody else.
 
         The console refusal that used to sit beside this is NOT gone: it became a
         configured list of addresses this house never touches, checked at the CLI boundary
         where the configuration is read, with the same message and the same exit code.
         """
-        device_id_or_refuse(self.device_id)
+        _hold(self, "device_id", device_id_or_refuse(self.device_id))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -254,17 +267,21 @@ class ServiceOptions:
         themselves live in one place, ``domain/preferences.py``, so a value can never be legal
         from one source and refused from the other.
 
+        The device id and the consoles are HELD as the checks return them, in upper case, for the
+        reason :class:`Options` gives: a record built outside the CLI must compare equal to what
+        the registry and the speakers report.
+
         Whether the state file's directory exists is NOT checked here: it is a question
         about the machine rather than about the option set, and it is refused at the CLI
         boundary with the same message and the same exit code.
         """
-        device_id_or_refuse(self.device_id)
+        _hold(self, "device_id", device_id_or_refuse(self.device_id))
         preference_or_refuse(PreferenceName.WINDOW, self.dial_window_s)
         tcp_port_or_refuse(self.mpd_port, what="the mpd port")
         preference_or_refuse(PreferenceName.HOLD, self.hold_threshold_s)
         preference_or_refuse(PreferenceName.REWIND, self.mpd_rewind_s)
         preference_or_refuse(PreferenceName.FADE, self.fade_s)
-        preference_or_refuse(PreferenceName.CONSOLES, self.consoles_allowed)
+        _hold(self, "consoles_allowed", preference_or_refuse(PreferenceName.CONSOLES, self.consoles_allowed))
 
     @property
     def preferences(self) -> HousePreferences:
