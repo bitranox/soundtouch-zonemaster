@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 
 import rich_click as click
+from lib_layered_config import DeployPermissionsError
 from pydantic import BaseModel
 
 from ....__init__conf__ import service_command
@@ -15,6 +16,12 @@ from ..envelope import Envelope, report_failure, write_envelope
 from ..typed_click import option
 
 __all__ = ["DeployReport", "cli_config_deploy"]
+
+_WHAT_TO_FIX = (
+    "nothing was written; correct what is named above, or set the modes in "
+    '[lib_layered_config.default_permissions] of a config layer, as octal strings such as user_file = "0o600"'
+)
+"""The last line of a permissions refusal, in place of the library's hint for its own callers."""
 
 
 class DeployReport(BaseModel):
@@ -56,6 +63,15 @@ def cli_config_deploy(ctx: click.Context, *, targets: tuple[str, ...], force: bo
         # must not arrive looking like every other OSError this command can produce.
         hint = PermissionError(f"{exc}. Writing the app or host layer needs root; --target user does not.")
         report_failure(hint, command=f"{service_command} config-deploy", mode=shared.mode)
+        ctx.exit(ExitCode.ERROR)
+    except DeployPermissionsError as exc:
+        # The library's problems name the file and why, and are kept. Its hint is not: it names
+        # the parameters of the function this command calls (dir_mode, file_mode,
+        # set_permissions=False), which nobody running config-deploy can pass, and the last of
+        # them would leave a user file that may hold the database password to the umask. The
+        # class is kept too, because `error` in the envelope is what a caller branches on.
+        refusal = DeployPermissionsError(exc.problems, hint=_WHAT_TO_FIX)
+        report_failure(refusal, command=f"{service_command} config-deploy", mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
     except Exception as exc:  # noqa: BLE001 - CLI edge
         report_failure(exc, command=f"{service_command} config-deploy", mode=shared.mode)

@@ -885,6 +885,53 @@ def test_config_deploy_refuses_while_another_layer_s_file_will_not_parse(
     assert not (isolated_config_layers / "xdg" / "soundtouch-zonemaster").exists(), "nothing was written"
 
 
+@pytest.mark.parametrize(
+    ("layer_text", "named"),
+    [
+        ("[zone]\nbind_ip = = 1\n", "is not valid TOML"),
+        ("[lib_layered_config.default_permissions]\nuser_file = 640\n", "user_file"),
+    ],
+    ids=["a file that will not parse", "a mode given as a bare integer"],
+)
+@pytest.mark.parametrize("machine", [True, False], ids=["envelope", "terminal"])
+def test_a_config_deploy_refusal_says_what_to_fix_in_this_program_s_words(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    layer_text: str,
+    named: str,
+    *,
+    machine: bool,
+) -> None:
+    """The library ends its refusal with a hint for ITS callers: "give both modes (dir_mode and
+    file_mode ...)", "set_permissions=False also deploys". Those are parameters of a function this
+    command calls, not options anybody can type, and the second would leave a user file that may
+    hold the database password to the umask. So the refusal keeps the library's problems - the
+    file and why - and ends with what a person running ``config-deploy`` can do instead.
+    """
+    broken = isolated_config_layers.joinpath(*_APP_LAYER, "config.toml")
+    broken.parent.mkdir(parents=True)
+    broken.write_text(layer_text, encoding="utf-8")
+    flags = ["--json-bare"] if machine else []
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *flags, "config-deploy", "--target", "user"])
+
+    assert main() == 2
+    printed = capsys.readouterr()
+    if machine:
+        envelope = json.loads(printed.out)
+        assert (envelope["ok"], envelope["error"]) == (False, "DeployPermissionsError")
+        said = envelope["message"]
+    else:
+        assert printed.out == ""
+        said = printed.err
+    assert str(broken) in said, "the file is named"
+    assert named in said, "and why"
+    for library_words in ("set_permissions", "dir_mode", "file_mode"):
+        assert library_words not in said
+    assert "[lib_layered_config.default_permissions]" in said, "and where the modes may be set"
+    assert not (isolated_config_layers / "xdg" / "soundtouch-zonemaster").exists(), "nothing was written"
+
+
 def test_the_mpd_settings_come_from_a_file_and_a_typed_option_still_wins(
     monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path, tmp_path: Path
 ) -> None:
