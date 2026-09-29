@@ -182,7 +182,7 @@ def test_a_never_touch_entry_missing_a_field_is_named_down_to_that_field(
     written = isolated_config_layers / "xdg" / "soundtouch-zonemaster" / "config.toml"
     written.parent.mkdir(parents=True)
     written.write_text(
-        '[prototype]\nnever_touch = [\n  { ip = "192.168.0.99", name = "Room6", why = "asleep" },\n'
+        f'[prototype]\nnever_touch = [\n  {{ ip = "{ELSEWHERE}", name = "Room6", why = "asleep" }},\n'
         '  { name = "Room5", why = "the console" },\n]\n',
         encoding="utf-8",
     )
