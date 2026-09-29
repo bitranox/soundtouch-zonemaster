@@ -503,6 +503,33 @@ async def test_a_speaker_is_never_handed_the_fallback_base() -> None:
     assert server.asked.count(BMX_REGISTRY_PATH) == 1, "the back-off holds for a speaker document too"
 
 
+async def test_a_speaker_document_inside_the_back_off_says_the_registry_failed_and_starts_no_read() -> None:
+    """While a failed registry is left alone, a document says it FAILED, and nothing is started to ask it.
+
+    "Named no base yet" is the right words only while nobody has asked. Inside the back-off the
+    registry has been asked and could not answer, which is what a person reading the log needs,
+    and a background read started then could only answer from the back-off itself: a task for
+    nothing, once per document, for a minute.
+    """
+    async with _Server({}, statuses={BMX_REGISTRY_PATH: 500}) as server:
+        logs: list[str] = []
+        orion = _resolver(server.base, logs)
+        await orion.absolute(RELATIVE)
+        before = asyncio.all_tasks()
+        sent = [orion.for_a_speaker(RELATIVE) for _ in range(3)]
+        started = asyncio.all_tasks() - before
+        orion.warm()
+        warmed = asyncio.all_tasks() - before
+    assert sent == [RELATIVE] * 3, "as stored, never the fallback"
+    assert not started, f"a document inside the back-off started a read: {started}"
+    assert not warmed, f"warming inside the back-off started a read: {warmed}"
+    said = [line for line in logs if "as stored" in line]
+    assert len(said) == 3, logs
+    assert all("could not be read" in line and "asked again in" in line for line in said), said
+    assert not any("named no base yet" in line for line in logs), logs
+    assert server.asked.count(BMX_REGISTRY_PATH) == 1, "the control: the back-off held"
+
+
 async def test_any_number_of_speaker_documents_start_one_background_read() -> None:
     """Every box on a relative channel is sent a document at once; the registry is read once."""
     routes = {BMX_REGISTRY_PATH: _registry(LOCAL_INTERNET_RADIO="{base}/orion")}

@@ -187,8 +187,10 @@ class OrionBase:
 
         A relative location with no base named yet goes out AS STORED, and a background read is
         started so the next document can be absolute; while one is running, nothing more starts.
-        The fallback is never used here - see the module's docstring for why a guessed base is
-        worse for a speaker than none.
+        Inside the back-off of a registry that could not be read, the log says THAT rather than
+        that nothing has been named yet, and no read starts - it could only answer from the
+        back-off. The fallback is never used here - see the module's docstring for why a guessed
+        base is worse for a speaker than none.
         """
         if not is_relative_orion_location(location):
             return location
@@ -196,6 +198,14 @@ class OrionBase:
             url = f"{self._found.rstrip('/')}{location}"
             self.log("source", f"relative location -> {url} (for a speaker)")
             return url
+        left_s = self._backing_off_for_s()
+        if left_s > 0:
+            self.log(
+                "source",
+                f"{location} goes to a speaker as stored: the bmx registry could not be read"
+                f" (asked again in {left_s:.0f} s)",
+            )
+            return location
         self._read_in_the_background()
         self.log("source", f"{location} goes to a speaker as stored: the bmx registry has named no base yet")
         return location
@@ -221,9 +231,16 @@ class OrionBase:
         reading.cancel()
         await asyncio.wait({reading})
 
+    def _backing_off_for_s(self) -> float:
+        """How long a registry that could not be read is still left alone; zero or less once it may be asked."""
+        return self._fallback_until - time.monotonic()
+
     def _read_in_the_background(self) -> None:
-        # One at a time, which is also what lets close() end every read by ending one. A registry
-        # inside its back-off costs nothing here: _base() answers from memory without a read.
+        # One at a time, which is also what lets close() end every read by ending one. Nothing at
+        # all while a base is known or the registry is backing off: _base() would answer either
+        # from memory, so the task would read nothing and only be something for close() to end.
+        if self._found is not None or self._backing_off_for_s() > 0:
+            return
         if self._reading is not None and not self._reading.done():
             return
         self._reading = asyncio.get_running_loop().create_task(self._base())
@@ -253,7 +270,7 @@ class OrionBase:
         async with self._lookup:
             if self._found is not None:
                 return self._found
-            if time.monotonic() < self._fallback_until:
+            if self._backing_off_for_s() > 0:
                 return self.fallback
             registry = f"{self.service_url.rstrip('/')}{BMX_REGISTRY_PATH}"
             try:

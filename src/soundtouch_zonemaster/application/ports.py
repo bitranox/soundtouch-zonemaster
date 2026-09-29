@@ -338,7 +338,8 @@ class LocationResolver(Protocol):
 
         Called once when the service starts, long before the first station: a person switching a
         box on is seconds or hours away, and the read takes milliseconds. Never waits; a read
-        already running, or a base already named, starts nothing more.
+        already running, a base already named, or a registry left alone after it could not be
+        read, starts nothing more.
         """
         ...
 
