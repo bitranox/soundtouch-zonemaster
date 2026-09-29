@@ -18,6 +18,8 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from soundtouch_zonemaster.application.errors import StoreError
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -61,6 +63,11 @@ class SlowStore:
         self.saved: list[ZoneState] = []
         self.stalls = 0
         """How many calls were actually slept on: the liveness half of any test built on this."""
+        self.gates: dict[str, threading.Event] = {}
+        """A call of that name waits for its event before it goes on: a call that never ends, until
+        the test lets it. The test must set every gate it arms, or the thread waits for ever."""
+        self.fails: set[str] = set()
+        """A call of that name raises ``StoreError`` instead of reaching the real store."""
 
     def _called(self, name: str, *, stall_s: float | None = None) -> None:
         self.calls.append(Call(name, threading.current_thread()))
@@ -68,6 +75,12 @@ class SlowStore:
         if pause > 0:
             time.sleep(pause)
             self.stalls += 1
+        gate = self.gates.get(name)
+        if gate is not None:
+            gate.wait()
+        if name in self.fails:
+            message = f"simulated: the house database refused {name}"
+            raise StoreError(message)
 
     def named(self, name: str) -> list[Call]:
         """Every call of one kind, in the order they were asked."""
