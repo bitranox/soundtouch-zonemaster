@@ -4773,6 +4773,91 @@ async def test_a_box_the_registry_adds_after_the_start_is_taken_in_on_its_first_
         await eventually(lambda: HALLWAY_IP in _slaves(service), "and taken in on its first wake", timeout=5.0)
 
 
+def _listed_mid_run(world: World, *late: str) -> list[dict[str, object]]:
+    """Leave ``late`` out of the device list the start reads, and answer the whole list to hand back later."""
+    entries: list[dict[str, object]] = json.loads(
+        devices_at({STUDIO_ID: STUDIO_IP, HALLWAY_ID: HALLWAY_IP, CONSOLE_ID: CONSOLE_IP})
+    )
+    world.registry.body = json.dumps([entry for entry in entries if entry["device_id"] not in late])
+    return entries
+
+
+def _answered(logs: list[str], name: str, source: str) -> bool:
+    """Whether the service has done with a box's answer, whether it took it or dropped it."""
+    return any(line.startswith("probe: ") and name in line and source in line for line in logs)
+
+
+async def test_an_answer_the_box_contradicted_on_the_way_is_dropped_and_leaves_it_off(
+    world: World, tmp_path: Path
+) -> None:
+    """A box switched off while its answer is on the wire stays off: the frame is the newer word.
+
+    The hallway is listed mid-run, awake on a station of its own, and asked what it is playing;
+    the box takes its answer when the question arrives and the body is held back on the wire.
+    Meanwhile somebody switches it off and it says STANDBY. Read after that frame, the stale
+    "radio" is standby-then-radio, which is a wake, and the pass took the box in - switching back
+    on a box a person had just switched off. The answer is dropped instead, because the box has
+    named a source in a frame of its own since the question went out.
+
+    The last step is the liveness pair: the same box, really switched on afterwards, IS taken in,
+    so nothing unrelated kept it out while the answer was being refused.
+    """
+    entries = _listed_mid_run(world, HALLWAY_ID)
+    world.hallway.now_playing = now_playing_document(device_id=HALLWAY_ID, source=RADIO)
+    released = asyncio.Event()
+    world.hallway.held["/now_playing"] = released
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        try:
+            await eventually(lambda: _said(logs, f"({STUDIO_ID}) at {STUDIO_IP}"), "the start read the registry")
+            world.registry.body = json.dumps(entries)
+            await eventually(lambda: "/now_playing" in world.hallway.paths(), "the hallway was asked what it plays")
+            await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=SourceName.STANDBY))
+            await eventually(lambda: service.policy.is_asleep(HALLWAY_ID), "the service read it switching off")
+        finally:
+            released.set()
+        await eventually(lambda: _answered(logs, "Bose Hallway", RADIO), "the held answer arrived")
+        assert service.policy.is_asleep(HALLWAY_ID), "the stale answer overwrote the box switching itself off"
+        # A pass that took the stale answer runs within a loop turn or two on loopback; this is
+        # margin over it, so a join that was going to happen has happened.
+        await asyncio.sleep(0.5)
+        assert not joins(world.hallway), "a box somebody switched off was taken into the zone"
+
+        await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
+        await eventually(lambda: HALLWAY_IP in _slaves(service), "the control: a real wake takes it in", timeout=5.0)
+
+
+async def test_each_answer_is_taken_as_it_arrives_and_a_slow_box_holds_up_no_other(
+    world: World, tmp_path: Path
+) -> None:
+    """Two boxes listed at once, one slow to answer: the other is placed without waiting for it.
+
+    The console plays the house's stream, which by the membership rule is a reason to be in the
+    zone the moment its answer is read. It was read only once EVERY box asked had answered, so a
+    box slow to answer - up to the HTTP timeout, eight seconds - held back every box asked with
+    it. That happens at start as well as mid-run, whenever the first registry read failed.
+    """
+    entries = _listed_mid_run(world, HALLWAY_ID, CONSOLE_ID)
+    world.console.now_playing = now_playing_document(device_id=CONSOLE_ID, source=RADIO, owner=MASTER_ID)
+    released = asyncio.Event()
+    world.hallway.held["/now_playing"] = released
+    options = replace(_options(world, tmp_path), consoles_allowed=(CONSOLE_ID,))
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        try:
+            await eventually(lambda: _said(logs, f"({STUDIO_ID}) at {STUDIO_IP}"), "the start read the registry")
+            world.registry.body = json.dumps(entries)
+            await eventually(lambda: "/now_playing" in world.hallway.paths(), "the hallway was asked what it plays")
+            await eventually(lambda: CONSOLE_IP in _slaves(service), "the console was taken in", timeout=5.0)
+            assert not released.is_set(), "the control: the hallway's answer was still on the wire"
+        finally:
+            released.set()
+        await eventually(lambda: _said(logs, f"Bose Hallway: {SourceName.STANDBY}"), "and the hallway's came later")
+
+
 async def test_a_stored_preference_that_is_not_usable_is_named_once_and_ignored(world: World, tmp_path: Path) -> None:
     """A row nobody can use is said once, and the configured window goes on deciding.
 

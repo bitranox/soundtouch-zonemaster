@@ -42,6 +42,10 @@ All notable changes to this project are documented here. The format follows
   house's stream is taken in at once, and one asleep is taken in on its next wake.
 - A speaker the registry lists for the first time while the service runs is asked what it is
   playing, as every speaker is at start, so it is taken in on its first wake rather than its second.
+- A speaker switched off while its answer to that question was still on the way is no longer taken
+  into the zone and switched back on: an answer is dropped when the speaker has reported what it is
+  playing in a notification of its own since it was asked. Each answer is also taken the moment it
+  arrives, so one speaker slow to answer no longer holds back the others asked with it.
 - `channels export` now reads the house database once and writes the file atomically, so the
   reported channel count can no longer disagree with the exported text (it used to read the store
   twice in two separate transactions).

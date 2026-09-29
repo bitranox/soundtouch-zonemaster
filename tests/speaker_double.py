@@ -252,6 +252,14 @@ class FakeSpeaker:
         the honest half of that - the service really is inside its own ``await`` the whole time.
         ``"POST /volume"`` wins over a bare ``"/volume"``, so one method can be slowed alone.
         """
+        self.held: dict[str, asyncio.Event] = {}
+        """Paths whose answer is taken when the request ARRIVES and whose body waits for the event.
+
+        ``slow`` cannot make a stale answer: it builds the answer after its sleep, so what arrives
+        is what the box says by then. A real answer is what the box said when it was asked, and a
+        box can change its mind while that answer is still on the wire. Holding the body back after
+        the headers is that case - the box has answered, and the caller has not read it yet.
+        """
         self.host = host
         self.device_id = device_id
         self.presets = dict(presets)
@@ -426,7 +434,12 @@ class FakeSpeaker:
         if held:
             await asyncio.sleep(held)
         payload = self._answer(path).encode()
-        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s" % (len(payload), payload))
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n" % len(payload))
+        release = self.held.get(path)
+        if release is not None:
+            await writer.drain()
+            await release.wait()
+        writer.write(payload)
         await writer.drain()
         writer.close()
         if method == "POST" and path == "/removeZoneSlave":

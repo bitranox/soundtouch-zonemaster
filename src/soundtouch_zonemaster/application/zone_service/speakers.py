@@ -13,6 +13,7 @@ allowed to drop a speaker.
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -162,20 +163,46 @@ class SpeakerBook(ChannelBook):
         At start that is every box. After it, it is a box the registry has just listed for the
         first time, or a console just allowed: unasked, either would be watched with nothing known
         about it, and taken in only on its SECOND wake.
+
+        All at once, and each answer is taken the moment it arrives: a box slow to answer - up to
+        the HTTP timeout - must not hold back what another box has already said.
         """
         # In the order the registry listed them, which is the order the start has always asked in.
         asked = [speaker for device_id, speaker in self._speakers.items() if device_id in self._not_asked_yet]
         self._not_asked_yet.clear()
-        answers: list[SpeakerEvent | None] = list(
-            await asyncio.gather(*(self.ports.ask_now_playing(one.ip, one.device_id) for one in asked))
-        )
-        for speaker, event in zip(asked, answers, strict=True):
-            if event is None:
-                self.log("probe", f"{speaker.name} did not answer; what is remembered about it stands")
-                continue
-            self.log("probe", f"{speaker.name}: {event.source}")
-            self._noted_switched_on(event)
-            self.policy.observe(event)
+        await asyncio.gather(*(self._ask_what_it_is_playing(speaker) for speaker in asked))
+
+    async def _ask_what_it_is_playing(self, speaker: Speaker) -> None:
+        """Ask one box, and take its answer unless the box has said something newer itself since.
+
+        An answer is what the box said when the question ARRIVED, and it can be seconds old by the
+        time it is read. A frame the box sent in between is newer, and applied after it the stale
+        answer is worse than none: a box somebody switched off while its answer was on the way
+        reads as standby-then-radio, which is a wake, and the house would switch it back on.
+        """
+        asked_at = time.time()
+        event = await self.ports.ask_now_playing(speaker.ip, speaker.device_id)
+        if event is None:
+            self.log("probe", f"{speaker.name} did not answer; what is remembered about it stands")
+            return
+        if self._source_named_at.get(speaker.device_id, -math.inf) >= asked_at:
+            self.log(
+                "probe",
+                f"{speaker.name} answered {event.source}, but it has named a source itself since it was "
+                "asked; what it said last stands",
+            )
+            return
+        self.log("probe", f"{speaker.name}: {event.source}")
+        self._noted_switched_on(event)
+        self.policy.observe(event)
+        # A pass now rather than once every box asked with it has answered: an answer can put a
+        # box in the zone (it plays the house's stream), and the pass is what acts on that.
+        self._wanted.set()
+
+    def _a_frame_named_a_source(self, event: SpeakerEvent) -> None:
+        """Note when a box last said what it is playing in a frame of its own: newer than any answer asked before it."""
+        if event.device_id and event.source is not None:
+            self._source_named_at[event.device_id] = event.received_at
 
     def _named(self, event: SpeakerEvent) -> SpeakerEvent:
         """A forwarded key press names its speaker by ADDRESS; the registry turns that into an id.

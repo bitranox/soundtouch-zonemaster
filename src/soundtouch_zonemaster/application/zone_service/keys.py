@@ -49,6 +49,7 @@ class KeyReading(Dialling):
                 # it was read as.
                 self.log("key", f"{self._name(event.device_id)}: {event.key.key} {event.key.state}")
             self._noted_switched_on(event)
+            self._a_frame_named_a_source(event)
             self.policy.observe(event)
             self._wanted.set()
 

@@ -269,6 +269,13 @@ class ServiceState:
         never asked reads its first frame after a wake as "playing its own radio" rather than as the
         wake it is. At start that is every box; after it, a box added to the device list mid-run,
         or a console a preference has just allowed and the registry read then lets in."""
+        self._source_named_at: dict[str, float] = {}
+        """When each box last named its source in a frame of its own: ``received_at``, epoch seconds.
+
+        What decides whether an answer to "what are you playing" is still news. A frame the box
+        sent after the question went out is newer than the answer, so the answer is dropped rather
+        than read over it (``SpeakerBook._ask_what_it_is_playing``). Not ``Membership``'s
+        ``last_seen``: that one also moves on a state report that says nothing about the source."""
         self._registry_wanted = asyncio.Event()
         """Set when the registry must be read before the next poll: a console has just been allowed.
 

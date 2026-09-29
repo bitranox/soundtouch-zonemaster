@@ -185,10 +185,11 @@ class Membership:
         the 101 to 199 ms between the frame in which a woken box names its preset and the
         ``nowPlayingUpdated`` in which it says it has left standby (four wakes, 2026-09-07).
 
-        A box nobody has heard a source from is NOT asleep. The service asks every speaker what it
-        is playing before it reads its first frame, so the unknown case is a box that appeared
-        between two registry reads, and treating that as awake costs at most one channel change
-        the person asked for.
+        A box nobody has heard a source from is NOT asleep. The service asks every box what it is
+        playing when the registry first lists it - at start before any frame is read, later right
+        after the read that listed it - so the unknown case is the gap between a box being listed
+        and its answer arriving, or a box that never answered. Treating that as awake costs at most
+        one channel change the person asked for.
         """
         heard = self._heard.get(device_id)
         return heard is not None and heard.source == SourceName.STANDBY
