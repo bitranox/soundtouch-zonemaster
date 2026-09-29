@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from ...domain.channellist import Channel
     from ...domain.dialling import DigitIgnored
     from ...domain.longpress import Hold
-    from ...domain.preferences import PreferenceRow
     from ...domain.presses import Press
     from ..ports import ZoneMasterPort
 
@@ -290,32 +289,33 @@ class Dialling(PreferenceBook):
         waiting to hear that it is over, and a refusal they cannot hear is a refusal they will
         answer by pressing more.
 
-        Both numbers are asked of the store before either is awaited. The store queues a write the
-        moment it is asked and keeps it whoever stops waiting, but only a write it was ASKED for: a
-        stop that cancels this worker while it waits for the window would otherwise leave the hold,
-        decided in the same breath, never asked for at all - half a calibration stored, and nothing
-        said about the other half.
+        A calibration is ALL OR NOTHING: both numbers go to the store in ONE write, which the store
+        keeps in one transaction, so a refusal of either stores neither. The person pressed once for
+        both, and a window kept without the hold it was measured with is a calibration nobody made.
+        The one write is also asked for before anything is awaited: the store queues a write the
+        moment it is asked and keeps it whoever stops waiting, so a stop that cancels this worker
+        right after the last press still stores the calibration whole.
 
-        A database that refuses either write, or the read-back, costs the calibration and nothing
+        A database that refuses the write, or the read-back, costs the calibration and nothing
         else: it is said once, the house goes on with the numbers it already had, and the channel
         still starts again. Let through, the refusal would end this worker, and with it the whole
-        service - the house stood down because somebody pressed four keys. If one of the two writes
-        did land, the preference watch takes it in at its next read, as it does any stored row.
+        service - the house stood down because somebody pressed four keys.
         """
         deadline = self._calibration.deadline()
         if deadline is None or deadline > at:
             return
         result = self._calibration.finish(at=at)
         self.log("dial", f"calibration: {result.said}")
-        measured = ((PreferenceName.WINDOW, result.window_s), (PreferenceName.HOLD, result.hold_s))
-        writes = [
-            self.store.set_preference(name, value, source=PreferenceSource.CALIBRATION)
-            for name, value in measured
+        measured = {
+            name: value
+            for name, value in ((PreferenceName.WINDOW, result.window_s), (PreferenceName.HOLD, result.hold_s))
             if value is not None
-        ]
-        if writes:
+        }
+        if measured:
             try:
-                await self._keep_the_calibration(writes)
+                await self._keep_the_calibration(
+                    self.store.set_preferences(measured, source=PreferenceSource.CALIBRATION)
+                )
             except StoreError as exc:
                 self.log(ERROR_KIND, f"calibration: not stored, so the house keeps the numbers it had: {exc}")
         async with self._lock:
@@ -323,18 +323,13 @@ class Dialling(PreferenceBook):
             if master is not None:
                 await self._play_the_channel(master)
 
-    async def _keep_the_calibration(self, writes: list[Awaitable[PreferenceRow | None]]) -> None:
-        """Wait for the calibration's writes, then run on what the database now holds.
+    async def _keep_the_calibration(self, written: Awaitable[None]) -> None:
+        """Wait for the calibration's one write, then run on what the database now holds.
 
-        Every write is waited for even when an earlier one failed, so no refusal is left unheard
-        in a future nobody reads; the first one is raised. Read back rather than applied from what
-        was measured: what the service runs on is then exactly what the database holds, and what
-        a restart will read.
+        Read back rather than applied from what was measured: what the service runs on is then
+        exactly what the database holds, and what a restart will read.
         """
-        answers = await asyncio.gather(*writes, return_exceptions=True)
-        for answer in answers:
-            if isinstance(answer, BaseException):
-                raise answer
+        await written
         self._take_the_preferences(await self.store.load_preferences())
 
     async def _dialled_number(self, device_id: str, number: str) -> None:

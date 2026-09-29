@@ -141,6 +141,15 @@ class HouseStore(Protocol):
         self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
     ) -> PreferenceRow | None: ...
 
+    def set_preferences(self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource) -> None:
+        """Every one of ``values``, in ONE transaction: all of them are stored, or none is.
+
+        For values decided together - a calibration's window and hold - which are one decision a
+        person made once. Stored one call each, a refusal of the second would leave the first
+        behind, and the house would run on half a calibration that nobody made.
+        """
+        ...
+
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None: ...
 
 
@@ -204,9 +213,11 @@ class ServiceStore(Protocol):
 
     async def load_preferences(self) -> tuple[PreferenceRow, ...]: ...
 
-    def set_preference(
-        self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
-    ) -> Awaitable[PreferenceRow | None]: ...
+    def set_preferences(
+        self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource
+    ) -> Awaitable[None]:
+        """:meth:`HouseStore.set_preferences`, queued like the other two writes: all or none."""
+        ...
 
     def switch(self, *, poll_s: float, ignored_file: Path | None) -> SwitchReader: ...
 

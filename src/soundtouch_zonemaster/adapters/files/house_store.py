@@ -36,7 +36,7 @@ from .house_switch import read_switch, write_switch
 from .legacy_import import import_legacy
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Mapping
     from pathlib import Path
 
     from ...application.options import LegacyFiles
@@ -166,6 +166,17 @@ class SqlHouseStore:
     ) -> PreferenceRow | None:
         with self._guarded(), self._db.writing() as connection:
             return write_preference(connection, name, value, source=source, changed_at=datetime.now(UTC).isoformat())
+
+    def set_preferences(self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource) -> None:
+        """All of ``values`` in the one transaction :meth:`HouseDatabase.writing` holds, under one time.
+
+        A row the database refuses rolls back every row written before it in the same call, which
+        is the whole point: a calibration is stored whole or not at all.
+        """
+        changed_at = datetime.now(UTC).isoformat()
+        with self._guarded(), self._db.writing() as connection:
+            for name, value in values.items():
+                write_preference(connection, name, value, source=source, changed_at=changed_at)
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         with self._guarded(), self._db.writing() as connection:

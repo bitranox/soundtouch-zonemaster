@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 from soundtouch_zonemaster.application.errors import StoreError
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ChannelsExport, LegacyFiles
@@ -140,6 +141,10 @@ class SlowStore:
     ) -> PreferenceRow | None:
         self._called("set_preference")
         return self._real.set_preference(name, value, source=source)
+
+    def set_preferences(self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource) -> None:
+        self._called("set_preferences")
+        self._real.set_preferences(values, source=source)
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         self._called("unset_preference")

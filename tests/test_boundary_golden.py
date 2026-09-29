@@ -140,7 +140,7 @@ from soundtouch_zonemaster.domain.state import Place, ZoneState
 from soundtouch_zonemaster.domain.station import StationRequest
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Callable, Sequence
+    from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 
     from soundtouch_zonemaster.application.options import ChannelPolicy, LegacyFiles
     from soundtouch_zonemaster.application.ports import AddressOf, LocationResolver, MpdControlPort
@@ -1008,6 +1008,10 @@ class FakeStore:
             name=name.value, text=json.dumps(value), source=source.value, changed_at=FAKE_CHANGED_AT
         )
         return before
+
+    def set_preferences(self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource) -> None:
+        for name, value in values.items():
+            self.set_preference(name, value, source=source)
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         return self._preferences.pop(name, None)

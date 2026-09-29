@@ -81,6 +81,9 @@ All notable changes to this project are documented here. The format follows
 - A stop (a deploy's SIGINT, or `switch off`) that lands just as a calibration ends keeps both
   numbers it measured. It used to keep the dialling window and lose the hold threshold, because the
   hold was asked of the database only once the window's write had answered.
+- A calibration is stored whole or not at all: its dialling window and hold threshold go to the
+  house database in one transaction, so a refusal of either stores neither. It used to write them
+  one at a time, and a refused hold left the window behind for the service to run on.
 - A calibration the house database refuses is said once in the log, and the service goes on with
   the dialling window and hold threshold it already had. It used to end the whole service.
 - A console added to `membership.consoles_allowed` while the service runs is watched at once rather

@@ -85,7 +85,7 @@ from soundtouch_zonemaster.domain.state import Place, ZoneState
 from soundtouch_zonemaster.domain.zonexml import station_content_item
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+    from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ChannelsExport, LegacyFiles
@@ -3546,7 +3546,7 @@ async def test_a_stop_that_lands_while_a_calibration_is_being_written_keeps_both
 ) -> None:
     """A calibration decides two numbers at once, and a stop may not keep one and drop the other.
 
-    The database is held on its first preference write, so the stop lands while the calibration is
+    The database is held on the calibration's write, so the stop lands while the calibration is
     still waiting for it - which is what a deploy's SIGINT, or ``switch off``, does when it comes
     right after the last press. The hold is released only once the stand-down has begun, and by
     then the worker that read the calibration has been cancelled: whatever it had not asked the
@@ -3580,7 +3580,7 @@ async def test_a_stop_that_lands_while_a_calibration_is_being_written_keeps_both
     window = float(said.split("the window becomes ", 1)[1].split(" s")[0])
     hold = float(said.rsplit("the hold becomes ", 1)[1].split(" s")[0])
     stored = _preferences_of(options)
-    assert float(stored["dialling.window_s"]) == pytest.approx(window), "the control: the first write landed"
+    assert float(stored["dialling.window_s"]) == pytest.approx(window), "the control: the held write landed"
     assert "dialling.hold_threshold_s" in stored, "the second number was decided with the first and must land too"
     assert float(stored["dialling.hold_threshold_s"]) == pytest.approx(hold)
 
@@ -3590,7 +3590,7 @@ async def test_a_calibration_the_database_refuses_is_said_once_and_the_house_goe
 ) -> None:
     """A refused calibration costs the calibration, never the service.
 
-    Its two writes are awaited on the dialling worker, and a :class:`StoreError` raised there used
+    Its write is awaited on the dialling worker, and a :class:`StoreError` raised there used
     to leave that worker - which ends the whole service, since the workers are gathered together:
     the house stood down because somebody pressed four keys while the database was unwell. It is
     said once instead, and the numbers the house runs on stay what they were, because nothing was
@@ -3608,7 +3608,7 @@ async def test_a_calibration_the_database_refuses_is_said_once_and_the_house_goe
             await _press_preset(world.studio, STUDIO_ID, 1 + n % 2, hold_s=0.9)
             await asyncio.sleep(0.3)
         await eventually(lambda: any("the hold becomes" in line for line in logs), "it read both", timeout=15.0)
-        await eventually(lambda: store.refused_preference_writes == 2, "both writes were refused")
+        await eventually(lambda: store.refused_preference_writes == 1, "the one write was refused")
         await eventually(
             lambda: any(line.startswith(f"{ERROR_KIND}: ") and "calibration" in line for line in logs),
             "the refusal was said",
@@ -3624,6 +3624,60 @@ async def test_a_calibration_the_database_refuses_is_said_once_and_the_house_goe
     assert "dialling.window_s" not in _preferences_of(options)
     stood_down = [line for line in logs if "standing down" in line]
     assert len(stood_down) == 1, "the only stand-down is the test's own stop at the end"
+
+
+_REFUSE_THE_HOLD = """
+CREATE TRIGGER refuse_the_hold BEFORE INSERT ON preference
+WHEN NEW.name = 'dialling.hold_threshold_s'
+BEGIN SELECT RAISE(ABORT, 'refused by the test'); END
+"""
+"""A real database refusal of the hold's row, raised inside whatever transaction writes it."""
+
+
+def _the_database_refuses_the_hold(options: ServiceOptions) -> None:
+    """Teach the service's own SQLite file to refuse the hold row, while the service holds it open.
+
+    A trigger rather than a wrapped store: whether the window's row survives the refusal is a
+    property of the REAL transaction, which a test double could only imitate.
+    """
+    with contextlib.closing(sqlite3.connect(options.database)) as raw, raw:
+        raw.execute(_REFUSE_THE_HOLD)
+
+
+async def test_a_calibration_whose_hold_the_database_refuses_stores_neither_number(
+    world: World, tmp_path: Path
+) -> None:
+    """A calibration is ALL OR NOTHING: both numbers in one transaction, or neither.
+
+    The person pressed once for both, and a window stored without the hold it was measured with
+    is a calibration nobody made - the preference watch would take the half that landed at its
+    next read, and ``prefs`` would show it as calibrated. The database here accepts the window's
+    row and refuses the hold's, in the real file the service writes, so only one transaction for
+    the two can leave nothing behind.
+    """
+    options = _dialable_world(world, tmp_path, dial_window_s=0.5)
+    logs: list[str] = []
+
+    async with _running(options, logs):
+        await _both_wake(world)
+        _the_database_refuses_the_hold(options)
+        await _gesture(STUDIO_IP)
+        await eventually(lambda: any("calibration started" in line for line in logs), "the calibration began")
+        for n in range(4):
+            await _press_preset(world.studio, STUDIO_ID, 1 + n % 2, hold_s=0.9)
+            await asyncio.sleep(0.3)
+        await eventually(lambda: any("the hold becomes" in line for line in logs), "it read both", timeout=15.0)
+        await eventually(
+            lambda: any(line.startswith(f"{ERROR_KIND}: ") and "calibration" in line for line in logs),
+            "the refusal was said",
+        )
+        # Past the preference watch's next read, which would take in a window row that landed.
+        await asyncio.sleep(options.switch_poll_s * 2)
+
+    assert _preferences_of(options) == {}, "the window must not be stored without its hold"
+    refused = [line for line in logs if line.startswith(f"{ERROR_KIND}: ") and "calibration" in line]
+    assert len(refused) == 1, refused
+    assert not any("calibrated at" in line for line in logs), "nothing refused was taken in"
 
 
 async def test_a_calibrated_hold_threshold_is_what_a_restart_holds_with(world: World, tmp_path: Path) -> None:
@@ -4417,13 +4471,16 @@ class _StoreThatCanFail:
     def set_preference(
         self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
     ) -> PreferenceRow | None:
+        return self._real.set_preference(name, value, source=source)
+
+    def set_preferences(self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource) -> None:
         if self.preference_gate is not None:
             self.preference_gate.wait()
         if self.preference_writes_fail:
             self.refused_preference_writes += 1
-            message = "simulated: the house database refused the preference"
+            message = "simulated: the house database refused the preferences"
             raise StoreError(message)
-        return self._real.set_preference(name, value, source=source)
+        self._real.set_preferences(values, source=source)
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         return self._real.unset_preference(name)

@@ -65,7 +65,7 @@ Complete (v0.2.0+, the template rebuild)
   - `house_channels.py`  -  The channel list, as rows ordered by `position` (never `rowid`), checked by the same rules the channel file is
   - `house_preferences.py`  -  The preferences, as rows: one per preference somebody set, an UPSERT never a delete-then-insert
   - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
-  - `house_store.py`  -  SqlHouseStore: the state, the channel list, the switch and the house preferences, in one database
+  - `house_store.py`  -  SqlHouseStore: the state, the channel list, the switch and the house preferences, in one database; `set_preferences` writes several preferences in one transaction (a calibration is stored whole or not at all)
   - `store_worker.py`  -  StoreWorker, the ServiceStore the service calls: the house store off the event loop on one daemon thread of its own, every call run in the order asked; writes queued when called and kept when their awaiter is cancelled; a close that waits at most `STOP_BOUND_S` (10 s) and says what it left behind
 - `src/soundtouch_zonemaster/adapters/http_client.py`  -  Every httpx client, built with no timeout of its own: each call's deadline is asyncio's, because an anyio deadline can swallow a stop
 - `src/soundtouch_zonemaster/adapters/aftertouch/registry.py`  -  Who the speakers are, read from AfterTouch's own device list

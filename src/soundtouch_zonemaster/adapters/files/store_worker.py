@@ -30,7 +30,7 @@ drops its advisory lock when the server notices the session is gone - at once wh
 connection's socket is closed with the process, and only after the server's own TCP keepalive
 when its host cannot be reached at all.
 
-**A write is queued when it is CALLED.** ``save_state``, ``save_channels`` and ``set_preference``
+**A write is queued when it is CALLED.** ``save_state``, ``save_channels`` and ``set_preferences``
 are plain methods that submit at once and return the pending answer, rather than coroutines that
 would submit only when first awaited. That is what lets the reader - which may not wait, because
 a pass can sit ten seconds on a station - ask for a save and go on, with the next save still
@@ -71,7 +71,7 @@ from ...domain.logfn import ERROR_KIND
 from .house_switch import DbSwitch
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
     from ...application.options import LegacyFiles
@@ -247,11 +247,13 @@ class StoreWorker:
     async def load_preferences(self) -> tuple[PreferenceRow, ...]:
         return await self._run(self._store.load_preferences)
 
-    def set_preference(
-        self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
-    ) -> asyncio.Future[PreferenceRow | None]:
+    def set_preferences(
+        self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource
+    ) -> asyncio.Future[None]:
+        # Copied now, on the loop: the thread runs the write later, and a caller's own mapping may
+        # have changed by then.
         return self._write(
-            functools.partial(self._store.set_preference, name, value, source=source), what="set_preference"
+            functools.partial(self._store.set_preferences, dict(values), source=source), what="set_preferences"
         )
 
     async def is_on(self) -> bool:
