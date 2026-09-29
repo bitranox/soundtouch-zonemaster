@@ -172,9 +172,9 @@ class ZoneMaster:
     locations: LocationResolver | None = None
     """What completes a relative Orion location before a station is fetched (``orion.py``).
 
-    The service hands over the one it holds for the whole run, the same one its ``/select`` goes
-    through, so a speaker and the fetch are never given two different bases. ``None`` builds one
-    against the default service base.
+    The service hands over the one it holds for the whole run, the same one every document it
+    sends a speaker goes through, so a speaker and the fetch are never given two different bases.
+    ``None`` builds one against the default service base.
     """
     slaves: dict[str, Slave] = field(default_factory=dict[str, Slave])
     transports: SlaveTransports = field(default_factory=SlaveTransports)

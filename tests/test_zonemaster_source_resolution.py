@@ -447,6 +447,114 @@ async def test_two_stations_starting_at_once_ask_the_registry_once_between_them(
     assert server.asked.count(BMX_REGISTRY_PATH) == 1
 
 
+# --- what a SPEAKER is handed: absolute only against a base the registry has already named --------
+
+
+async def _until_the_registry_was_asked(server: _Server) -> None:
+    """Wait, bounded by the clock, for a read nobody in the test started: the background one."""
+    try:
+        async with asyncio.timeout(3.0):
+            while BMX_REGISTRY_PATH not in server.asked:
+                await asyncio.sleep(0.01)
+    except TimeoutError:
+        pytest.fail("nothing read the registry in the background")
+
+
+async def test_a_speaker_is_handed_the_location_as_stored_until_the_registry_has_named_a_base() -> None:
+    """The first document goes out relative and at once; the read it starts makes the next absolute.
+
+    The registry is slow on purpose: a document that waited for it would be as slow, and a speaker
+    document built on a person's press has no business waiting on a neighbour. The later
+    ``absolute`` call waits for the background read under the resolver's lock, which is also what
+    proves the two share one read.
+    """
+    routes = {BMX_REGISTRY_PATH: _registry(LOCAL_INTERNET_RADIO="{base}/orion")}
+    async with _Server(routes, delays={BMX_REGISTRY_PATH: 0.3}) as server:
+        logs: list[str] = []
+        orion = _resolver(server.base, logs)
+        first = orion.for_a_speaker(RELATIVE)
+        await _until_the_registry_was_asked(server)
+        fetched = await orion.absolute(RELATIVE)
+        second = orion.for_a_speaker(RELATIVE)
+    assert first == RELATIVE, "nothing named a base yet, so the speaker gets the location as stored"
+    assert second == fetched == f"{server.base}/orion{RELATIVE}", "and once the registry named one, the absolute"
+    assert server.asked.count(BMX_REGISTRY_PATH) == 1, "the background read and the fetch shared one read"
+    assert any("as stored" in line for line in logs), logs
+
+
+async def test_a_speaker_is_never_handed_the_fallback_base() -> None:
+    """The fallback is a guess about the service's layout, good enough for the master's own fetch.
+
+    A speaker completes a relative location through its own registry, so handing it a guessed
+    absolute one could only be worse - with the shipped loopback ``[registry] url`` it names the
+    speaker's OWN loopback, where nothing answers, and a box that stores it keeps it for good.
+    """
+    async with _Server({}, statuses={BMX_REGISTRY_PATH: 500}) as server:
+        orion = _resolver(server.base, [])
+        first = orion.for_a_speaker(RELATIVE)
+        await _until_the_registry_was_asked(server)
+        fetched = await orion.absolute(RELATIVE)
+        second = orion.for_a_speaker(RELATIVE)
+    assert fetched == f"{server.base}{ORION_FALLBACK_PATH}{RELATIVE}", "the control: the fetch did fall back"
+    assert first == second == RELATIVE
+    assert server.asked.count(BMX_REGISTRY_PATH) == 1, "the back-off holds for a speaker document too"
+
+
+async def test_any_number_of_speaker_documents_start_one_background_read() -> None:
+    """Every box on a relative channel is sent a document at once; the registry is read once."""
+    routes = {BMX_REGISTRY_PATH: _registry(LOCAL_INTERNET_RADIO="{base}/orion")}
+    async with _Server(routes, delays={BMX_REGISTRY_PATH: 0.2}) as server:
+        orion = _resolver(server.base, [])
+        sent = [orion.for_a_speaker(RELATIVE) for _ in range(5)]
+        await _until_the_registry_was_asked(server)
+        await orion.absolute(RELATIVE)
+    assert sent == [RELATIVE] * 5
+    assert server.asked.count(BMX_REGISTRY_PATH) == 1
+
+
+async def test_an_absolute_location_is_handed_to_a_speaker_as_it_is_and_reads_nothing() -> None:
+    async with _Server({}) as server:
+        orion = _resolver(server.base, [])
+        sent = orion.for_a_speaker(f"{server.base}/orion{RELATIVE}")
+        await asyncio.sleep(0.1)
+    assert sent == f"{server.base}/orion{RELATIVE}"
+    assert server.asked == [], "only a relative location has anything to complete"
+
+
+async def test_closing_the_resolver_ends_a_background_read_still_waiting_on_the_registry() -> None:
+    """The end of a run must not wait out a registry that took the connection and said nothing.
+
+    Three documents are built while the read waits, so a resolver that started a read per document
+    would leave two of them behind a close that ended only the last; every task it started must be
+    gone afterwards.
+    """
+    held: list[asyncio.StreamWriter] = []
+
+    async def say_nothing(_reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        held.append(writer)
+
+    wedged = await asyncio.start_server(say_nothing, "127.0.0.1", 0)
+    base = f"http://127.0.0.1:{wedged.sockets[0].getsockname()[1]}"
+    orion = _resolver(base, [], timeout_s=30.0)
+    before = asyncio.all_tasks()
+    try:
+        assert [orion.for_a_speaker(RELATIVE) for _ in range(3)] == [RELATIVE] * 3
+        async with asyncio.timeout(3.0):
+            while not held:
+                await asyncio.sleep(0.01)
+        closing = asyncio.create_task(orion.close())
+        done, _ = await asyncio.wait({closing}, timeout=1.0)
+        assert done, "close waited for the registry instead of ending the read"
+        assert closing.exception() is None
+        await asyncio.sleep(0)
+        assert asyncio.all_tasks() - {closing} == before, "a read the resolver started outlived its close"
+    finally:
+        for writer in held:
+            writer.close()
+        wedged.close()
+        await wedged.wait_closed()
+
+
 async def test_a_fetch_that_fails_against_the_named_base_makes_the_next_one_ask_the_registry_again() -> None:
     """An Orion adapter that moved is found again: the base it was at is forgotten when it fails.
 

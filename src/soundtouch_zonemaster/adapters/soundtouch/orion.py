@@ -7,11 +7,13 @@ station itself, so it has to complete the location the same way before the first
 absolute spelling and the legacy ``/custom/v1/playback/<b64>`` form need nothing and are handed
 back unchanged.
 
-The stored channel keeps the location it was given. What a SPEAKER is sent is the completed one:
-the absolute URL is exactly what a speaker would compute from its own registry, so handing it over
-is right whether or not a given firmware resolves the relative form itself, and it does not rest
-on a behaviour nobody has measured. One :class:`OrionBase` per service answers both the fetch and
-every ``/select``, so the two can never be completed against different bases.
+The stored channel keeps the location it was given. What a SPEAKER is sent is the absolute one
+only when the registry has already NAMED its base: that url is exactly what the speaker would
+compute from its own registry. Until then a speaker is sent the location as stored, which it
+completes itself (proven for stored presets), and never the fallback: the fallback is a guess
+built from ``[registry] url``, whose shipped value is the loopback, so a box handed it would ask
+itself for the station - and a box keeps what it stores. One :class:`OrionBase` per service
+answers both the fetch and every speaker document, so the two can never name different bases.
 """
 
 from __future__ import annotations
@@ -145,6 +147,10 @@ class OrionBase:
     rather than never. And a registry that could not be read is remembered only for
     ``retry_after_s``: the fallback answers until then, so a stalled registry costs its timeout
     once instead of on every start, and is asked again afterwards.
+
+    A speaker document never waits for any of this (:meth:`for_a_speaker`): it takes the base if
+    the registry has already named one, and otherwise starts the read in the background, through
+    the same lock, so the fetch and the document share it.
     """
 
     service_url: str = DEFAULT_BASE_URL
@@ -158,6 +164,8 @@ class OrionBase:
     _found: str | None = field(default=None, init=False, repr=False)
     _fallback_until: float = field(default=float("-inf"), init=False, repr=False)
     _lookup: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
+    _reading: asyncio.Task[str] | None = field(default=None, init=False, repr=False)
+    """The read a speaker document started, kept so a second document does not start another."""
 
     @property
     def fallback(self) -> str:
@@ -172,6 +180,52 @@ class OrionBase:
         url = f"{base.rstrip('/')}{location}"
         self.log("source", f"relative location -> {url}")
         return url
+
+    def for_a_speaker(self, location: str) -> str:
+        """``location`` as a speaker may be handed it, without waiting: absolute only against a named base.
+
+        A relative location with no base named yet goes out AS STORED, and a background read is
+        started so the next document can be absolute; while one is running, nothing more starts.
+        The fallback is never used here - see the module's docstring for why a guessed base is
+        worse for a speaker than none.
+        """
+        if not is_relative_orion_location(location):
+            return location
+        if self._found is not None:
+            url = f"{self._found.rstrip('/')}{location}"
+            self.log("source", f"relative location -> {url} (for a speaker)")
+            return url
+        self._read_in_the_background()
+        self.log("source", f"{location} goes to a speaker as stored: the bmx registry has named no base yet")
+        return location
+
+    async def close(self) -> None:
+        """End the background read, if one is still waiting on the registry.
+
+        Waited with :func:`asyncio.wait`, which never re-raises the child's outcome, so a cancel of
+        whoever is closing is not mistaken for the read's own and swallowed here.
+        """
+        reading, self._reading = self._reading, None
+        if reading is None or reading.done():
+            return
+        reading.cancel()
+        await asyncio.wait({reading})
+
+    def _read_in_the_background(self) -> None:
+        # One at a time, which is also what lets close() end every read by ending one. A registry
+        # inside its back-off costs nothing here: _base() answers from memory without a read.
+        if self._reading is not None and not self._reading.done():
+            return
+        self._reading = asyncio.get_running_loop().create_task(self._base())
+        self._reading.add_done_callback(self._say_if_the_read_failed)
+
+    def _say_if_the_read_failed(self, task: asyncio.Task[str]) -> None:
+        """One line for a background read that raised, rather than the loop's report at some later moment."""
+        if task.cancelled():
+            return
+        failure = task.exception()
+        if failure is not None:
+            self.log("source", f"reading the bmx registry in the background: {type(failure).__name__}: {failure}")
 
     def forget(self, url: str) -> None:
         """A fetch of ``url`` failed: if it was completed against the base the registry named, drop it.

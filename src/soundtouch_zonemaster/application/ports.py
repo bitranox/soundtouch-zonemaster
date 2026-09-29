@@ -307,21 +307,38 @@ class OpenMpdControl(Protocol):
 
 
 class LocationResolver(Protocol):
-    """Completes a relative Orion location the way a speaker does, for the fetch and the ``/select`` alike.
+    """Completes a relative Orion location the way a speaker does, for the fetch and a speaker apart.
 
     AfterTouch stores a preset as ``/station?data=...`` and leaves the base to the speaker's own
-    service registry. The service hands a speaker the ABSOLUTE form in every ``/select``: it is
-    exactly what the speaker would compute, so it is right whether or not a given firmware
-    resolves the relative one, and the channel list keeps the location as it was stored. One per
-    service, shared with the master's sources, so both are completed against the same base.
+    service registry. The two callers want different things from it. The master's own fetch needs
+    SOME absolute url before it can send a byte, so it waits for the registry and takes the
+    fallback when there is none (:meth:`absolute`). A document handed to a SPEAKER - every
+    ``/select``, the item the zone shows its slaves, anything a box may store - must never be
+    completed against a guess, because a box keeps what it stores, and it must never wait on a
+    neighbour, because it is built on a person's press (:meth:`for_a_speaker`). The channel list
+    keeps the location as it was stored. One per service, shared with the master's sources, so
+    both are completed against the same base.
     """
 
     async def absolute(self, location: str) -> str:
-        """``location`` naming the station completely; anything but the relative form comes back as it is."""
+        """``location`` naming the station completely, for the master's own fetch; waits for the registry."""
+        ...
+
+    def for_a_speaker(self, location: str) -> str:
+        """``location`` as a speaker may be handed it, at once: absolute only against a base the registry named.
+
+        When no such base is known yet the location comes back as stored - a speaker completes the
+        relative form through its own registry - and a read starts in the background, so a later
+        document can be absolute. Never waits, and never uses the fallback.
+        """
         ...
 
     def forget(self, url: str) -> None:
         """A fetch of ``url`` failed before a byte came back, so the base it was completed against is suspect."""
+        ...
+
+    async def close(self) -> None:
+        """End a background registry read still in flight; the end of a run must not wait it out."""
         ...
 
 

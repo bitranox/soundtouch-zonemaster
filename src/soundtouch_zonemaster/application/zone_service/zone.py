@@ -287,12 +287,13 @@ class ZoneReconcile(VolumeGuard):
         ``_claimed_as_our_echo`` - owed from BEFORE the send, because the selection arrives before
         the call returns.
 
-        The location sent is the ABSOLUTE one (``self.locations``): what a speaker would compute
-        from its own registry for a relative Orion channel, so it is right whether or not its
-        firmware resolves the relative form, and the channel list keeps the url as it was stored.
-        Completed before anything is owed, so a slow registry cannot eat the echo's window.
+        The location sent is ``self.locations.for_a_speaker``: absolute when the registry has
+        already named its base, and otherwise as the channel stores it, for the box to complete
+        through its own registry. It never waits for the registry, so a slow one cannot hold the
+        pass lock some callers are under, nor eat the echo's window; the only thing awaited here
+        is the box's own answer to the ``/select``.
         """
-        location = await self.locations.absolute(channel.url)
+        location = self.locations.for_a_speaker(channel.url)
         touch, selection = self._owed.owe_touch(device_id), self._owed.owe_selection(device_id)
         try:
             await self.ports.select_station(address, url=location, name=channel.name)
@@ -474,9 +475,11 @@ class ZoneReconcile(VolumeGuard):
         await self._remember_where_mpd_is()
         if channel.kind is ChannelKind.MPD:
             await self._put_mpd_on(channel)
-        # The fetch completes the channel's own url itself, and forgets a base that failed; the
-        # item every slave is shown carries the absolute location, as a /select does.
-        location = await self.locations.absolute(channel.url)
+        # The fetch completes the channel's own url itself, waiting for the registry and forgetting
+        # a base that failed. The item every slave is shown takes the speaker's form, which never
+        # waits: nothing may suspend between here and play() taking its generation, or a number
+        # dialled later that got there first would lose to this one (starts run concurrently).
+        location = self.locations.for_a_speaker(channel.url)
         station = await master.play(
             StationRequest(
                 playback_url=channel.url,

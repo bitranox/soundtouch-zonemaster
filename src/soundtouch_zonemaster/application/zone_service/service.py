@@ -74,6 +74,9 @@ class ZoneService(KeyReading):
             # otherwise be holding a source that the dissolve is about to take the zone out from
             # under, and it would go on fetching a station nobody is listening to.
             await self._stop_starting_channels()
+            # A registry read a speaker document started in the background; nothing builds one
+            # after the workers above, and a stop must not wait out a registry that went quiet.
+            await self.locations.close()
             await self._stop_watching()
             await self._stand_down()
 

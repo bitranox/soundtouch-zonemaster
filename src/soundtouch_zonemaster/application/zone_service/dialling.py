@@ -325,7 +325,11 @@ class Dialling(PreferenceBook):
             self._start_the_channel_soon(master, channel)
 
     async def _book_the_dialled_number(self, device_id: str, channel: Channel, number: str) -> ZoneMasterPort | None:
-        """Everything a completed number changes here, under the lock and without waiting on anyone.
+        """Everything a completed number changes here, under the lock and waiting on no server but one.
+
+        The one is the box's own: a box out of multiroom dials for itself, and the ``/select`` that
+        plays the channel on it is sent and answered under the lock (``_dialled_on_its_own``). Its
+        location is completed without waiting for the registry, so nothing else is awaited here.
 
         Returns the master when the channel still has to be STARTED, and None when it does not -
         the box is out of multiroom and dials only for itself, nobody is holding the house, the

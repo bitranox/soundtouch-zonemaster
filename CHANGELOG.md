@@ -18,9 +18,12 @@ All notable changes to this project are documented here. The format follows
   `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion`, says so in the log, and is asked
   again a minute later rather than on every station start. A station fetch that fails against the
   base the registry named makes the next one read the registry again, so an Orion adapter that
-  moved is found. The channel list keeps the location exactly as given, while every `/select` the
-  service sends, and the item the zone shows its slaves, carries the completed absolute location -
-  what a speaker would compute from its own registry. The prototype reads `[registry] url` too.
+  moved is found. The channel list keeps the location exactly as given. What a speaker is sent - a
+  `/select`, or the item the zone shows its slaves - carries the absolute location only once the
+  registry has named its base; before that, and whenever the registry cannot say, it carries the
+  location as stored, for the speaker to complete through its own registry, and never the
+  fallback. Building it never waits for the registry: it starts a background read instead, so a
+  later one can be absolute. The prototype reads `[registry] url` too.
   The absolute form (`http://.../orion/station?data=...`) and the legacy
   `/custom/v1/playback/...` form still work unchanged; every other bare path is still refused.
 
