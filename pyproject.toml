@@ -427,6 +427,12 @@ coverage-report-file = "coverage.xml"
 # PYTHONPATH and also its own default.
 src-path = "src"
 
+[tool.scripts.test-all]
+# The suite binds fixed 127.0.0.1 ports (40002, 40003, 40005, 8090) and shares one PostgreSQL test
+# database, so two version cells running at once break each other. Run them one after another.
+# Read by bmk from 3.18.0; older bmk ignores the table.
+workers = 1
+
 [tool.clean]
 # Patterns to remove when running `make clean`
 patterns = [
