@@ -425,10 +425,13 @@ class _Frames:
 class _Relay(asyncio.Queue[SpeakerEvent]):
     """One observer's view of the reader's queue: each frame re-stamped, written down, and passed on.
 
-    Only ``put`` is overridden, because it is all an observer calls. The put into the real queue
-    never suspends (the queue is unbounded), so a test that sees a frame in :attr:`_Frames.put` and
-    the reader's queue empty knows the reader has taken it - and read it to the end, because the
-    reader does nothing between two ``get`` calls that could let another task run.
+    Both ways of adding an item are overridden, ``put`` (what the observer calls today) and
+    ``put_nowait``, so the relay's own queue never holds anything: a frame that stayed in it would
+    be a frame nothing reads, and a test waiting for it would time out naming nothing about why.
+    The put into the real queue never suspends (the queue is unbounded), so a test that sees a
+    frame in :attr:`_Frames.put` and the reader's queue empty knows the reader has taken it - and
+    read it to the end, because the reader does nothing between two ``get`` calls that could let
+    another task run.
     """
 
     def __init__(self, into: asyncio.Queue[SpeakerEvent], frames: _Frames) -> None:
@@ -437,9 +440,12 @@ class _Relay(asyncio.Queue[SpeakerEvent]):
         self._frames = frames
 
     async def put(self, item: SpeakerEvent) -> None:
+        self.put_nowait(item)
+
+    def put_nowait(self, item: SpeakerEvent) -> None:
         stamped = replace(item, received_at=item.received_at + self._frames.clock_step_s)
         self._frames.put.append(stamped)
-        await self._into.put(stamped)
+        self._into.put_nowait(stamped)
 
 
 def _relaying(frames: _Frames) -> ZoneServicePorts:
@@ -464,6 +470,28 @@ def _relaying(frames: _Frames) -> ZoneServicePorts:
         )
 
     return replace(production, watch_speaker=watch)
+
+
+async def test_the_relay_passes_on_a_frame_put_without_waiting_as_well() -> None:
+    """Either way of putting reaches the reader, re-stamped and written down.
+
+    The observer awaits ``put`` today. Were it to switch to ``put_nowait``, a relay that overrode
+    only ``put`` would keep the frame in its OWN queue, which nothing reads: every test built on it
+    would time out waiting for a frame the service never saw, and name nothing about why.
+    """
+    into: asyncio.Queue[SpeakerEvent] = asyncio.Queue()
+    frames = _Frames()
+    frames.clock_step_s = 5.0
+    relay = _Relay(into, frames)
+    event = SpeakerEvent(received_at=1.0, speaker=STUDIO_IP, device_id=STUDIO_ID, kind="nowPlayingUpdated", frame="")
+
+    relay.put_nowait(event)
+    await relay.put(event)
+
+    expected = replace(event, received_at=6.0)
+    assert frames.put == [expected, expected], "both puts were written down, re-stamped"
+    assert [into.get_nowait(), into.get_nowait()] == [expected, expected], "and both reached the reader's queue"
+    assert relay.empty(), "nothing stayed behind in the relay's own queue"
 
 
 def _read_to_the_end(service: ZoneService, frames: _Frames, device_id: str, kind: str) -> bool:
