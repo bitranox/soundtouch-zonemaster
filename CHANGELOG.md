@@ -57,6 +57,12 @@ All notable changes to this project are documented here. The format follows
   environment variable stays text unless it reads back the same (`0640`, `1.50`), and an UNQUOTED
   JSON array or object in `.env` is now a list or table, as in the environment: quote a
   `database.password` there that looks like one.
+- `config-deploy` writes the modes it always did (the user layer 700 for directories and 600 for
+  files, the app and host layers 755 and 644), but a layer it does not write, or the environment,
+  may now configure them in `[lib_layered_config.default_permissions]` (`user_file = "0o640"` and
+  so on, an octal string; a bare integer is refused). So it reads the other layers first, and
+  refuses with exit 2, writing nothing, while one of their files cannot be parsed. A file whose
+  content is unchanged is still skipped and keeps its mode.
 - `--device-id` / `zone.device_id` accept either case and fold to upper case now, the same rule
   `membership.consoles_allowed` already applies to a console's id: a lower-case id is no longer
   refused.

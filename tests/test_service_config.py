@@ -19,6 +19,8 @@ import os
 import re
 import shutil
 import socket
+import stat
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -784,6 +786,74 @@ def test_a_deploy_that_is_denied_says_which_target_needs_root(
         home.chmod(0o700)
     assert envelope["error"] == "PermissionError", "the class a caller branches on, not one of its bases"
     assert "needs root" in envelope["message"]
+
+
+_APP_LAYER = ("etc", "xdg", "soundtouch-zonemaster")
+"""Where the app layer lives under the isolated root on Linux: ``/etc/xdg/<slug>``."""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits; Windows has none to set")
+def test_config_deploy_sets_each_layer_s_modes_itself_whatever_the_umask(
+    monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path
+) -> None:
+    """lib_layered_config 6.0.0 sets the modes rather than leaving them to the umask: the user
+    layer 700/600, because a user file may hold the database password, and the app and host
+    layers 755/644. A umask of zero is the control that the modes are set, not inherited."""
+    previous = os.umask(0)
+    try:
+        for target in ("user", "app"):
+            monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "config-deploy", "--target", target])
+            assert main() == 0
+    finally:
+        os.umask(previous)
+
+    user = isolated_config_layers / "xdg" / "soundtouch-zonemaster"
+    app = isolated_config_layers.joinpath(*_APP_LAYER)
+    for directory, dir_mode, file_mode in ((user, 0o700, 0o600), (app, 0o755, 0o644)):
+        assert stat.S_IMODE(directory.stat().st_mode) == dir_mode, directory
+        assert stat.S_IMODE((directory / "config.d").stat().st_mode) == dir_mode, directory
+        written = [directory / "config.toml", *sorted((directory / "config.d").iterdir())]
+        assert {stat.S_IMODE(path.stat().st_mode) for path in written} == {file_mode}, directory
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits; Windows has none to set")
+def test_config_deploy_takes_the_modes_a_layer_configures(
+    monkeypatch: pytest.MonkeyPatch, isolated_config_layers: Path
+) -> None:
+    """From lib_layered_config 6.0.0 the modes may be configured, in any layer the deploy does not
+    write, as an octal string; the other layer's directory keeps its built-in mode."""
+    configured = isolated_config_layers.joinpath(*_APP_LAYER, "config.toml")
+    configured.parent.mkdir(parents=True)
+    configured.write_text('[lib_layered_config.default_permissions]\nuser_file = "0o640"\n', encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "config-deploy", "--target", "user"])
+
+    assert main() == 0
+
+    user = isolated_config_layers / "xdg" / "soundtouch-zonemaster"
+    assert stat.S_IMODE((user / "config.toml").stat().st_mode) == 0o640
+    assert stat.S_IMODE(user.stat().st_mode) == 0o700, "the control: what was not configured keeps its mode"
+
+
+def test_config_deploy_refuses_while_another_layer_s_file_will_not_parse(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path
+) -> None:
+    """The modes may be configured in any layer, so a deploy that cannot read one cannot know them.
+
+    lib_layered_config 6.0.0 refuses rather than guess, before anything is written: exit 2, the
+    library's refusal by class, the unreadable file named - and the target still absent.
+    """
+    broken = isolated_config_layers.joinpath(*_APP_LAYER, "config.toml")
+    broken.parent.mkdir(parents=True)
+    broken.write_text("[zone]\nbind_ip = = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv", ["soundtouch-zonemaster-service", "--json-bare", "config-deploy", "--target", "user"]
+    )
+
+    assert main() == 2
+    envelope = json.loads(capsys.readouterr().out)
+    assert (envelope["ok"], envelope["error"]) == (False, "DeployPermissionsError")
+    assert str(broken) in envelope["message"]
+    assert not (isolated_config_layers / "xdg" / "soundtouch-zonemaster").exists(), "nothing was written"
 
 
 def test_the_mpd_settings_come_from_a_file_and_a_typed_option_still_wins(
