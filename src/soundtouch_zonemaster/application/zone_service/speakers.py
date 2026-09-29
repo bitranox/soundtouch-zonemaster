@@ -66,7 +66,8 @@ class SpeakerBook(ChannelBook):
         asleep, so its next frame is a wake, or already on the house's stream, so it belongs at
         once. A console the book already holds (allowed earlier in the run, taken off, allowed
         again) needs neither: it has been watched all along, and what it said while it was off the
-        list was recorded like anything else it says.
+        list was recorded like anything else it says - which is why a take asks for this only for a
+        console the book does not hold yet.
         """
         self._registry_wanted.set()
 

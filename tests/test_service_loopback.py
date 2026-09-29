@@ -4668,25 +4668,48 @@ async def _quiet(passes: Callable[[], int], *, for_s: float = 0.3, within_s: flo
 async def test_a_preference_take_asks_for_a_pass_only_when_the_console_list_moved(world: World, tmp_path: Path) -> None:
     """Who belongs is the only thing a preference changes that the pass acts on.
 
-    A fade, a rewind, a window or a hold is read where it is used, so a take that moves only one
-    of those asks for no pass; a take that moves the console list asks for one, and that pass is
-    what lets a console go (``test_a_console_taken_off_the_list_leaves_the_zone``). The registry
-    poll, which asks for a pass every time it runs, is pushed out past every wait here, and no box
-    says anything, so nothing else can ask.
+    A fade, a rewind, a window or a hold is read where it is used, so a take that moves all four
+    asks for no pass. A take that moves the console list asks for one, and that pass is what lets a
+    console go (``test_a_console_taken_off_the_list_leaves_the_zone``). The console is allowed from
+    the start, so it is in the speaker book: taking it off the list, and allowing it again, asks for
+    no registry read - which is the one other thing that would ask for a pass, and the read count
+    shows it did not run. The registry poll is pushed out past every wait here, and no box says
+    anything.
     """
     options = replace(_options(world, tmp_path), registry_poll_s=30.0)
+    _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
     logs: list[str] = []
+
+    def reads() -> int:
+        return world.registry.paths.count(DEVICES_PATH)
 
     async with _running_counting_passes(options, logs) as (_service, passes):
         await eventually(lambda: passes() > 0, "the start ran its pass")
         before = await _quiet(passes)
         _set_preference(options, PreferenceName.FADE, 1.0)
-        await eventually(lambda: _said(logs, "a joining box fades in over 1.0 s, set by cli"), "the fade was taken in")
-        assert await _quiet(passes) == before, "a take that moved only the fade asked for a pass"
+        _set_preference(options, PreferenceName.REWIND, 5.0)
+        _set_preference(options, PreferenceName.WINDOW, 0.5)
+        _set_preference(options, PreferenceName.HOLD, 1.5)
+        for line in (
+            "a joining box fades in over 1.0 s, set by cli",
+            "an MPD channel starts 5 s back, set by cli",
+            "the dialling window is 0.5 s, set by cli",
+            "a key is held after 1.5 s, set by cli",
+        ):
+            await eventually(lambda line=line: _said(logs, line), f"taken in: {line}")
+        assert await _quiet(passes) == before, "a take that moved no console asked for a pass"
+
+        read_at_start = reads()
+        _unset_preference(options, PreferenceName.CONSOLES)
+        await eventually(lambda: _said(logs, "consoles allowed into the zone: none"), "the list was taken in")
+        await eventually(lambda: passes() > before, "and the take that moved it asked for a pass", timeout=5.0)
+        before = await _quiet(passes)
 
         _set_preference(options, PreferenceName.CONSOLES, (CONSOLE_ID,))
-        await eventually(lambda: _said(logs, f"consoles allowed into the zone: {CONSOLE_ID}"), "the list was taken in")
-        await eventually(lambda: passes() > before, "and the take that moved it asked for a pass", timeout=5.0)
+        await eventually(lambda: sum("consoles allowed into the zone: " in line for line in logs) >= 3, "allowed again")
+        await eventually(lambda: passes() > before, "which asked for a pass too", timeout=5.0)
+        await _quiet(passes)
+        assert reads() == read_at_start, "a console the speaker book already holds needs no registry read"
 
 
 async def test_a_console_put_on_the_list_while_the_house_runs_is_watched_and_joins_when_it_wakes(
@@ -4732,8 +4755,9 @@ async def test_a_console_put_on_the_list_while_it_plays_the_house_stream_is_take
     The answer to the question it is asked is what places it, exactly as at start, and a box
     playing OUR stream belongs by the membership rule. Before a take asked for a registry read
     and asked the box, it waited for the next poll to be watched at all and then for a frame it
-    had no reason to send. A console awake on a station of its own is NOT this case: it stays out
-    until it is switched on or dialled on, as any box on its own station does.
+    had no reason to send. A console awake on a station of its own is NOT this case: as any box on
+    its own station does, it stays out until it goes to standby and is switched on again, or
+    somebody dials a channel on it.
     """
     world.console.now_playing = now_playing_document(device_id=CONSOLE_ID, source=RADIO, owner=MASTER_ID)
     options = replace(_options(world, tmp_path), registry_poll_s=30.0)

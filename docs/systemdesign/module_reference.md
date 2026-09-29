@@ -294,8 +294,8 @@ is, and write it to the house database as a row that beats every config layer; a
 reads it within about a second. A console added to `membership.consoles_allowed` makes the service
 read the speaker registry at once and ask the console what it is playing: one already playing the
 house's stream is taken in straight away, one asleep the next time it wakes, and one playing
-something of its own stays out, as any box on its own station does, until somebody switches it on
-or dials on it. A refused value (out of bounds, not JSON, the wrong shape)
+something of its own stays out, as any box on its own station does, until it goes to standby and
+is switched on again, or somebody dials a channel on it. A refused value (out of bounds, not JSON, the wrong shape)
 writes nothing and opens nothing; exit 1 for a refused value, exit 2 for an unknown name or
 unparseable JSON.
 

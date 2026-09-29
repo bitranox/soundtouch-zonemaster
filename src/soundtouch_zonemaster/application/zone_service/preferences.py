@@ -19,6 +19,7 @@ it.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from ...domain.logfn import ERROR_KIND
@@ -27,11 +28,11 @@ from ..errors import StoreError
 from .zone import ZoneReconcile
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Collection, Mapping
 
-    from ...domain.preferences import PreferenceRow
+    from ...domain.preferences import HousePreferences, PreferenceRow
 
-__all__ = ["PreferenceBook"]
+__all__ = ["PreferenceBook", "WhatATakeAsks", "what_a_take_asks"]
 
 
 _KIND: Mapping[PreferenceName, str] = {
@@ -60,6 +61,44 @@ _SAID: Mapping[PreferenceName, Callable[[PreferenceValue], str]] = {
     PreferenceName.CONSOLES: lambda v: f"consoles allowed into the zone: {_device_ids(v)}",
 }
 """How each preference reads in the log. The window and hold wordings are the lines the house has always printed."""
+
+
+@dataclass(frozen=True, slots=True)
+class WhatATakeAsks:
+    """Which workers a take of the preferences wakes, decided from what moved and nothing else.
+
+    Each worker is woken only for what it acts on, so a take that moved nothing it reads costs it
+    nothing: start and every calibration take the preferences in, and a pass asked for by a fade
+    would be a pass for nothing. The rewind and the fade wake nobody - they are read where they
+    are used, and a fade reads its length once, when it starts.
+    """
+
+    dial_numbers: tuple[float, float] | None
+    """The window and the hold to hand over, or ``None`` when neither moved.
+
+    Asked for rather than handed over: the dialling worker does that once nobody is mid-gesture,
+    so a number being typed finishes on the window it began with."""
+    a_pass: bool
+    """Whether the console list moved, which changes who belongs - and the pass is what acts on that."""
+    a_registry_read: bool
+    """Whether a console was allowed that the speaker book does not hold yet.
+
+    The registry read is where a console is let into the book and watched, and a box new to the
+    book is asked what it is playing right after it. One the book already holds (allowed earlier
+    in the run, taken off, allowed again) needs neither: it has been watched all along."""
+
+
+def what_a_take_asks(
+    before: HousePreferences, after: HousePreferences, *, in_the_book: Collection[str]
+) -> WhatATakeAsks:
+    """What a take that moved ``before`` to ``after`` asks of the workers."""
+    dial_numbers = (after.window_s, after.hold_threshold_s)
+    allowed, allowed_before = frozenset(after.consoles_allowed), frozenset(before.consoles_allowed)
+    return WhatATakeAsks(
+        dial_numbers=dial_numbers if dial_numbers != (before.window_s, before.hold_threshold_s) else None,
+        a_pass=allowed != allowed_before,
+        a_registry_read=any(device_id not in in_the_book for device_id in allowed - allowed_before),
+    )
 
 
 class PreferenceBook(ZoneReconcile):
@@ -98,16 +137,12 @@ class PreferenceBook(ZoneReconcile):
         from the ones last taken in. A line is written only for a value or a source that changed,
         so a start with nothing stored says nothing, as it always did.
 
-        Each worker is woken only for what it acts on, so a take that moved nothing it reads costs
-        it nothing: start and every calibration take the preferences in, and a pass asked for by a
-        fade would be a pass for nothing. The window and the hold are not handed over here but asked
-        for: the dialling worker hands them over once nobody is mid-gesture, so a number being
-        typed finishes on the window it began with. The rewind and the fade are read where they are
-        used, and a fade reads its length once, when it starts. A console taken off the list is let
-        go at the next pass, and stays watched until the next restart, because the speaker book
-        never forgets a box. One put on the list asks for a registry read at once, which is where it
-        is let into the speaker book and watched, and is asked what it is playing: asleep, its next
-        wake takes it in; already on the house's stream, it belongs at once.
+        Each worker is woken only for what it acts on, which :func:`what_a_take_asks` decides. A
+        console taken off the list is let go at the next pass, and stays watched until the next
+        restart, because the speaker book never forgets a box. One put on the list that the book
+        does not hold yet asks for a registry read at once, which is where it is let into the book
+        and watched, and is asked what it is playing: asleep, its next wake takes it in; already on
+        the house's stream, it belongs at once.
         """
         resolution = resolved(self.options.preferences, rows)
         for row, why in resolution.rejected:
@@ -122,17 +157,14 @@ class PreferenceBook(ZoneReconcile):
         self._preferences = resolution.preferences
         self._set_by = dict(resolution.set_by)
         self.policy.consoles_allowed = frozenset(self._preferences.consoles_allowed)
-        dial_numbers = (self._preferences.window_s, self._preferences.hold_threshold_s)
-        if dial_numbers != (before.window_s, before.hold_threshold_s):
-            self._dial_numbers_wanted = dial_numbers
+        asks = what_a_take_asks(before, self._preferences, in_the_book=self._speakers.keys())
+        if asks.dial_numbers is not None:
+            self._dial_numbers_wanted = asks.dial_numbers
             # Wakes the dialling worker, which is where the two are handed over once nobody is pressing.
             self._dialled.set()
-        if frozenset(self._preferences.consoles_allowed) != frozenset(before.consoles_allowed):
-            # A console allowed or no longer allowed changes who belongs, and the pass is what acts
-            # on that. Nothing else a preference moves is the pass's business: the rewind and the
-            # fade are read where they are used, and the window and hold by the dialling worker.
+        if asks.a_pass:
             self._wanted.set()
-        if frozenset(self._preferences.consoles_allowed) - frozenset(before.consoles_allowed):
+        if asks.a_registry_read:
             # Watched and placed now rather than at the next registry poll: without this a console
             # allowed while asleep was taken in only on its second wake, and one already on the
             # house's stream not until it next woke.

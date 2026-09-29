@@ -13,9 +13,9 @@
 # OFF the list is let go at the next pass, and a console put ON it makes the service read the
 # speaker registry at once and ask the console what it is playing - one already playing the house's
 # stream is taken in straight away, one asleep the next time it wakes, and one playing something of
-# its own stays out, as any box on its own station does, until it is switched on. "prefs unset
-# membership.consoles_allowed" gives the decision back to the layers. "config" shows which of the
-# two is in force.
+# its own stays out, as any box on its own station does, until it goes to standby and is switched on
+# again or somebody dials a channel on it. "prefs unset membership.consoles_allowed" gives the
+# decision back to the layers. "config" shows which of the two is in force.
 #
 # Default: [] - no console is ever joined. Effect: a console is otherwise left out and not even
 # watched, because an API POWER flips its INPUT rather than waking it, so a service that reached
