@@ -10,11 +10,15 @@ kinds, and both matter:
   speaker reaches (``HttpApi.handle`` and ``parse_frame``) and not only at the helper, because
   the linear work around the helper lands in both arms and is what an attacker's body pays for.
 
-The ceilings are deliberately loose against the measurements (every refusal here took
-microseconds and is asserted under 5 ms), because a shared machine under load is what CI is. They
-are still well under what the thing each guards against costs: measured 2026-09-22, the laughs
-document below takes 11 ms with the DOCTYPE screen removed, and a megabyte of repeated `<keyData`
-cost 0.9 to 3.3 s per run through the patterns this replaced.
+The cost of a refusal is measured against a CONTROL timed in the same test - a plain document the
+parser does read - and never against a fixed number of milliseconds: a shared machine under load
+slows both arms alike, where it once pushed a refusal measured in microseconds past an absolute
+5 ms (8 ms at a load average near 10). Each arm is the best of several interleaved runs, so one
+preemption lands in one sample rather than in the verdict. The margins still leave what the
+screen guards against far outside: measured 2026-09-29, the laughs document below costs about
+9.5 ms with the DOCTYPE screen removed, the quadratic one 4.5 ms, against 5 and 56 microseconds
+for plain documents of their own lengths. The seam ceilings for a megabyte are an absolute 50 ms,
+against 0.9 to 3.3 s per run through the patterns this replaced.
 """
 
 from __future__ import annotations
@@ -48,6 +52,32 @@ PEER = "192.0.2.21"
 
 A_MEGABYTE = 1 << 20
 """What the HTTP face accepts, so it is what a hostile body may be when it reaches the seam."""
+
+RUNS = 5
+"""How many interleaved runs each arm of a cost comparison gets; the best of each is compared."""
+
+REFUSAL_RATIO = 10
+"""How many times a plain document at the size cap a refusal may cost.
+
+Every refusal measured a few microseconds against about 70 for that document, and the unguarded
+entity attacks cost 60 to 140 times it, so the ceiling sits well clear of both.
+"""
+
+
+def plain(length: int) -> str:
+    """A document this master reads, of exactly ``length`` characters: one element holding text."""
+    return "<l>" + "a" * (length - len("<l></l>")) + "</l>"
+
+
+def best_of(first: str, second: str) -> tuple[float, float]:
+    """The fastest of :data:`RUNS` parses of each text, the two interleaved so load lands on both."""
+    spent: tuple[list[float], list[float]] = ([], [])
+    for _ in range(RUNS):
+        for text, into in ((first, spent[0]), (second, spent[1])):
+            started = time.perf_counter()
+            parse(text)
+            into.append(time.perf_counter() - started)
+    return min(spent[0]), min(spent[1])
 
 
 def say_nothing(kind: str, text: str) -> None:
@@ -92,33 +122,37 @@ HOSTILE = {
 def test_a_hostile_document_is_refused_rather_than_worked_through(name: str) -> None:
     """Refused, and refused fast: the two halves of "it cannot hang" are one assertion each.
 
-    5 ms is far above what any of these measured (microseconds) and well under what the thing
-    each stands for costs unguarded - the laughs document alone reaches expat's own amplification
-    limit only after 11 ms, and a stronger one costs more before that limit stops it.
+    "Fast" is against a plain document at the size cap, the most text the parser will read, timed
+    in the same test: a refusal may cost :data:`REFUSAL_RATIO` times that and no more. Every one
+    of these measured microseconds, while the laughs document reaches expat's own amplification
+    limit only after milliseconds of expanding when the DOCTYPE screen is gone, and a stronger one
+    costs more before that limit stops it.
     """
-    started = time.perf_counter()
-    answer = parse(HOSTILE[name])
-    spent = time.perf_counter() - started
+    reference = plain(MAX_XML_CHARS)
+    assert parse(reference) is not None, "the control must be a document this master reads"
 
-    assert answer is None, f"{name} was parsed rather than refused"
-    assert spent < 0.005, f"{name} cost {spent * 1000:.1f} ms"
+    assert parse(HOSTILE[name]) is None, f"{name} was parsed rather than refused"
+    spent, control = best_of(HOSTILE[name], reference)
+    assert spent < REFUSAL_RATIO * control, (
+        f"{name} cost {spent * 1e6:.0f} us, a plain document at the size cap {control * 1e6:.0f} us"
+    )
 
 
-def test_the_doctype_screen_is_what_makes_an_entity_attack_cheap() -> None:
-    """The control for the screen: the same document, refused by expat's limit instead.
+@pytest.mark.parametrize("name", ["billion laughs", "quadratic blowup"])
+def test_the_doctype_screen_makes_an_entity_attack_cheaper_than_reading_its_length(name: str) -> None:
+    """The control for the screen: an entity-free document of the same length, which IS parsed.
 
-    Written because "refused" alone is not the point - expat refuses a laughs document too, after
-    11 ms of expanding it. Parsing an entity-free body of the same length here measures the same
-    path WITHOUT the screen firing, so the ceiling above is known to be the screen's doing rather
-    than the document's size.
+    Written because "refused" alone is not the point - expat refuses both attacks too, after
+    milliseconds of expanding them. The screen refuses on a substring search, so the attack must
+    cost LESS than parsing its own length of plain text; that makes the ceiling above the screen's
+    doing rather than the document's size, and with the screen gone it is the other way round by
+    two orders of magnitude.
     """
-    entity_free = "<l>" + "a" * len(laughs()) + "</l>"
-    started = time.perf_counter()
-    parsed = parse(entity_free)
-    baseline = time.perf_counter() - started
+    entity_free = plain(len(HOSTILE[name]))
+    assert parse(entity_free) is not None, "the control must be a document this master reads"
 
-    assert parsed is not None, "the control must be a document this master reads"
-    assert baseline < 0.005
+    spent, control = best_of(HOSTILE[name], entity_free)
+    assert spent < control, f"{name} cost {spent * 1e6:.0f} us, its length of plain text {control * 1e6:.0f} us"
 
 
 def test_a_document_at_the_depth_limit_is_read_and_one_deeper_is_not() -> None:
