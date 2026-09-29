@@ -466,6 +466,28 @@ def test_an_interrupt_during_the_drain_says_where_it_left_the_house(tmp_path: Pa
     assert caught.value.exit_code == 2
 
 
+def test_an_interrupt_after_a_person_s_switch_off_names_them_and_does_not_invite_switching_on(
+    tmp_path: Path,
+) -> None:
+    """A person switched the house off during the backup, so the deploy's switch-off changed nothing.
+
+    Interrupted after that, the refusal used to say "the switch is OFF (... switch on turns the
+    house back on)" - an invitation to undo the person's word, from the one message a deploy leaves
+    behind. It says who switched it off instead, and names no command that turns it on.
+    """
+    house = FakeHouse(person_during_backup=False, interrupted_while_off=SigIntInterrupt())
+
+    with pytest.raises(DeployInterruptedError) as caught:
+        deploy(_target(tmp_path), run=FakeSystemd(), house=house, clock=FakeClock())
+
+    message = str(caught.value)
+    assert "SIGINT during drain" in message
+    assert "switch on" not in message
+    assert "somebody switched it off" in message
+    assert "the unit was not stopped" in message
+    assert house.on is False
+
+
 def test_an_interrupt_during_the_install_is_not_reported_as_a_failed_install(tmp_path: Path) -> None:
     """The library's signal exceptions are RuntimeErrors, which the install step turns into a failure."""
 

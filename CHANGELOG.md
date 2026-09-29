@@ -41,7 +41,7 @@ All notable changes to this project are documented here. The format follows
   they set it and the envelope's `switch_note` says so; the same holds when a failure before the
   stop puts the switch back. A `switch off` run while the database is being copied, before the
   deploy's own switch-off, leaves that switch-off nothing to change, and the switch stays off to the
-  end. `--dry-run` reads without changing anything, on PostgreSQL too; every step and command is
+  end; a deploy interrupted after that says who switched it off, not how to switch it on. `--dry-run` reads without changing anything, on PostgreSQL too; every step and command is
   bounded; `--json` / `--json-bare` as every CLI here.
 - The installer (`tools/install_service.py`, with `tools/service_venv.py` beside it) seeds the switch into
   the configured house database (`database.url`, else `<state-dir>/zonemaster.sqlite`) in the same

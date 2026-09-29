@@ -788,18 +788,25 @@ def deploy(target: Target, *, run: Runner, house: House, clock: Clock, dry_run: 
         except _INTERRUPTS as exc:
             name = _SIGNAL_NAMES.get(type(exc), type(exc).__name__)
             done = ", ".join(report.done) or "nothing"
-            message = f"{name} during {step}: {where_it_stands(report.done, interrupted=step)} (done: {done})"
+            stands = where_it_stands(report.done, interrupted=step, switch_note=report.switch_note)
+            message = f"{name} during {step}: {stands} (done: {done})"
             raise DeployInterruptedError(message) from exc
     return report
 
 
-def where_it_stands(done: Sequence[Step], *, interrupted: Step) -> str:
+def where_it_stands(done: Sequence[Step], *, interrupted: Step, switch_note: str | None = None) -> str:
     """Where a deploy stopped part way left the switch and the unit, as a sentence. Pure.
 
     Nothing is put back after an interrupt: the person who pressed Ctrl-C asked for the deploy to
-    stop acting, so it says what they have to do instead.
+    stop acting, so it says what they have to do instead. With one exception: a switch that was
+    already off when the deploy came to turn it off (``switch_note`` is :data:`_ALREADY_OFF`) is a
+    person's word, not the deploy's doing, so the sentence says who turned it off and names no
+    command that turns it on - the one message a deploy leaves must not invite undoing it.
     """
-    if interrupted in (Step.SWITCH_OFF, Step.RESTORE_SWITCH):
+    if Step.SWITCH_OFF in done and switch_note == _ALREADY_OFF:
+        # Even while the put-back runs: with no stamp of the deploy's own it writes nothing.
+        switch = _ALREADY_OFF
+    elif interrupted in (Step.SWITCH_OFF, Step.RESTORE_SWITCH):
         switch = "the switch may or may not have changed"
     elif Step.SWITCH_OFF in done and Step.RESTORE_SWITCH not in done:
         switch = "the switch is OFF (soundtouch-zonemaster-service switch on turns the house back on)"
