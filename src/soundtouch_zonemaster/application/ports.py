@@ -168,18 +168,20 @@ class ServiceStore(Protocol):
     **The three writes are queued when they are CALLED, not when they are awaited**, in call order,
     and each runs after everything queued before it. That is what lets a caller that may not wait -
     the reader, which a person's key press reaches - still have its save written in its place: it
-    asks and goes on, and the next save cannot overtake it. A write once asked for is written even
+    asks and goes on, and the next save cannot overtake it. A write once asked for stays queued even
     when whoever awaits it is cancelled, and ``close`` runs after every write asked for before it;
-    a stop therefore loses nothing the house decided before it. A failed write raises where it is
-    awaited, as :class:`~soundtouch_zonemaster.application.errors.StoreError`, like the store's own,
-    and never where it is called - a store that is not open included - so the reader cannot have
-    one thrown into it. A write that fails after its awaiter was cancelled is said by the store
+    a stop whose close finishes therefore loses nothing the house decided before it. A failed write
+    raises where it is awaited, as :class:`~soundtouch_zonemaster.application.errors.StoreError`,
+    like the store's own, and never where it is called - a store that is not open included - so the
+    reader cannot have one thrown into it. A write that fails after its awaiter was cancelled is said by the store
     itself, because nobody else is left to say it.
 
     **Waiting on it is bounded where the speakers wait.** ``close`` gives up on calls that do not
     come back within its own bound, says so, and returns: a database host that vanished can hold a
     call for minutes where nothing reaches it, and the stop has a zone to dissolve. The calls it
-    gave up on stay queued and the close still runs after them.
+    gave up on stay queued, and they and the close run only if the call holding them up ends before
+    the process exits; if it does not, they are lost with the process, and the close says how many
+    writes that is.
     """
 
     where: str

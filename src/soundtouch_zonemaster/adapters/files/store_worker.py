@@ -22,8 +22,13 @@ thread. So the close waits for the calls ahead of it for at most ``stop_bound_s`
 goes on - the stop has speakers waiting on it. The thread is a plain daemon ``threading.Thread``
 draining a queue rather than a ``ThreadPoolExecutor``, because the interpreter joins every executor
 worker at exit: one stuck call would hold the finished process until systemd killed it. A thread
-left behind this way still runs the close queued behind the stuck call if that call ever ends, so
-the writer lock is given back either way.
+left behind this way still runs the writes and the close queued behind the stuck call if that call
+ends while the process lives. If the process exits first, the thread dies with all of them, and
+the close that gave up says how many writes that loses. The writer lock is then given back by the
+database, not by the close: the kernel drops SQLite's ``flock`` with the process, and PostgreSQL
+drops its advisory lock when the server notices the session is gone - at once when the
+connection's socket is closed with the process, and only after the server's own TCP keepalive
+when its host cannot be reached at all.
 
 **A write is queued when it is CALLED.** ``save_state``, ``save_channels`` and ``set_preference``
 are plain methods that submit at once and return the pending answer, rather than coroutines that
@@ -32,16 +37,19 @@ a pass can sit ten seconds on a station - ask for a save and go on, with the nex
 landing after it. A write never raises where it is asked, not even on a store that is not open:
 the refusal is in its answer, like any other failure, so the reader cannot have one thrown into it.
 
-**A write once asked for is written, and a failure nobody hears is said.** Each write is shielded,
-so cancelling whoever awaits it does not pull it out of the queue: a stop that lands while a join
-waits for its note would otherwise lose the note that puts a muted box back up on the next start.
-A failure is raised where the write is awaited and said by the caller, with what it was doing; only
-a write whose caller stopped waiting is said here, because nobody else is left to.
+**A write once asked for stays queued, and a failure nobody hears is said.** Each write is
+shielded, so cancelling whoever awaits it does not pull it out of the queue: a stop that lands
+while a join waits for its note would otherwise lose the note that puts a muted box back up on the
+next start. It is written as long as the process lives long enough for the thread to reach it,
+which a close that gives up cannot promise (above). A failure is raised where the write is awaited
+and said by the caller, with what it was doing; only a write whose caller stopped waiting is said
+here, because nobody else is left to.
 
 **The close is the last word.** It is queued behind every write asked for before it, it too runs
 when its awaiter is cancelled, and the thread ends with it. An open that fails, or is cancelled, is
 followed by a close of whatever half of it happened, so a refused start holds no lock and leaves
-no thread - within the same bound, for the same reason.
+no thread once that close has run. It is waited for within the same bound, for the same reason,
+and a clean-up that gives up leaves the lock to the database as a close that gives up does.
 
 The store's own log lines - a legacy import, the channel count - are written from the worker
 thread. Each is written while the service awaits that very call, and one call is one line to the
@@ -143,6 +151,9 @@ class StoreWorker:
         self._stop_bound_s = stop_bound_s
         self._jobs: queue.SimpleQueue[_Job | None] | None = None
         self._thread: threading.Thread | None = None
+        self._writes_out = 0
+        """Writes asked for and not answered yet, the one running on the thread included: what a
+        close that gives up has to say would be lost if the process exits before they run."""
 
     async def open(self, *, exclusive: bool) -> None:
         """Start the thread and open the store on it; a refusal leaves neither behind."""
@@ -198,8 +209,20 @@ class StoreWorker:
             self.log(
                 ERROR_KIND,
                 f"{self.where}: {what} did not finish within {self._stop_bound_s:g} s, so the stop goes on "
-                "without it; the database is closed whenever the call ahead of it ends",
+                f"without it; {self._left_behind()} lost if the call stuck on the thread has not ended when the "
+                "process exits",
             )
+
+    def _left_behind(self) -> str:
+        """What a stop that gives up leaves on the thread: the close, and every write not answered yet.
+
+        The thread is a daemon, so the process exit ends it with whatever is still queued on it. The
+        stop cannot keep those writes, and says how many there are so a lost save is not a surprise.
+        """
+        count = self._writes_out
+        if count == 0:
+            return "it is"
+        return f"{count} {'write' if count == 1 else 'writes'} not written yet, and it, are"
 
     async def import_legacy(self, files: LegacyFiles) -> None:
         await self._run(functools.partial(self._store.import_legacy, files))
@@ -243,10 +266,11 @@ class StoreWorker:
         """Queue a write now, and keep it queued whatever happens to whoever awaits it."""
         if self._jobs is None:
             return _refused(self._not_open(), call)
-        return self._shielded(self._jobs, call, what=what)
+        self._writes_out += 1
+        return self._shielded(self._jobs, call, what=what, counted=True)
 
     def _shielded[T](
-        self, jobs: queue.SimpleQueue[_Job | None], call: Callable[[], T], *, what: str
+        self, jobs: queue.SimpleQueue[_Job | None], call: Callable[[], T], *, what: str, counted: bool = False
     ) -> asyncio.Future[T]:
         """Queue a call its caller cannot take back, and say its failure if the caller stopped waiting.
 
@@ -255,11 +279,19 @@ class StoreWorker:
         of a call whose awaiter left depends on the Python: 3.12 marks it retrieved and drops it
         without a word, 3.13 and later hand it to the loop's exception handler, which writes a
         traceback beside the house's own log. Here it is said once, in the log, on every version.
+
+        ``counted`` marks a write, which leaves ``_writes_out`` when the call is answered - by the
+        call, not by its caller, who may have stopped waiting long before.
         """
         inner = _submit(jobs, call)
         outer: asyncio.Future[T] = inner.get_loop().create_future()
+        if counted:
+            inner.add_done_callback(self._a_write_answered)
         inner.add_done_callback(functools.partial(self._settle, what, outer))
         return outer
+
+    def _a_write_answered[T](self, _inner: asyncio.Future[T]) -> None:
+        self._writes_out -= 1
 
     def _settle[T](self, what: str, outer: asyncio.Future[T], inner: asyncio.Future[T]) -> None:
         """Hand the call's answer to its caller, or say its failure when nobody is waiting for it any more."""

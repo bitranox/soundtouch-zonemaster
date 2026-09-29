@@ -300,6 +300,37 @@ async def test_a_close_behind_a_call_that_never_ends_gives_up_within_its_bound(
     assert _state_in(house_database).channel == "4", "the write that was stuck still landed"
 
 
+async def test_a_close_that_gives_up_says_how_many_writes_the_process_exit_would_lose(
+    house_database: str, gate: threading.Event
+) -> None:
+    """The thread is a daemon, so a process that exits before the stuck call ends takes every
+    write still behind it along. The close cannot keep them, but it can say how many there are:
+    the write stuck on the thread and the ones queued after it - reads are not writes and do not
+    count. Once the call does end, all of them are written after all, which is the control that
+    the count named real writes.
+    """
+    lines: list[str] = []
+    worker, slow = _worker_over(house_database, stop_bound_s=STOP_BOUND_S, lines=lines)
+    await worker.open(exclusive=True)
+    slow.gates["save_state"] = gate
+    for channel in ("4", "5", "6"):
+        worker.save_state(ZoneState(channel=channel))
+    # A task, and one turn of the loop for it: a read is queued when it is first awaited. That it
+    # was queued before the close is proven below, where it is answered rather than refused.
+    reading = asyncio.ensure_future(worker.load_state())
+    await asyncio.sleep(0)
+
+    await worker.close()
+
+    gave_up = [line for line in lines if line.startswith(f"{ERROR_KIND}: ") and "did not finish" in line]
+    assert len(gave_up) == 1, lines
+    assert "3 writes not written yet" in gave_up[0], gave_up
+    gate.set()
+    await reading
+    assert await _ended(slow.calls[0].thread), "the thread ends once the stuck call does"
+    assert _state_in(house_database).channel == "6", "the three writes it counted were real, and all landed"
+
+
 async def test_a_refused_open_whose_cleanup_never_ends_gives_up_within_its_bound(
     house_database: str, gate: threading.Event
 ) -> None:

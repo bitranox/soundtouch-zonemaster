@@ -101,8 +101,10 @@ All notable changes to this project are documented here. The format follows
   had got to before it dissolves the zone, a fade cut short by the stop asks for its save without
   waiting for it, and closing the database gives up after 10 s and says so. Before, one hung call
   held the dissolve, the close and then the process exit until systemd killed it, leaving the
-  speakers bound to a master that had gone. A write given up on this way stays queued and still
-  lands if the database comes back. A failed state save is also logged once rather than twice.
+  speakers bound to a master that had gone. A write given up on this way stays queued and lands
+  only if the database answers again before the process exits; otherwise it is lost with the
+  process, and the close's error line says how many writes that is. A failed state save is also
+  logged once rather than twice.
 
 - A house database that fails to open or migrate is refused with its own error again; a lock release
   that failed while closing it could replace that error with an unrelated one.
