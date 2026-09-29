@@ -395,33 +395,43 @@ class ServiceState:
         await self._save_the_state()
         self.log("state", f"the zone belongs to: {', '.join(ordered) or 'nobody'}")
 
-    async def _save_the_state(self) -> None:
+    async def _save_the_state(self, *, within_s: float | None = None) -> None:
         """Write down what a restart starts from, and return once it is written.
 
         For every caller that may wait, which is every caller but the reader's. Awaiting is what
         keeps an order some of them depend on: a join writes a box's level down BEFORE it mutes
         the box, so a service that dies in between still finds the level on its next start. A
-        failed write raises here, as the store's own did, and is said as well.
+        failed write raises here, as the store's own did, and the caller says it with what it was
+        doing - nothing is said here as well, or one failure would be two lines.
 
-        Shielded, so that a caller cancelled while it waits leaves the write itself alone: the
-        store writes it anyway, and the line saying it failed must still be able to see how it
-        ended rather than only that its caller stopped listening.
+        ``within_s`` bounds the WAIT, never the write: past it ``TimeoutError`` is raised and the
+        write stays queued, because the store keeps a write it was asked for whoever stops waiting
+        for it, and says its failure itself when nobody is left to hear it. That is what lets the
+        stand-down go on to the dissolve while a database that stopped answering holds the save.
         """
-        await asyncio.shield(self._queue_the_state())
+        write = self._write_the_state()
+        async with asyncio.timeout(within_s):
+            await write
 
-    def _queue_the_state(self) -> asyncio.Future[None]:
-        """Write down what a restart starts from, queued NOW behind any save still on its way.
+    def _queue_the_state(self) -> None:
+        """Write down what a restart starts from, queued NOW behind any save still on its way, unawaited.
+
+        The reader calls this and goes on, because the reader may never wait. A failure there has
+        nobody to raise into, so it is said here; the service goes on, and nothing is lost for good
+        by one, because every save writes the whole state and the next writes this one's.
+        """
+        self._write_the_state().add_done_callback(self._say_a_state_write_failed)
+
+    def _write_the_state(self) -> asyncio.Future[None]:
+        """Queue a save of the state as it is at this call, and hand back its answer.
 
         One writer, so the two halves cannot drift: membership changes and a dialled channel both
         land here, and writing only on a membership change would have lost every channel somebody
         dialled without the zone also changing. The state is taken at the call and the store
         writes saves in the order they were queued, so the house always ends on the latest one.
-
-        The reader calls this and goes on, because the reader may never wait. A failure there has
-        nobody to raise into, so every failure is said; the service goes on, and nothing is lost
-        for good by one, because every save writes the whole state and the next writes this one's.
+        Never raises: the store's refusal, a store that is not open included, is in the answer.
         """
-        write = asyncio.ensure_future(
+        return asyncio.ensure_future(
             self.store.save_state(
                 ZoneState(
                     channel=self._channel,
@@ -433,11 +443,9 @@ class ServiceState:
                 ),
             )
         )
-        write.add_done_callback(self._say_a_state_write_failed)
-        return write
 
     def _say_a_state_write_failed(self, write: asyncio.Future[None]) -> None:
-        """Say a save that failed, however it was asked for."""
+        """Say a save nobody awaits that failed."""
         if write.cancelled():
             return
         failure = write.exception()

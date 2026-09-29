@@ -48,6 +48,14 @@ call to a speaker under that lock is bounded: a daemon on a host that has gone a
 neither yes nor no, and a pass that waits for it stops holding the house. Generous for what
 it covers - a loopback exchange of three short lines - because being wrong the other way
 costs a channel, and being wrong this way costs the zone."""
+STAND_DOWN_SAVE_S = 3.0
+"""How long the stand-down waits to write down where MPD had got to before it dissolves anyway.
+
+The write is not given up: it stays queued, and the close still waits for it (within its own
+bound). What is bounded is how long the SPEAKERS wait for it, because the dissolve comes after it,
+and a database whose host vanished can hold a call for minutes where nothing on the loop reaches
+it. A save takes milliseconds, so a wait of seconds already means the database is in trouble,
+and three of them are short against the ninety seconds systemd gives a stop."""
 
 OWN_SELECT_TAIL_S = 1.0
 """How long after one of our ``/select`` calls returns its echo may still arrive.
@@ -612,13 +620,14 @@ class ZoneReconcile(VolumeGuard):
         except (MpdError, OSError) as exc:
             await self._mpd_would_not(f"channel {channel.number}", exc)
 
-    async def _remember_where_mpd_is(self) -> None:
+    async def _remember_where_mpd_is(self, *, save_within_s: float | None = None) -> None:
         """Write down how far into its channel MPD has got, before the house leaves it.
 
         Called wherever a channel is about to be replaced and on the way out, and it is idempotent:
         it takes the channel MPD was holding and leaves none behind, so a second call with nothing
         in between writes nothing. That is what lets the stand-down call it on every pass with the
-        switch off without a file write each time.
+        switch off without a file write each time. ``save_within_s`` bounds how long the save is
+        waited for (``TimeoutError`` past it, the write still queued); the stand-down passes one.
 
         **An absent ``elapsed`` is not a position of zero, and an absent ``song`` is not the first
         track.** A stopped MPD carries neither key at all (measured 2026-09-10), and recording
@@ -644,13 +653,13 @@ class ZoneReconcile(VolumeGuard):
             await self._mpd_would_not(f"channel {number}", exc)
             return
         if status.ran_out() and self._stops_at_its_end(number):
-            await self._forget_where_it_was(number)
+            await self._forget_where_it_was(number, within_s=save_within_s)
             return
         if status.elapsed is None or status.song is None:
             return
         file = await self._the_file_at(number, status.song)
         self._positions[number] = Place(track=status.song, seconds=status.elapsed, file=file)
-        await self._save_the_state()
+        await self._save_the_state(within_s=save_within_s)
 
     async def _the_file_at(self, number: str, track: int) -> str | None:
         """The path of that queue entry, for a directory channel, whose order can change under it.
@@ -675,12 +684,12 @@ class ZoneReconcile(VolumeGuard):
         channel = self._channels.by_number(number)
         return channel is not None and channel.end is ChannelEnd.STOP
 
-    async def _forget_where_it_was(self, number: str) -> None:
+    async def _forget_where_it_was(self, number: str, *, within_s: float | None = None) -> None:
         """Drop a channel's place, so it starts from the beginning the next time it is dialled."""
         if self._positions.pop(number, None) is None:
             return
         self.log("mpd", f"channel {number} ran out, so it starts from the beginning next time")
-        await self._save_the_state()
+        await self._save_the_state(within_s=within_s)
 
     async def _mpd_would_not(self, what: str, exc: Exception) -> None:
         """Say what MPD did not do, and throw the connection away so the next attempt is fresh.
@@ -715,12 +724,21 @@ class ZoneReconcile(VolumeGuard):
         Remembering where MPD was is best-effort: a store that cannot be written (SQLite busy, a
         PostgreSQL statement timeout) must not stop the zone from being let go, because the
         speakers would otherwise stay bound to a master that has already given up. A failed write
-        is logged and the dissolve goes on exactly as it would have.
+        is logged and the dissolve goes on exactly as it would have. So is one that does not come
+        back within ``STAND_DOWN_SAVE_S``: a database host that vanished holds a call for minutes
+        where nothing reaches it, and the dissolve waits for nothing it cannot bound. The write
+        itself stays queued, and the close still waits for it within its own bound.
         """
         try:
-            await self._remember_where_mpd_is()
+            await self._remember_where_mpd_is(save_within_s=STAND_DOWN_SAVE_S)
         except StoreError as exc:
             self.log(ERROR_KIND, f"could not remember where mpd was, so the house dissolves without it: {exc}")
+        except TimeoutError:
+            self.log(
+                ERROR_KIND,
+                f"could not remember where mpd was within {STAND_DOWN_SAVE_S:g} s, so the house dissolves "
+                "without waiting for it; the write stays queued",
+            )
         await self._stop_fading()
         await self._stop_house_writes()
         master, self.master = self.master, None

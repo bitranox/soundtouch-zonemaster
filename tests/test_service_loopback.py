@@ -55,6 +55,7 @@ from soundtouch_zonemaster.adapters.aftertouch.registry import DEVICES_PATH
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
+from soundtouch_zonemaster.adapters.files.store_worker import StoreWorker
 from soundtouch_zonemaster.adapters.soundtouch.orion import ORION_FALLBACK_PATH, OrionBase
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
@@ -68,6 +69,7 @@ from soundtouch_zonemaster.application.zone_service.constants import (
     PORTS_BUSY_RETRY_S,
 )
 from soundtouch_zonemaster.application.zone_service.service import ZoneService
+from soundtouch_zonemaster.application.zone_service.zone import STAND_DOWN_SAVE_S
 from soundtouch_zonemaster.composition import build_production, hold_the_zone, open_house_store
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.dialling import WINDOW_DEFAULT_S, WINDOW_FLOOR_S
@@ -89,6 +91,7 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.application.ports import (
         AddressOf,
         HouseStore,
+        ServiceStore,
         SpeakerWatch,
         ZoneServicePorts,
     )
@@ -4211,6 +4214,11 @@ class _StoreThatCanFail:
         self.saves_to_fail = 0
         """How many of the NEXT saves fail, each once, before the store writes again."""
         self.reading_preferences_fails = False
+        self.save_gate: threading.Event | None = None
+        """When set, every save waits for this event first: a database that stopped answering."""
+        self.refused_saves = 0
+        """How many saves this store refused: each is one failed write, to be said exactly once."""
+        self.closed = threading.Event()
         self.where = real.where
 
     def open(self, *, exclusive: bool, create: bool = True) -> None:
@@ -4218,6 +4226,7 @@ class _StoreThatCanFail:
 
     def close(self) -> None:
         self._real.close()
+        self.closed.set()
 
     def import_legacy(self, files: LegacyFiles) -> None:
         self._real.import_legacy(files)
@@ -4226,8 +4235,11 @@ class _StoreThatCanFail:
         return self._real.load_state()
 
     def save_state(self, state: ZoneState) -> None:
+        if self.save_gate is not None:
+            self.save_gate.wait()
         if self.saving_state_fails or self.saves_to_fail > 0:
             self.saves_to_fail = max(0, self.saves_to_fail - 1)
+            self.refused_saves += 1
             message = "simulated: the house database refused the write"
             raise StoreError(message)
         self._real.save_state(state)
@@ -4265,21 +4277,39 @@ class _StoreThatCanFail:
         return self._real.unset_preference(name)
 
 
-@asynccontextmanager
-async def _running_with_a_store_that_can_fail(
-    options: ServiceOptions, logs: list[str]
-) -> AsyncGenerator[tuple[ZoneService, _StoreThatCanFail], None]:
-    """The real wiring, except the store the service opens is the wrapper above - injected at the
-    ``open_store`` port, which is exactly the seam the service already takes a ``HouseStore``
-    through, never a monkeypatch of the store's own internals."""
-    created: list[_StoreThatCanFail] = []
+def _ports_with_a_store_that_can_fail(
+    created: list[_StoreThatCanFail], *, stop_bound_s: float | None = None
+) -> ZoneServicePorts:
+    """The production ports, except that the store the service opens is the wrapper above.
+
+    Injected at the ``open_store`` port, which is exactly the seam the service already takes a
+    ``HouseStore`` through, never a monkeypatch of the store's own internals. ``stop_bound_s``
+    shortens how long the worker's close waits for a call that never ends, through the worker's
+    own constructor at the ``off_the_loop`` port.
+    """
 
     def _open_store(database: str, *, password: Secret | None, log: LogFn) -> HouseStore:
         store = _StoreThatCanFail(open_house_store(database, password=password, log=log))
         created.append(store)
         return store
 
-    ports = replace(build_production().zone_ports, open_store=_open_store)
+    production = build_production().zone_ports
+    if stop_bound_s is None:
+        return replace(production, open_store=_open_store)
+
+    def _off_the_loop(store: HouseStore, /, *, log: LogFn) -> ServiceStore:
+        return StoreWorker(store, log=log, stop_bound_s=stop_bound_s)
+
+    return replace(production, open_store=_open_store, off_the_loop=_off_the_loop)
+
+
+@asynccontextmanager
+async def _running_with_a_store_that_can_fail(
+    options: ServiceOptions, logs: list[str]
+) -> AsyncGenerator[tuple[ZoneService, _StoreThatCanFail], None]:
+    """The real wiring, except the store the service opens is the wrapper above."""
+    created: list[_StoreThatCanFail] = []
+    ports = _ports_with_a_store_that_can_fail(created)
     service = ZoneService(options, log=recording_into(logs), ports=ports)
     task = asyncio.create_task(service.run())
     try:
@@ -4349,6 +4379,82 @@ async def test_a_store_that_cannot_save_state_does_not_stop_the_dissolve(world: 
                 "the failed write was logged rather than swallowed",
             )
         assert positions_of(options) == {}, "the position that failed to save is not there afterwards"
+        # Every failed write said ONCE: by the one who knows what it was for when somebody awaited
+        # it, and generically only when nobody did. A generic line as well would put two errors in
+        # the log for one write, and the second tells the reader nothing.
+        assert sum("could not remember where mpd was" in line for line in logs) == 1, logs
+        assert len(_failed_saves_said(logs)) == store.refused_saves, logs
+
+
+def _failed_saves_said(logs: list[str]) -> list[str]:
+    """Every line saying a state save failed, whoever said it: the caller, the service, or the store."""
+    saying = (
+        "could not remember where mpd was, so the house dissolves without it",
+        "the house state was not saved",
+        "save_state failed after its caller had stopped waiting",
+    )
+    return [line for line in logs if any(said in line for said in saying)]
+
+
+STAND_DOWN_WITHIN_S = STAND_DOWN_SAVE_S + 3.0
+"""How long a stop may take while the house database hangs: the stand-down's bounded save, the
+worker's shortened close bound below, and the dissolve itself, with room for a busy machine."""
+
+
+async def test_a_database_that_hangs_at_the_stop_does_not_keep_the_zone_from_being_dissolved(
+    world: World, tmp_path: Path
+) -> None:
+    """The stop is bounded however long the database takes: the speakers are waiting on it.
+
+    A PostgreSQL host in a network black hole keeps a call in ``recv`` for minutes, and nothing on
+    the loop can interrupt a call on the database thread. The stand-down's own save - where MPD had
+    got to - queues behind it, and it came BEFORE the dissolve, so the dissolve waited too; then the
+    close waited, and the process could not exit. Here the database stops answering just before the
+    stop, and the stop must still tell both boxes, close the master's ports and end the run within
+    a bound. A save is not lost by giving up on it: it stays queued, and here the database then
+    refuses every one that was waiting, each of which is said exactly once - by the worker when
+    whoever asked had already stopped waiting, as the stand-down has.
+    """
+    async with _mpd(status_lines=PLAYING_AT_61_5) as fake:
+        options = _radio_and_mpd(world, tmp_path, fake)
+        logs: list[str] = []
+        created: list[_StoreThatCanFail] = []
+        service = ZoneService(
+            options, log=recording_into(logs), ports=_ports_with_a_store_that_can_fail(created, stop_bound_s=0.5)
+        )
+        task = asyncio.create_task(service.run())
+        gate = threading.Event()
+        try:
+            await eventually(lambda: len(created) == 1, "the service opened its store")
+            (store,) = created
+            await _both_wake(world)
+            await _press_preset(world.studio, STUDIO_ID, 1)
+            await _press_preset(world.studio, STUDIO_ID, 2)
+            await eventually(lambda: _playing(service).endswith("?c=12"), "the zone is on the MPD channel")
+
+            store.save_gate = gate
+            store.saving_state_fails = True
+            started = time.monotonic()
+            task.cancel()
+            done, _pending = await asyncio.wait({task}, timeout=STAND_DOWN_WITHIN_S + 5.0)
+            took = time.monotonic() - started
+        finally:
+            gate.set()
+            if not task.done():
+                task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        assert task in done, f"the stop was still waiting on the database after {took:.1f} s"
+        assert took < STAND_DOWN_WITHIN_S, f"the stop took {took:.1f} s"
+        assert len(dissolves(world.studio)) >= 1, "the studio was told the zone is over"
+        assert len(dissolves(world.hallway)) >= 1, "the hallway was told the zone is over"
+        await nothing_answers_on(MASTER, 8090, timeout=2.0)
+        assert any("could not remember where mpd was" in line for line in logs), logs
+
+        await eventually(store.closed.is_set, "the close queued behind the stuck save ran once it ended")
+        assert store.refused_saves >= 1, "the control: the stuck saves really did fail once let through"
+        assert len(_failed_saves_said(logs)) == store.refused_saves, logs
 
 
 STALL_S = 0.2

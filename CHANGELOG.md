@@ -79,6 +79,13 @@ All notable changes to this project are documented here. The format follows
   is noticed within seconds: every connection now sets TCP keepalives and `tcp_user_timeout`.
   Before, a call on such a connection waited in the kernel for about fifteen minutes, because
   `statement_timeout` is enforced by the server and its cancel never arrives.
+- A stop no longer waits on a house database that stopped answering, so the zone is always
+  dissolved and the process always exits. The stand-down waits at most 3 s to write down where MPD
+  had got to before it dissolves the zone, a fade cut short by the stop asks for its save without
+  waiting for it, and closing the database gives up after 10 s and says so. Before, one hung call
+  held the dissolve, the close and then the process exit until systemd killed it, leaving the
+  speakers bound to a master that had gone. A write given up on this way stays queued and still
+  lands if the database comes back. A failed state save is also logged once rather than twice.
 
 ## [0.5.2] 2026-09-28 21:03:10
 

@@ -212,13 +212,18 @@ class VolumeGuard(SpeakerBook):
             await self._put_one_back(speaker, level)
         except asyncio.CancelledError:
             with contextlib.suppress(Exception):
-                await self._put_one_back(speaker, level)
+                await self._put_one_back(speaker, level, wait_for_the_save=False)
             raise
         finally:
             self._fading.pop(speaker.device_id, None)
 
-    async def _put_one_back(self, speaker: Speaker, level: int) -> None:
+    async def _put_one_back(self, speaker: Speaker, level: int, *, wait_for_the_save: bool = True) -> None:
         """One box to one level, and the note removed once it is there.
+
+        A cancelled fade asks for the save and does not wait for it (``wait_for_the_save=False``):
+        it is on the stop's path, which a database that stopped answering must not hold, and the
+        save stays queued ahead of the close. Nothing after it needs the note gone from the store
+        first - a service that dies before it lands only puts the same level back again next start.
 
         A failure leaves the note in ``self._muted`` on purpose rather than logging and forgetting.
         The next pass finds it and tries again, which is the only thing standing between a box that
@@ -239,7 +244,10 @@ class VolumeGuard(SpeakerBook):
             self.log("zone", f"{speaker.name}: volume not put back ({type(exc).__name__}); a later pass will")
             return
         self._muted.pop(speaker.device_id, None)
-        await self._save_the_state()
+        if wait_for_the_save:
+            await self._save_the_state()
+        else:
+            self._queue_the_state()
 
     def _house_stepped(self, source_id: str, step: int) -> None:
         """Move every other box by the step a person just made at ``source_id`` (rank 191).
