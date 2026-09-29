@@ -210,8 +210,10 @@ within 2 s it uses `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion`, l
 asks the registry again a minute later. The channel keeps the location as written. What a
 speaker is sent, in a `/select` or in the item the zone shows its slaves, is the absolute
 location only once the registry has named its base - what the speaker would compute from its
-own registry - and otherwise the location as written, which the speaker completes itself; it is
-never the fallback, and building it never waits for the registry. The service reads the
+own registry - and otherwise the location as written, for the speaker to complete through its own
+registry. Speakers are proven to resolve a stored relative preset; whether one resolves a relative
+location sent in a `/select` has not been measured on a real speaker yet. It is never the
+fallback, and building it never waits for the registry. The service reads the
 registry in the background as it starts, so the base is normally known before the first box is
 switched on. The absolute form (that base URL plus `/station?data=...`), the older
 `/custom/v1/playback/...` URLs and any other `http://` or `https://` URL still work; any other

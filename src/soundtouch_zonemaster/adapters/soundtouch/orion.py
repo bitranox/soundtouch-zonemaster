@@ -9,10 +9,13 @@ back unchanged.
 
 The stored channel keeps the location it was given. What a SPEAKER is sent is the absolute one
 only when the registry has already NAMED its base: that url is exactly what the speaker would
-compute from its own registry. Until then a speaker is sent the location as stored, which it
-completes itself (proven for stored presets), and never the fallback: the fallback is a guess
-built from ``[registry] url``, whose shipped value is the loopback, so a box handed it would ask
-itself for the station - and a box keeps what it stores. One :class:`OrionBase` per service
+compute from its own registry. Until then a speaker is sent the location as stored, for it to
+complete through its own registry. That speakers resolve a STORED relative preset is proven; that
+one resolves a relative location handed to it in a ``/select`` is NOT yet measured on a real box,
+which is one more reason the service reads the registry as it starts, so the relative form goes
+out only in the moments before the first read answers. It is never the fallback: the fallback is
+a guess built from ``[registry] url``, whose shipped value is the loopback, so a box handed it
+would ask itself for the station - and a box keeps what it stores. One :class:`OrionBase` per service
 answers both the fetch and every speaker document, so the two can never name different bases.
 """
 

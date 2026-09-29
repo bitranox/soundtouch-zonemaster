@@ -400,9 +400,10 @@ class LocationResolver(Protocol):
     def for_a_speaker(self, location: str) -> str:
         """``location`` as a speaker may be handed it, at once: absolute only against a base the registry named.
 
-        When no such base is known yet the location comes back as stored - a speaker completes the
-        relative form through its own registry - and a read starts in the background, so a later
-        document can be absolute. Never waits, and never uses the fallback.
+        When no such base is known yet the location comes back as stored, for the speaker to
+        complete through its own registry (proven for a stored preset; not yet measured for a
+        ``/select``), and a read starts in the background, so a later document can be absolute.
+        Never waits, and never uses the fallback.
         """
         ...
 

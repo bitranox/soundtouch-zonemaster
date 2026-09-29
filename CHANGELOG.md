@@ -22,7 +22,8 @@ All notable changes to this project are documented here. The format follows
   `/select`, or the item the zone shows its slaves - carries the absolute location only once the
   registry has named its base; before that, and whenever the registry cannot say, it carries the
   location as stored, for the speaker to complete through its own registry, and never the
-  fallback. Building it never waits for the registry: it starts a background read instead, so a
+  fallback. Speakers are proven to resolve a stored relative preset; a `/select` carrying a
+  relative location has not been measured on a real speaker yet. Building it never waits for the registry: it starts a background read instead, so a
   later one can be absolute. The service starts that read itself as it starts, without waiting
   for it, so the first station a box is switched on to is normally absolute already. The
   prototype reads `[registry] url` too.
