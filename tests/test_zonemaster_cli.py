@@ -15,7 +15,7 @@ import pytest
 
 from soundtouch_zonemaster.__init__conf__ import shell_command, version
 from soundtouch_zonemaster.adapters.logging.narration import log
-from soundtouch_zonemaster.application.options import default_device_id
+from soundtouch_zonemaster.application.options import DEFAULT_BASE_URL, default_device_id
 from soundtouch_zonemaster.entry import prototype_main as main
 
 if TYPE_CHECKING:
@@ -116,3 +116,40 @@ def test_a_ctrl_c_ends_a_run_cleanly_rather_than_as_an_error(
     monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21"))
 
     assert main(run_zone=interrupted) == 0
+
+
+@pytest.mark.usefixtures("isolated_config_layers")
+def test_the_prototype_reads_the_service_s_registry_url_from_the_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``[registry] url`` reaches the prototype's option record, as it reaches the service's.
+
+    It names the service whose BMX registry completes a relative Orion preset, so a prototype that
+    ignored it would complete one against a service the house does not run. The shipped default
+    when nobody sets it, and the configured value when somebody does.
+    """
+    seen: list[Options] = []
+
+    async def capture(options: Options) -> int:
+        seen.append(options)
+        return 0
+
+    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21"))
+    assert main(run_zone=capture) == 0
+    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--set", "registry.url=http://127.0.0.1:8123"))
+    assert main(run_zone=capture) == 0
+    assert [options.registry_url for options in seen] == [DEFAULT_BASE_URL, "http://127.0.0.1:8123"]
+
+
+@pytest.mark.usefixtures("isolated_config_layers")
+def test_a_registry_url_that_is_not_text_is_refused_by_its_own_name(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A bad ``[registry] url`` is named as that, not reported as a bad ``never_touch`` list."""
+
+    async def must_not_run(_options: Options) -> int:
+        raise AssertionError("the prototype must not start on a configuration it could not read")
+
+    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--set", "registry.url=[1]"))
+    assert main(run_zone=must_not_run) == 2
+    err = capsys.readouterr().err
+    assert "[registry] url" in err
+    assert "never_touch" not in err

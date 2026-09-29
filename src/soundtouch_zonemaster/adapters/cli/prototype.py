@@ -30,13 +30,13 @@ import rich_click as click
 from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
 
 from ...__init__conf__ import shell_command, version
-from ...application.options import Options, default_device_id
+from ...application.options import DEFAULT_BASE_URL, Options, default_device_id
 from ...application.outcome import ExitCode, OptionsError, device_id_or_refuse
 from ...domain.enums import Encryption, JoinMode
 from ...domain.logfn import ERROR_KIND
 from ...domain.speakers import ProtectedSpeaker, first_protected
 from ..config.errors import ConfigInputError
-from ..config.settings_map import prototype_settings
+from ..config.settings_map import PROTOTYPE_SETTINGS, prototype_settings
 from ..logging.narration import LogRouting, log
 from . import safe_console
 from .context import Shared, config_for
@@ -55,39 +55,53 @@ __all__ = [
     "PrototypeSettings",
     "RunReport",
     "cli",
-    "never_touch_of",
     "parse_options",
+    "prototype_settings_of",
     "zone_options",
 ]
 
 
 class PrototypeSettings(BaseModel):
-    """What a config file says to the prototype, which is one thing: what never to touch.
+    """What a config file says to the prototype: what never to touch, and where the service is.
 
-    The default is the shipped ``80-prototype.toml`` value, and ``tests/test_config.py`` fails if
-    the two ever disagree - the same one-source-of-truth check every service setting gets. It is
+    Each default is the shipped file's value, and ``tests/test_config.py`` fails if the two ever
+    disagree - the same one-source-of-truth check every service setting gets. ``never_touch`` is
     empty: a wheel cannot know which box in somebody's flat must not be woken, so the house that
-    has one names it in its own layer.
+    has one names it in its own layer. ``registry_url`` is the service's own ``[registry] url``,
+    read from the same file, because a relative Orion preset the prototype plays is completed
+    against that service's BMX registry exactly as the service completes it.
     """
 
     model_config = ConfigDict(frozen=True)
 
     never_touch: tuple[ProtectedSpeaker, ...] = ()
+    registry_url: str = DEFAULT_BASE_URL
 
 
-def never_touch_of(config: Config) -> tuple[ProtectedSpeaker, ...]:
-    """The addresses this house never touches, as the configuration layers delivered them.
+def prototype_settings_of(config: Config) -> PrototypeSettings:
+    """What the configuration layers delivered to the prototype, validated.
 
     A malformed entry is a :class:`ConfigInputError` like every other way a configuration can be
     wrong, so the command catches one type and is complete. It is NOT allowed to fall through as a
-    pydantic error: this list is the thing standing between a typo and a speaker somebody is
+    pydantic error: ``never_touch`` is the thing standing between a typo and a speaker somebody is
     listening to, and a run that could not read it must not proceed as though the list were empty.
+    Each problem is named by the setting it is in, so a bad ``[registry] url`` is not reported as
+    a bad ``never_touch``.
     """
     try:
-        return PrototypeSettings.model_validate(prototype_settings(config)).never_touch
+        return PrototypeSettings.model_validate(prototype_settings(config))
     except ValidationError as exc:
-        message = f"refused: [prototype] never_touch: {exc}"
+        problems = "; ".join(f"{_where_in_a_file(error['loc'])}: {error['msg']}" for error in exc.errors())
+        message = f"refused: {problems}"
         raise ConfigInputError(message) from exc
+
+
+def _where_in_a_file(loc: tuple[int | str, ...]) -> str:
+    """``("never_touch", 0, "ip")`` as ``[prototype] never_touch``: the setting, as a file writes it."""
+    field_name = str(loc[0]) if loc else ""
+    path = next((source for source, target in PROTOTYPE_SETTINGS.items() if target == field_name), field_name)
+    section, _, key = path.partition(".")
+    return f"[{section}] {key}" if key else path
 
 
 class OptionsInput(BaseModel):
@@ -113,6 +127,7 @@ class OptionsInput(BaseModel):
     join_after: float
     join_mode: JoinMode
     ignore_selects: bool
+    registry_url: str
 
     @field_validator("device_id")
     @classmethod
@@ -135,6 +150,7 @@ class OptionsInput(BaseModel):
             join_after=self.join_after,
             join_mode=self.join_mode,
             ignore_selects=self.ignore_selects,
+            registry_url=self.registry_url,
         )
 
 
@@ -244,6 +260,7 @@ def parse_options(  # noqa: PLR0913 - one keyword per Options field; collapsing 
     join_mode: str,
     ignore_selects: bool,
     never_touch: Sequence[ProtectedSpeaker],
+    registry_url: str,
 ) -> Options:
     """Validate what the CLI collected. Raises :class:`OptionsError` on a refusal.
 
@@ -252,6 +269,7 @@ def parse_options(  # noqa: PLR0913 - one keyword per Options field; collapsing 
 
     ``never_touch`` has no default on purpose. It was a constant in the archive, and a default
     here would let a caller forget the one refusal that protects a room somebody is in.
+    ``registry_url`` has none either, so a caller cannot quietly play against the wrong service.
     """
     options = OptionsInput.model_validate(
         {
@@ -268,6 +286,7 @@ def parse_options(  # noqa: PLR0913 - one keyword per Options field; collapsing 
             "join_after": join_after,
             "join_mode": join_mode,
             "ignore_selects": ignore_selects,
+            "registry_url": registry_url,
         }
     ).record()
     protected = first_protected((*options.slaves, *options.late_slaves), never_touch)
@@ -321,6 +340,7 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
     run_zone = cast("RunZone", ctx.obj)
     try:
         shared = Shared(mode=mode, profile=profile, overrides=set_overrides)
+        settings = prototype_settings_of(config_for(shared).config)
         options = parse_options(
             bind_ip=bind_ip,
             device_id=device_id,
@@ -335,7 +355,8 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
             join_after=join_after,
             join_mode=join_mode,
             ignore_selects=ignore_selects,
-            never_touch=never_touch_of(config_for(shared).config),
+            never_touch=settings.never_touch,
+            registry_url=settings.registry_url,
         )
     except OptionsError as exc:
         report_failure(exc, command=shell_command, mode=mode)

@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ..domain.channellist import ChannelList
-    from ..domain.enums import ChannelEnd, Encryption
+    from ..domain.enums import ChannelEnd
     from ..domain.events import SpeakerEvent
     from ..domain.logfn import LogFn
     from ..domain.mpd import MpdStatus
@@ -52,8 +52,10 @@ __all__ = [
     "AskNowPlaying",
     "FetchSpeakers",
     "HouseStore",
+    "LocationResolver",
     "MpdControlPort",
     "OpenHouseStore",
+    "OpenLocationResolver",
     "OpenMpdControl",
     "OpenPrototypeMaster",
     "OpenZoneMaster",
@@ -304,6 +306,31 @@ class OpenMpdControl(Protocol):
 # --- the zone itself ----------------------------------------------------------------------------
 
 
+class LocationResolver(Protocol):
+    """Completes a relative Orion location the way a speaker does, for the fetch and the ``/select`` alike.
+
+    AfterTouch stores a preset as ``/station?data=...`` and leaves the base to the speaker's own
+    service registry. The service hands a speaker the ABSOLUTE form in every ``/select``: it is
+    exactly what the speaker would compute, so it is right whether or not a given firmware
+    resolves the relative one, and the channel list keeps the location as it was stored. One per
+    service, shared with the master's sources, so both are completed against the same base.
+    """
+
+    async def absolute(self, location: str) -> str:
+        """``location`` naming the station completely; anything but the relative form comes back as it is."""
+        ...
+
+    def forget(self, url: str) -> None:
+        """A fetch of ``url`` failed before a byte came back, so the base it was completed against is suspect."""
+        ...
+
+
+class OpenLocationResolver(Protocol):
+    """Build the one resolver a service run holds, against the service named by ``[registry] url``."""
+
+    def __call__(self, service_url: str, /, *, log: LogFn) -> LocationResolver: ...
+
+
 class ZoneMasterPort(Protocol):
     """The master as the SERVICE drives it: lifecycle, membership, and the station.
 
@@ -355,7 +382,7 @@ class OpenZoneMaster(Protocol):
         events: asyncio.Queue[SpeakerEvent],
         slave_heard: Callable[[str], None],
         ignore_selects: bool,
-        service_url: str,
+        locations: LocationResolver,
     ) -> ZoneMasterPort: ...
 
 
@@ -387,17 +414,13 @@ class PrototypeMaster(ZonePort, Protocol):
 
 
 class OpenPrototypeMaster(Protocol):
-    """Build the master one run holds, from the option set that run was given."""
+    """Build the master one run holds, from the option set that run was given.
 
-    def __call__(
-        self,
-        *,
-        bind_ip: str,
-        device_id: str,
-        log: LogFn,
-        encryption: Encryption,
-        ignore_selects: bool,
-    ) -> PrototypeMaster: ...
+    The whole record rather than one keyword per field it reads: the master takes five of them,
+    and naming each here would only move the same list one call further out.
+    """
+
+    def __call__(self, options: Options, /, *, log: LogFn) -> PrototypeMaster: ...
 
 
 StationSource = Callable[[str, int], "Awaitable[StationRequest]"]
@@ -433,6 +456,7 @@ class ZoneServicePorts:
     fetch_speakers: FetchSpeakers
     watch_speaker: WatchSpeaker
     open_zone_master: OpenZoneMaster
+    open_locations: OpenLocationResolver
     read_volume: ReadVolume
     set_volume: SetVolume
     select_station: SelectStation

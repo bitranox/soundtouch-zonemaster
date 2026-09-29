@@ -29,6 +29,7 @@ from ..adapters.files.house_store import SqlHouseStore
 from ..adapters.logging.narration import log
 from ..adapters.mpd.client import MpdControl
 from ..adapters.soundtouch import observer, speaker_http, wire
+from ..adapters.soundtouch.orion import OrionBase
 from ..adapters.soundtouch.zone_master import ZoneMaster
 from ..application.outcome import ExitCode
 from ..application.ports import PrototypePorts, ZoneServicePorts
@@ -38,7 +39,6 @@ from ..application.zone_service import ZoneService
 if TYPE_CHECKING:
     from ..application import ports as port_types
     from ..application.options import Options, ServiceOptions
-    from ..domain.enums import Encryption
     from ..domain.logfn import LogFn
     from ..domain.secret import Secret
 
@@ -57,26 +57,21 @@ class AppServices:
     prototype_ports: PrototypePorts
 
 
-def open_prototype_master(
-    *,
-    bind_ip: str,
-    device_id: str,
-    log: LogFn,
-    encryption: Encryption,
-    ignore_selects: bool,
-) -> ZoneMaster:
+def open_prototype_master(options: Options, /, *, log: LogFn) -> ZoneMaster:
     """The master one run holds, with the encryption name turned into the value the wire carries.
 
-    This mapping is the whole reason the port takes a domain enum: ``application`` may not import
-    the generated protobuf at all, so the option set carries the NAME and the translation happens
-    at the edge that sends it.
+    This mapping is the whole reason the option set carries a domain enum: ``application`` may not
+    import the generated protobuf at all, so it carries the NAME and the translation happens at the
+    edge that sends it. ``registry_url`` is ``[registry] url``, whose BMX registry completes a
+    relative Orion preset the run plays, as it does for the service.
     """
     return ZoneMaster(
-        bind_ip=bind_ip,
-        device_id=device_id,
+        bind_ip=options.bind_ip,
+        device_id=options.device_id,
         log=log,
-        encryption=wire.encryption_type(encryption),
-        ignore_selects=ignore_selects,
+        encryption=wire.encryption_type(options.encryption),
+        ignore_selects=options.ignore_selects,
+        locations=OrionBase(options.registry_url, log=log),
     )
 
 
@@ -103,6 +98,7 @@ def build_production() -> AppServices:
             fetch_speakers=registry.fetch_speakers,
             watch_speaker=observer.SpeakerObserver,
             open_zone_master=ZoneMaster,
+            open_locations=OrionBase,
             read_volume=speaker_http.read_volume,
             set_volume=speaker_http.set_volume,
             select_station=speaker_http.select_station,

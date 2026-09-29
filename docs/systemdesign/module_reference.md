@@ -70,7 +70,7 @@ Complete (v0.2.0+, the template rebuild)
   - `connections.py`  -  The transport and data connections a slave opens, their frame loops
   - `http_api.py`  -  The speaker HTTP API served on 8090; the /slaveMsg face a test drives
   - `source.py`  -  Station URL resolution, the fetch loop, the bounded ring buffer
-  - `orion.py`  -  Completes a relative Orion location (`/station?data=...`) from the service's BMX registry, once per master
+  - `orion.py`  -  Completes a relative Orion location (`/station?data=...`) from the service's BMX registry, one resolver per service run, shared by the master's fetch and every `/select`
   - `observer.py`  -  One WebSocket per speaker: what a box says while NOT in the zone
   - `clock.py`  -  The UDP 40005 sync server (BOSE901); one record per client, evicted on silence
   - `ipc.py`  -  The length-prefixed IPC envelope both TCP channels speak (MAX_FRAME_BYTES)

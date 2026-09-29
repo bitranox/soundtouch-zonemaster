@@ -133,6 +133,8 @@ class Options:
     join_after: float
     join_mode: JoinMode
     ignore_selects: bool
+    registry_url: str
+    """``[registry] url``: the service whose BMX registry completes a relative Orion preset."""
 
     def __post_init__(self) -> None:
         """Refuse a device id that is not one.

@@ -138,8 +138,7 @@ class ServiceState:
 
         One record rather than one argument per port, and with no defaults, so that adding a
         port breaks every place that builds one - which is the composition root and the tests."""
-        self.master: ZoneMasterPort | None = None
-        """The zone, and only while the switch is on; ``None`` means we are standing down."""
+        self._no_zone_held_yet(options)
         self.events: asyncio.Queue[SpeakerEvent] = asyncio.Queue()
         """The one stream: the observers put frames on it, the master's HTTP face puts keys."""
         self._positions: dict[str, Place] = {}
@@ -238,6 +237,22 @@ class ServiceState:
         only because asyncio keeps a weak reference to a task, so one nobody holds can be
         collected while it is still fetching.
         """
+
+    def _no_zone_held_yet(self, options: ServiceOptions) -> None:
+        """No master yet, and the one resolver every master of this run and every ``/select`` share.
+
+        One group because they are one subject, the zone's: what holds it, and what completes the
+        location of the station it is handed.
+        """
+        self.master: ZoneMasterPort | None = None
+        """The zone, and only while the switch is on; ``None`` means we are standing down."""
+        self.locations = self.ports.open_locations(options.registry_url, log=self.log)
+        """What completes a relative Orion channel url, for every master this run holds and every ``/select``.
+
+        One for the whole run rather than one per master, because a box out of multiroom dials for
+        itself while nobody holds the house, and its ``/select`` must name the same base the zone's
+        fetch does. Building it reads nothing: the registry is asked the first time a relative
+        location needs it."""
 
     def _no_speaker_known_yet(self) -> None:
         """The speaker book at its empty start: who the boxes are, and what has been asked of them.

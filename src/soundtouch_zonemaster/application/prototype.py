@@ -42,13 +42,7 @@ async def run(options: Options, *, log: LogFn, ports: PrototypePorts) -> int:
     The dissolve is in a ``finally`` because leaving a real speaker in a zone whose master
     has gone is the one outcome that needs a person to undo it by hand.
     """
-    master = ports.open_master(
-        bind_ip=options.bind_ip,
-        device_id=options.device_id,
-        log=log,
-        encryption=options.encryption,
-        ignore_selects=options.ignore_selects,
-    )
+    master = ports.open_master(options, log=log)
     await master.start()
     try:
         station = await ports.station_source(options.preset_from, options.preset)

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from soundtouch_zonemaster.adapters.cli.prototype import OptionsInput
+from soundtouch_zonemaster.application.options import DEFAULT_BASE_URL
 from soundtouch_zonemaster.application.outcome import ExitCode
 from soundtouch_zonemaster.application.prototype import join_slaves, late_join, run_until_done
 from soundtouch_zonemaster.domain.enums import Encryption, JoinMode
@@ -60,6 +61,7 @@ def _options(**overrides: object) -> Options:
         "join_after": 30.0,
         "join_mode": JoinMode.SCHEDULE.value,
         "ignore_selects": False,
+        "registry_url": DEFAULT_BASE_URL,
     }
     return OptionsInput.model_validate(base | overrides).record()
 

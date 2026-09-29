@@ -319,11 +319,16 @@ def test_the_scope_sections_are_read_into_the_records_flat_field_names() -> None
 
 def test_one_program_s_section_is_not_read_by_the_other() -> None:
     """The two maps are what keep them apart: each reader looks up only its own paths, so a
-    section belonging to the other program yields nothing rather than an unexpected key."""
+    section belonging to the other program yields nothing rather than an unexpected key.
+
+    ``[registry] url`` is the one setting both read, on purpose: it names the service whose BMX
+    registry completes a relative Orion location, and the two programs must complete it against
+    the same service. Everything else in ``[registry]`` is the service's alone."""
     config = get_config()
 
     assert "never_touch" not in service_settings(config)
-    assert set(prototype_settings(config)) == {"never_touch"}
+    assert set(prototype_settings(config)) == {"never_touch", "registry_url"}
+    assert "registry_poll_s" not in prototype_settings(config)
 
 
 def test_a_stray_key_in_one_of_our_sections_is_reported_and_one_elsewhere_is_not(

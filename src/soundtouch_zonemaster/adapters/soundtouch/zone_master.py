@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ...application.errors import PortsBusyError
-from ...application.options import DEFAULT_BASE_URL
 from ...domain import zonexml
 from ...domain.enums import SpeakerPath
 from ...domain.station import Station, StationRequest
@@ -30,6 +29,7 @@ from .xmlread import attribute_anywhere, parse
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from ...application.ports import LocationResolver
     from ...domain.events import SpeakerEvent
     from ...domain.logfn import LogFn
     from .reports import SlaveState
@@ -169,9 +169,13 @@ class ZoneMaster:
     Liveness and never membership: it says something is at the other end of a channel we opened,
     which is all a report proves. The service uses it to keep a quiet member from ageing out.
     """
-    service_url: str = DEFAULT_BASE_URL
-    """The replacement service's base URL (``[registry] url``), whose BMX registry completes a
-    relative Orion location before a station is fetched. The prototype leaves the default."""
+    locations: LocationResolver | None = None
+    """What completes a relative Orion location before a station is fetched (``orion.py``).
+
+    The service hands over the one it holds for the whole run, the same one its ``/select`` goes
+    through, so a speaker and the fetch are never given two different bases. ``None`` builds one
+    against the default service base.
+    """
     slaves: dict[str, Slave] = field(default_factory=dict[str, Slave])
     transports: SlaveTransports = field(default_factory=SlaveTransports)
     station: Station | None = None
@@ -187,13 +191,13 @@ class ZoneMaster:
         default_factory=list[asyncio.AbstractServer | asyncio.DatagramTransport]
     )
     planner: JoinPlanner = field(init=False)
-    orion: OrionBase = field(init=False)
-    """One per master, so every station of a run shares the base the registry named once."""
+    orion: LocationResolver = field(init=False)
+    """The resolver every station of this master is fetched through, so all share one base."""
 
     def __post_init__(self) -> None:
         # The planner reaches streams through source_for, so it can read one and never add one.
         self.planner = JoinPlanner(log=self.log, source_for=self.source_for)
-        self.orion = OrionBase(self.service_url)
+        self.orion = self.locations if self.locations is not None else OrionBase(log=self.log)
 
     # --- lifecycle ---------------------------------------------------------------------------
 

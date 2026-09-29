@@ -206,9 +206,9 @@ class ZoneReconcile(VolumeGuard):
             # digit - which is the opposite of dialling, where an intermediate digit does nothing.
             # The number comes from the box's own notification channel instead.
             ignore_selects=True,
-            # The neighbour whose BMX registry completes a relative Orion channel url, the way a
-            # speaker completes the same location from its own registry.
-            service_url=self.options.registry_url,
+            # The run's one resolver, whose BMX registry completes a relative Orion channel url the
+            # way a speaker completes it from its own - the same one every /select goes through.
+            locations=self.locations,
         )
         # Held BEFORE it is started: start() binds four listeners one after another, so a failure
         # or a cancel in the middle would otherwise leave the bound ones with nothing holding them
@@ -286,10 +286,16 @@ class ZoneReconcile(VolumeGuard):
         one selection and one touch, claimed by ``_claimed_as_our_selection`` and
         ``_claimed_as_our_echo`` - owed from BEFORE the send, because the selection arrives before
         the call returns.
+
+        The location sent is the ABSOLUTE one (``self.locations``): what a speaker would compute
+        from its own registry for a relative Orion channel, so it is right whether or not its
+        firmware resolves the relative form, and the channel list keeps the url as it was stored.
+        Completed before anything is owed, so a slow registry cannot eat the echo's window.
         """
+        location = await self.locations.absolute(channel.url)
         touch, selection = self._owed.owe_touch(device_id), self._owed.owe_selection(device_id)
         try:
-            await self.ports.select_station(address, url=channel.url, name=channel.name)
+            await self.ports.select_station(address, url=location, name=channel.name)
         finally:
             touch.until = selection.until = time.time() + OWN_SELECT_TAIL_S
 
@@ -468,11 +474,14 @@ class ZoneReconcile(VolumeGuard):
         await self._remember_where_mpd_is()
         if channel.kind is ChannelKind.MPD:
             await self._put_mpd_on(channel)
+        # The fetch completes the channel's own url itself, and forgets a base that failed; the
+        # item every slave is shown carries the absolute location, as a /select does.
+        location = await self.locations.absolute(channel.url)
         station = await master.play(
             StationRequest(
                 playback_url=channel.url,
                 name=channel.name,
-                content_item_xml=zonexml.station_content_item(url=channel.url, name=channel.name),
+                content_item_xml=zonexml.station_content_item(url=location, name=channel.name),
             )
         )
         if station is not None:

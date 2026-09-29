@@ -140,14 +140,18 @@ def env_name_of(field: str) -> str:
 PROTOTYPE_SETTINGS: Mapping[str, str] = {
     # where in a config file it is written  ->  which field of the prototype's settings it fills
     "prototype.never_touch": "never_touch",
+    "registry.url": "registry_url",
 }
 """Every setting the PROTOTYPE reads from a config file, and the field it fills.
 
-One entry, and the reason there is only one is the reason the section exists at all: the prototype
-is a measurement run whose whole option set is typed on the command line, and the single thing
-about it that must not be typed is which addresses this house never touches. That was a constant in
-the source until this rebuild, which meant the one refusal protecting a real speaker could only
-be changed by editing the program.
+Two entries. The prototype is a measurement run whose whole option set is typed on the command
+line, and the one thing about it that must not be typed is which addresses this house never
+touches. That was a constant in the source until this rebuild, which meant the one refusal
+protecting a real speaker could only be changed by editing the program.
+
+The other is the service's own ``[registry] url``, read by BOTH programs on purpose: it names the
+service whose BMX registry completes a relative Orion preset, and a prototype run that completed
+one against a different service than the house's would play something the house does not.
 
 Pinned against the record it fills the same way :data:`SETTINGS` is, in both directions, by
 ``tests/test_config.py``.

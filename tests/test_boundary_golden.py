@@ -100,9 +100,16 @@ from soundtouch_zonemaster.adapters.files.channel_file import ChannelFileError, 
 from soundtouch_zonemaster.adapters.files.state_file import LegacyState, load_state, save_state
 from soundtouch_zonemaster.adapters.soundtouch.http_api import HttpApi, Request, key_press, parse_request
 from soundtouch_zonemaster.adapters.soundtouch.observer import parse_frame, parse_now_playing
+from soundtouch_zonemaster.adapters.soundtouch.orion import OrionBase
 from soundtouch_zonemaster.adapters.soundtouch.wire import encryption_type
 from soundtouch_zonemaster.application.errors import RegistryError
-from soundtouch_zonemaster.application.options import ChannelsExport, Options, ServiceOptions, default_device_id
+from soundtouch_zonemaster.application.options import (
+    DEFAULT_BASE_URL,
+    ChannelsExport,
+    Options,
+    ServiceOptions,
+    default_device_id,
+)
 from soundtouch_zonemaster.application.outcome import OptionsError
 from soundtouch_zonemaster.application.ports import ZoneServicePorts
 from soundtouch_zonemaster.application.zone_service import ZoneService
@@ -129,7 +136,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable, Sequence
 
     from soundtouch_zonemaster.application.options import ChannelPolicy, LegacyFiles
-    from soundtouch_zonemaster.application.ports import AddressOf, MpdControlPort
+    from soundtouch_zonemaster.application.ports import AddressOf, LocationResolver, MpdControlPort
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.mpd import MpdStatus
     from soundtouch_zonemaster.domain.preferences import PreferenceName, PreferenceSource, PreferenceValue
@@ -1033,7 +1040,7 @@ def wired_service(
         events: asyncio.Queue[SpeakerEvent],
         slave_heard: Callable[[str], None],
         ignore_selects: bool,
-        service_url: str,
+        locations: LocationResolver,
     ) -> FakeMaster:
         return FakeMaster()
 
@@ -1070,6 +1077,9 @@ def wired_service(
         fetch_speakers=fetch_speakers,
         watch_speaker=watch_speaker,
         open_zone_master=open_zone_master,
+        # The real resolver: the corpus has no relative channel, so it answers every url as given
+        # and never asks a registry, which is what the recorded logs were made without.
+        open_locations=OrionBase,
         read_volume=read_volume,
         set_volume=set_volume,
         select_station=select_station,
@@ -1264,7 +1274,7 @@ async def test_the_service_says_the_ignored_digit_the_dialler_used_to_say(
 # The options corpus: both option boundaries, and the six layers underneath one of them
 # ------------------------------------------------------------------------------------------------
 #
-# Four deltas, each stated rather than hidden, and each the consequence of a move the rebuild made:
+# Five deltas, each stated rather than hidden, and each the consequence of a move the rebuild made:
 #
 # 6. ``parse_options`` no longer HOLDS the never-touch refusal: the address of the Room5
 #    console was a constant in the archive and is ``[prototype] never_touch`` now, so the refusal
@@ -1281,6 +1291,10 @@ async def test_the_service_says_the_ignored_digit_the_dialler_used_to_say(
 #    documentation URL are byte-identical, and the test substitutes only the name.
 # 9. ``report_failure`` takes an :class:`OutputMode` instead of a ``machine``/``indent`` pair. The
 #    three recorded shapes are replayed through it, so the bytes stay the contract.
+# 10. ``Options`` carries ``registry_url``, the service's ``[registry] url`` the prototype now reads
+#    so a relative Orion preset is completed against the house's own service. The archive had no
+#    such field; the replay passes the shipped default and takes the field back out, after
+#    checking it is that default, before comparing with the recorded record.
 
 
 ARCHIVE_NEVER_TOUCH = (ProtectedSpeaker(ip="192.168.0.30", name="Room5", why="the Lifestyle console"),)
@@ -1452,7 +1466,7 @@ def replay_prototype_options(case: dict[str, Any], work: Path) -> None:
     expect = cast("dict[str, Any]", case["expect"])
 
     def call() -> Options:
-        return parse_options(**given, never_touch=ARCHIVE_NEVER_TOUCH)
+        return parse_options(**given, never_touch=ARCHIVE_NEVER_TOUCH, registry_url=DEFAULT_BASE_URL)
 
     if "raises" in expect:
         recorded = cast("dict[str, Any]", expect["raises"])
@@ -1470,7 +1484,9 @@ def replay_prototype_options(case: dict[str, Any], work: Path) -> None:
         return
 
     options = call()
-    assert canonical(options) == expect["value"]
+    produced = cast("dict[str, Any]", canonical(options))
+    assert cast("dict[str, Any]", produced["fields"]).pop("registry_url") == DEFAULT_BASE_URL, "delta 10"
+    assert produced == expect["value"]
     # Delta 7: the wire value is the SoundTouch adapter's lookup now, and the number is the same.
     assert int(encryption_type(options.encryption)) == expect["encryption_type"]
 

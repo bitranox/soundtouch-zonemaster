@@ -10,7 +10,9 @@
 #
 # Default: http://127.0.0.1:8000. Effect: every device lookup goes here, and so does the one read
 # of the speakers' BMX service registry that completes a relative station location
-# (/station?data=..., the form presets are written in) the way a speaker completes it.
+# (/station?data=..., the form presets are written in) the way a speaker completes it. The
+# prototype reads this setting too, so a relative preset it plays is completed against the same
+# service.
 # When to change it: only if that service is moved or given a different port. It is the loopback
 # on purpose - the registry is a neighbour on the same host, not something to reach over the LAN.
 # Consequence of pointing it somewhere unreachable: the service starts, holds no zone, and retries;

@@ -205,9 +205,11 @@ replacement service writes speaker presets in, a relative Orion location:
 `/station?data=<query-escaped base64 of {"name", "imageUrl", "streamUrl"}>`. It is relative to
 the `LOCAL_INTERNET_RADIO` base URL in the service's BMX registry
 (`<[registry] url>/bmx/registry/v1/services`), which is how a speaker completes it, and the
-master reads the same registry once per run to do the same; if the registry cannot be read it
-uses `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion` and logs that. The channel
-keeps the location as written, so a speaker handed it resolves it against its own registry. The
+master reads the same registry once per run to do the same; if the registry cannot be read
+within 2 s it uses `<[registry] url>/core02/svc-bmx-adapter-orion/prod/orion`, logs that, and
+asks the registry again a minute later. The channel keeps the location as written; what a
+speaker is sent, in a `/select` or in the item the zone shows its slaves, is the completed
+absolute location, which is what the speaker would compute from its own registry. The
 absolute form (that base URL plus `/station?data=...`), the older `/custom/v1/playback/...`
 URLs and any other `http://` or `https://` URL still work; any other bare path is refused.
 

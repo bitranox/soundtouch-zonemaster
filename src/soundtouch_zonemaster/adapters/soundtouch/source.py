@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ...domain.enums import ContentType
@@ -26,8 +27,7 @@ from .orion import OrionBase
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    import httpx
-
+    from ...application.ports import LocationResolver
     from ...domain.logfn import LogFn
     from ...domain.station import Station
     from .clock import Clock
@@ -162,18 +162,21 @@ class StreamSource:
     content_type: str = ""
     bytes_total: int = 0
     read_timeout_s: float = READ_TIMEOUT_S
-    orion: OrionBase = field(default_factory=OrionBase, repr=False)
+    orion: LocationResolver | None = field(default=None, repr=False)
     """What completes a relative Orion location before it is fetched (``orion.py``).
 
     The master hands every source the one it holds, so the service registry is read once per run
-    rather than once per station.
+    rather than once per station. ``None`` builds one against the default service base, which is
+    what a source made on its own (a test, a measurement) needs.
     """
     _task: asyncio.Task[None] | None = field(default=None, repr=False)
     frames: FrameIndex = field(init=False, repr=False)
     frame_timeline: FrameTimeline | None = field(default=None, repr=False)
+    _locations: LocationResolver = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.frames = FrameIndex(self.ring)
+        self._locations = self.orion if self.orion is not None else OrionBase(log=self.log)
 
     def begin_at(self, t0_us: int) -> None:
         """Set byte 0's master-clock time, on the source AND on its byte timeline.
@@ -260,12 +263,23 @@ class StreamSource:
         async with client_without_deadline(follow_redirects=True, headers=headers) as client:
             async with asyncio.timeout(ANSWER_TIMEOUT_S):
                 # The station keeps the location as it was given; only this fetch sees it completed.
-                location = await self.orion.absolute(client, self.station.playback_url, self.log)
-                url = await resolve_stream_url(client, location, self.log)
-            async with asyncio.timeout(ANSWER_TIMEOUT_S):
-                resp = await client.send(client.build_request("GET", url), stream=True)
+                location = await self._locations.absolute(self.station.playback_url)
             try:
-                resp.raise_for_status()
+                async with asyncio.timeout(ANSWER_TIMEOUT_S):
+                    url = await resolve_stream_url(client, location, self.log)
+                async with asyncio.timeout(ANSWER_TIMEOUT_S):
+                    resp = await client.send(client.build_request("GET", url), stream=True)
+            except (httpx.HTTPError, TimeoutError):
+                # Before a byte came back, so the base it was completed against is suspect: the
+                # reconnect asks the registry again rather than the same place for ever.
+                self._locations.forget(location)
+                raise
+            try:
+                try:
+                    resp.raise_for_status()
+                except httpx.HTTPStatusError:
+                    self._locations.forget(location)
+                    raise
                 self.content_type = resp.headers.get("content-type", "")
                 self.log(
                     "source", f"url_id={self.station.url_id} {resp.status_code} {self.content_type} from {resp.url}"

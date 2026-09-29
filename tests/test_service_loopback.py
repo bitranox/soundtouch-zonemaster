@@ -53,9 +53,10 @@ from soundtouch_zonemaster.adapters.aftertouch.registry import DEVICES_PATH
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
+from soundtouch_zonemaster.adapters.soundtouch.orion import ORION_FALLBACK_PATH
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
-from soundtouch_zonemaster.adapters.soundtouch.speaker_http import SPEAKER_HTTP_TIMEOUT_S
+from soundtouch_zonemaster.adapters.soundtouch.speaker_http import SPEAKER_HTTP_TIMEOUT_S, http_get
 from soundtouch_zonemaster.adapters.soundtouch.zone_master import ZoneMaster
 from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.options import ChannelPolicy, ServiceOptions
@@ -2546,6 +2547,110 @@ async def test_a_box_that_is_out_of_multiroom_dials_for_itself_and_leaves_the_ho
     assert _state_of(options).channel != "13", (
         "a box that is not in the zone must not move the number the zone comes back on"
     )
+
+
+ORION_RELATIVE = "/station?data=eyJuYW1lIjoiT3Jpb24ifQ%3D%3D"
+"""A channel as AfterTouch writes a preset: the base is left to whoever plays it."""
+
+
+def _orion_world(world: World, tmp_path: Path, *, relative: tuple[str, ...]) -> ServiceOptions:
+    """Channels 1, 12 and 13, the ones named in ``relative`` written as a RELATIVE Orion location."""
+    options = _options(world, tmp_path, seed=True, dial_window_s=0.5)
+    save_channels(
+        _channel_file(options),
+        ChannelList(
+            channels=tuple(
+                Channel(
+                    number=number,
+                    name=f"C{number}",
+                    kind=ChannelKind.RADIO,
+                    url=ORION_RELATIVE if number in relative else f"{world.station_url}?c={number}",
+                )
+                for number in ("1", "12", "13")
+            )
+        ),
+    )
+    return options
+
+
+async def _out_of_multiroom_and_awake(world: World, service: ZoneService) -> None:
+    """The studio double-tapped out of the group, released, handed its channel, and playing again."""
+    await _double_tap_key(STUDIO_IP, KeyName.THUMBS_DOWN)
+    await eventually(lambda: STUDIO_IP not in _slaves(service), "the studio left the zone")
+    await eventually(lambda: world.studio.bodies_for("/select") != [], "and got the house's channel")
+    await eventually(lambda: not service.policy.is_asleep(STUDIO_ID), "and said it is playing again")
+
+
+async def test_a_relative_channel_reaches_every_box_as_the_absolute_location_the_registry_names(
+    world: World, tmp_path: Path
+) -> None:
+    """What a speaker is SENT is what it would compute from its own registry; the list keeps the url.
+
+    Every document the service builds a location into for a box: the selection the zone shows its
+    slaves, the ``/select`` that hands a released box its channel, and the ``/select`` of a number
+    dialled on a box out of multiroom. Each carries the absolute location, completed against the
+    base the service's BMX registry names - the same base the zone's own fetch used.
+    """
+    station_base = world.station_url.removesuffix("/live")
+    world.registry.bodies["/bmx/registry/v1/services"] = json.dumps(
+        {"bmx_services": [{"id": {"name": "LOCAL_INTERNET_RADIO"}, "baseUrl": f"{station_base}/orion"}]}
+    )
+    absolute = f"{station_base}/orion{ORION_RELATIVE}"
+    options = _orion_world(world, tmp_path, relative=("1", "13"))
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await _both_wake(world)
+        await eventually(lambda: service.master is not None and service.master.station is not None, "a station")
+        # What a slave reads back from the master's own HTTP face: the item the zone is playing.
+        shown = await http_get(MASTER, "/now_playing")
+        assert f'location="{absolute}"' in shown, "the zone shows its slaves the absolute location"
+        assert any(f"GET /orion{ORION_RELATIVE} " in fetch for fetch in world.fetches), "and fetched it there"
+
+        await _out_of_multiroom_and_awake(world, service)
+        assert world.studio.played[0] == absolute, "the released box was handed the absolute location"
+
+        on_its_own = len(world.studio.bodies_for("/select"))
+        await _press_preset(world.studio, STUDIO_ID, 1)
+        await _press_preset(world.studio, STUDIO_ID, 3)
+        await eventually(lambda: len(world.studio.bodies_for("/select")) > on_its_own, "it dialled 13 for itself")
+        assert world.studio.played[-1] == absolute, "and a number dialled on its own is sent absolute too"
+
+    selections = [body for box in (world.studio, world.hallway) for body in box.bodies_for("/select")]
+    assert selections, "the control: something was selected at all"
+    assert not any(f'location="{ORION_RELATIVE}"' in body for body in selections), "no box was sent the relative form"
+    stored = _channels_of(options).by_number("1")
+    assert stored is not None
+    assert stored.url == ORION_RELATIVE, "the channel list keeps the location as it was written"
+    assert world.registry.paths.count("/bmx/registry/v1/services") == 1, "one registry read served all three"
+
+
+async def test_a_relative_channel_is_sent_against_the_fallback_base_when_the_registry_cannot_say(
+    world: World, tmp_path: Path
+) -> None:
+    """A box out of multiroom dials a relative channel while the registry names no Orion base.
+
+    The ``/select`` still carries an absolute location - the one under the service's own fallback
+    path, the same one the zone's fetch would use - and the log says the registry did not answer
+    and which base was used instead. Channel 1 is absolute so the zone itself needs no registry.
+    """
+    fallback = f"{world.registry.base_url}{ORION_FALLBACK_PATH}{ORION_RELATIVE}"
+    options = _orion_world(world, tmp_path, relative=("13",))
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await _both_wake(world)
+        await _out_of_multiroom_and_awake(world, service)
+        on_its_own = len(world.studio.bodies_for("/select"))
+        await _press_preset(world.studio, STUDIO_ID, 1)
+        await _press_preset(world.studio, STUDIO_ID, 3)
+        await eventually(lambda: len(world.studio.bodies_for("/select")) > on_its_own, "it dialled 13 for itself")
+        assert world.studio.played[-1] == fallback
+
+    said = [
+        line for line in logs if "bmx registry" in line and f"{world.registry.base_url}{ORION_FALLBACK_PATH}" in line
+    ]
+    assert said, "the fallback is said in the log, with the base it used"
 
 
 @pytest.mark.parametrize(
