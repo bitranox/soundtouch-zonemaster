@@ -112,6 +112,50 @@ def test_the_statement_timeout_is_lifted_while_a_migration_runs(
     assert seen == ["0"]
 
 
+_DEAD_PEER_PARAMETERS = {
+    "keepalives": "1",
+    "keepalives_idle": "5",
+    "keepalives_interval": "2",
+    "keepalives_count": "3",
+    "tcp_user_timeout": "10000",
+}
+"""What libpq must be told for a server that vanished to be noticed in seconds, as libpq reports it."""
+
+
+def _libpq_parameters(connection: Connection) -> dict[str, str]:
+    """The parameters libpq holds for this connection, from psycopg's own report; never the password."""
+    info = getattr(connection.connection.dbapi_connection, "info", None)
+    get_parameters = getattr(info, "get_parameters", None)
+    assert callable(get_parameters), "the PostgreSQL arm runs on psycopg 3, whose connection reports its parameters"
+    reported = cast("dict[str, str]", get_parameters())
+    return {name: reported[name] for name in _DEAD_PEER_PARAMETERS if name in reported}
+
+
+def test_a_postgresql_connection_notices_a_server_that_vanished_in_seconds(house_database: str) -> None:
+    """A half-open connection - the server's host gone, no RST ever sent - must fail fast.
+
+    ``statement_timeout`` is enforced by the SERVER, so its cancel never arrives from a server
+    that is no longer there, and without keepalives libpq waits in ``recv`` for the kernel's
+    retransmission limit, about fifteen minutes. A stop queues its last state write behind such a
+    call, so that wait would be the stop's. Keepalives notice a silent peer while nothing is sent,
+    and ``tcp_user_timeout`` bounds data sent and never acknowledged; both are connect parameters,
+    so they are read back from the connection itself, for the store's engine and the probe's.
+    """
+    if not house_database.startswith("postgresql"):
+        pytest.skip("a SQLite file has no peer to lose")
+    database = _opened(house_database)
+    try:
+        with database.reading() as connection:
+            store_side = _libpq_parameters(connection)
+        with database.probe() as probed:
+            assert probed is not None
+            probe_side = _libpq_parameters(probed)
+    finally:
+        database.close()
+    assert store_side == _DEAD_PEER_PARAMETERS
+    assert probe_side == _DEAD_PEER_PARAMETERS
+
+
 def test_an_old_sqlite_is_refused_by_name_before_strict_tables_would_fail_confusingly(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -75,6 +75,10 @@ All notable changes to this project are documented here. The format follows
 - `config` now masks the database's own location in anything the house store narrates on stderr
   under `--redact`, not only the values it prints. Nothing narrates on that path today, but a
   future line (a migration, an import) can no longer defeat `--redact` by naming it anyway.
+- A PostgreSQL server whose host vanished without closing the connection (a network black hole)
+  is noticed within seconds: every connection now sets TCP keepalives and `tcp_user_timeout`.
+  Before, a call on such a connection waited in the kernel for about fifteen minutes, because
+  `statement_timeout` is enforced by the server and its cancel never arrives.
 
 ## [0.5.2] 2026-09-28 21:03:10
 

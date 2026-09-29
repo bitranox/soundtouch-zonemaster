@@ -13,8 +13,9 @@ interleave with another writer; a READ transaction begins plain ``BEGIN``, so a 
 blocks the service. The driver's own transaction handling is switched off for that, because it
 would emit its own BEGIN at a moment of its choosing.
 
-**PostgreSQL** gets bounded connect and statement timeouts: the service calls the store on its
-event loop, and a server that stopped answering must cost it seconds, not the zone. Its password
+**PostgreSQL** gets bounded connect and statement timeouts, and TCP keepalives with a
+``tcp_user_timeout``: a server that stopped answering, or whose host vanished without a word, must
+cost a call seconds, not the stop that waits behind it. Its password
 is the ``database.password`` setting, handed to the driver as a connect argument and never put in
 the URL; without one nothing is passed, and libpq finds its own in ``~/.pgpass``, the file
 ``PGPASSFILE`` names, or ``PGPASSWORD``.
@@ -83,6 +84,21 @@ MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 ADVISORY_KEY = 1515147845
 """The house's advisory lock on a shared PostgreSQL server: "ZONE" as four bytes, fixed forever."""
 _POSTGRES_TIMEOUT_S = 5
+_DEAD_PEER: dict[str, object] = {
+    "keepalives": 1,
+    "keepalives_idle": 5,
+    "keepalives_interval": 2,
+    "keepalives_count": 3,
+    "tcp_user_timeout": 10_000,
+}
+"""How a PostgreSQL server that vanished is noticed in seconds rather than minutes.
+
+``statement_timeout`` is the SERVER's, so its cancel never arrives from a host that has gone -
+a network black hole, a half-open connection with no RST - and libpq would sit in ``recv`` for
+the kernel's retransmission limit, about fifteen minutes. A stop queues its last state write
+behind such a call. Keepalives find a silent peer while nothing is being sent (5 s idle, then
+three probes 2 s apart), and ``tcp_user_timeout`` (milliseconds) bounds data sent and never
+acknowledged. Both are libpq connect parameters, so every connection the engine makes has them."""
 _ELSEWHERE = "give it as database.password (or keep it in ~/.pgpass) instead"
 """Where a password belongs, for a refusal of one found in the URL: the setting the boundary reads."""
 _WRITE = "house_write"
@@ -448,6 +464,7 @@ class HouseDatabase:
         connect_args: dict[str, object] = {
             "connect_timeout": _POSTGRES_TIMEOUT_S,
             "options": f"-c statement_timeout={_POSTGRES_TIMEOUT_S * 1000}",
+            **_DEAD_PEER,
         }
         if self._password is not None:
             # The one place the value is revealed: the driver's own connect argument, which no
