@@ -19,6 +19,7 @@ answers both the fetch and every speaker document, so the two can never name dif
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -164,6 +165,8 @@ class OrionBase:
     """How long a failed read is remembered before the registry is asked again."""
     _found: str | None = field(default=None, init=False, repr=False)
     _fallback_until: float = field(default=float("-inf"), init=False, repr=False)
+    _why_not: str = field(default="", init=False, repr=False)
+    """What the last failed read found, as the log words it ("answered 500", "names no usable ...")."""
     _lookup: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
     _reading: asyncio.Task[str] | None = field(default=None, init=False, repr=False)
     """The read a speaker document started, kept so a second document does not start another."""
@@ -187,10 +190,11 @@ class OrionBase:
 
         A relative location with no base named yet goes out AS STORED, and a background read is
         started so the next document can be absolute; while one is running, nothing more starts.
-        Inside the back-off of a registry that could not be read, the log says THAT rather than
-        that nothing has been named yet, and no read starts - it could only answer from the
-        back-off. The fallback is never used here - see the module's docstring for why a guessed
-        base is worse for a speaker than none.
+        Inside the back-off of a registry that could not be read, the log says what the read found
+        rather than that nothing has been named yet - a registry that ANSWERED with no base it can
+        use is a setting to fix, not a neighbour gone quiet - and no read starts: it could only
+        answer from the back-off. The fallback is never used here - see the module's docstring for
+        why a guessed base is worse for a speaker than none.
         """
         if not is_relative_orion_location(location):
             return location
@@ -202,8 +206,8 @@ class OrionBase:
         if left_s > 0:
             self.log(
                 "source",
-                f"{location} goes to a speaker as stored: the bmx registry could not be read"
-                f" (asked again in {left_s:.0f} s)",
+                f"{location} goes to a speaker as stored: the bmx registry {self._why_not}"
+                f" (asked again in {_whole_seconds(left_s)} s)",
             )
             return location
         self._read_in_the_background()
@@ -277,15 +281,21 @@ class OrionBase:
                 found = await _read_base(registry, timeout_s=self.timeout_s)
             except _UnreadableError as exc:
                 self._fallback_until = time.monotonic() + self.retry_after_s
+                self._why_not = str(exc)
                 self.log(
                     "source",
                     f"bmx registry {registry}: {exc}; resolving against {self.fallback}"
-                    f" (asked again in {self.retry_after_s:.0f} s)",
+                    f" (asked again in {_whole_seconds(self.retry_after_s)} s)",
                 )
                 return self.fallback
             self.log("source", f"bmx registry names {SourceName.LOCAL_INTERNET_RADIO} at {found}")
             self._found = found
             return found
+
+
+def _whole_seconds(seconds: float) -> int:
+    """A wait as the log says it: rounded UP, so "asked again in 0 s" is never said of a wait still running."""
+    return math.ceil(seconds)
 
 
 async def _read_base(registry: str, *, timeout_s: float) -> str:
