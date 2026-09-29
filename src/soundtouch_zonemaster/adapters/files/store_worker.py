@@ -91,7 +91,12 @@ STOP_BOUND_S = 10.0
 
 Twice the store's own bounds (a PostgreSQL statement or connect timeout, a SQLite busy wait, all
 five seconds), so a close gives up only on a call that has already outlived every limit the store
-sets itself - and still far inside the ninety seconds systemd gives a stop before it kills."""
+sets itself. The house's unit gives a stop sixty seconds before it kills, and this close is the
+last thing the stop waits for. Ahead of it come at most three seconds for the stand-down's save
+(``STAND_DOWN_SAVE_S``) and the dissolve, which waits up to eight seconds (the speaker HTTP
+timeout) for each box it cannot reach, one box after another. Five unreachable boxes make
+3 + 40 + 10 = 53 s, inside the sixty; six make 61 s, and the kill then lands in this close, after
+every box has been told, costing only the writes the close says it lost."""
 
 _THREAD_END_POLL_S = 0.005
 """How often a close looks whether the thread has ended: a join would be a wait on the loop."""
