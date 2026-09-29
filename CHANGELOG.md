@@ -64,6 +64,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A stop (a deploy's SIGINT, or `switch off`) that lands just as a calibration ends keeps both
+  numbers it measured. It used to keep the dialling window and lose the hold threshold, because the
+  hold was asked of the database only once the window's write had answered.
 - A console added to `membership.consoles_allowed` while the service runs is watched at once rather
   than from the next speaker-registry read (`registry.poll_s`, 30 s by default): the service reads
   the registry straight away and asks the console what it is playing. One already playing the

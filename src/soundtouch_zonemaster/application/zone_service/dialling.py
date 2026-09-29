@@ -284,6 +284,12 @@ class Dialling(PreferenceBook):
         The channel starts again whichever way it went, because the person is standing there
         waiting to hear that it is over, and a refusal they cannot hear is a refusal they will
         answer by pressing more.
+
+        Both numbers are asked of the store before either is awaited. The store queues a write the
+        moment it is asked and keeps it whoever stops waiting, but only a write it was ASKED for: a
+        stop that cancels this worker while it waits for the window would otherwise leave the hold,
+        decided in the same breath, never asked for at all - half a calibration stored, and nothing
+        said about the other half.
         """
         deadline = self._calibration.deadline()
         if deadline is None or deadline > at:
@@ -291,10 +297,13 @@ class Dialling(PreferenceBook):
         result = self._calibration.finish(at=at)
         self.log("dial", f"calibration: {result.said}")
         measured = ((PreferenceName.WINDOW, result.window_s), (PreferenceName.HOLD, result.hold_s))
-        for name, value in measured:
-            if value is not None:
-                await self.store.set_preference(name, value, source=PreferenceSource.CALIBRATION)
-        if any(value is not None for _, value in measured):
+        writes = [
+            self.store.set_preference(name, value, source=PreferenceSource.CALIBRATION)
+            for name, value in measured
+            if value is not None
+        ]
+        if writes:
+            await asyncio.gather(*writes)
             # Read back rather than applied from ``result``: what the service runs on is then
             # exactly what the database holds, and what a restart will read.
             self._take_the_preferences(await self.store.load_preferences())

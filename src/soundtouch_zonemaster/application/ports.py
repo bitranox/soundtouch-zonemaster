@@ -170,8 +170,10 @@ class ServiceStore(Protocol):
     the reader, which a person's key press reaches - still have its save written in its place: it
     asks and goes on, and the next save cannot overtake it. A write once asked for stays queued even
     when whoever awaits it is cancelled, and ``close`` runs after every write asked for before it;
-    a stop whose close finishes therefore loses nothing the house decided before it. A failed write
-    raises where it is awaited, as :class:`~soundtouch_zonemaster.application.errors.StoreError`,
+    a stop whose close finishes therefore loses nothing the house ASKED for before it. Decided is
+    not asked: a caller that decides several writes together asks for all of them before it awaits
+    any, because a stop cancels it at its first await and a write not yet called is never queued.
+    A failed write raises where it is awaited, as :class:`~soundtouch_zonemaster.application.errors.StoreError`,
     like the store's own, and never where it is called - a store that is not open included - so the
     reader cannot have one thrown into it. A write that fails after its awaiter was cancelled is said by the store
     itself, because nobody else is left to say it.

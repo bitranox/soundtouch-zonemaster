@@ -3541,6 +3541,50 @@ async def test_a_calibration_writes_the_hold_threshold_it_measured(world: World,
     assert written == pytest.approx(measured), "and what it measured was written down"
 
 
+async def test_a_stop_that_lands_while_a_calibration_is_being_written_keeps_both_numbers(
+    world: World, tmp_path: Path
+) -> None:
+    """A calibration decides two numbers at once, and a stop may not keep one and drop the other.
+
+    The database is held on its first preference write, so the stop lands while the calibration is
+    still waiting for it - which is what a deploy's SIGINT, or ``switch off``, does when it comes
+    right after the last press. The hold is released only once the stand-down has begun, and by
+    then the worker that read the calibration has been cancelled: whatever it had not asked the
+    store for by that moment is never asked for. Both rows must be there afterwards, because the
+    person pressed once for both and has no way to tell that half of it was forgotten.
+    """
+    options = _dialable_world(world, tmp_path, dial_window_s=0.5)
+    logs: list[str] = []
+    gate = threading.Event()
+
+    async def _release_once_the_workers_are_gone() -> None:
+        await eventually(lambda: any("standing down" in line for line in logs), "the stop reached the stand-down")
+        gate.set()
+
+    try:
+        async with _running_with_a_store_that_can_fail(options, logs) as (_service, store):
+            store.preference_gate = gate
+            await _both_wake(world)
+            await _gesture(STUDIO_IP)
+            await eventually(lambda: any("calibration" in line for line in logs), "the calibration began")
+            for n in range(4):
+                await _press_preset(world.studio, STUDIO_ID, 1 + n % 2, hold_s=0.9)
+                await asyncio.sleep(0.3)
+            await eventually(lambda: any("the hold becomes" in line for line in logs), "it read both", timeout=15.0)
+            releaser = asyncio.create_task(_release_once_the_workers_are_gone())
+        await releaser
+    finally:
+        gate.set()
+
+    said = next(line for line in logs if "the hold becomes" in line)
+    window = float(said.split("the window becomes ", 1)[1].split(" s")[0])
+    hold = float(said.rsplit("the hold becomes ", 1)[1].split(" s")[0])
+    stored = _preferences_of(options)
+    assert float(stored["dialling.window_s"]) == pytest.approx(window), "the control: the first write landed"
+    assert "dialling.hold_threshold_s" in stored, "the second number was decided with the first and must land too"
+    assert float(stored["dialling.hold_threshold_s"]) == pytest.approx(hold)
+
+
 async def test_a_calibrated_hold_threshold_is_what_a_restart_holds_with(world: World, tmp_path: Path) -> None:
     """It outlives the run that measured it. Proved by PRESSING, not by the startup line.
 
@@ -4273,6 +4317,8 @@ class _StoreThatCanFail:
         self.reading_preferences_fails = False
         self.save_gate: threading.Event | None = None
         """When set, every save waits for this event first: a database that stopped answering."""
+        self.preference_gate: threading.Event | None = None
+        """When set, every preference write waits for this event first, on the store's own thread."""
         self.refused_saves = 0
         """How many saves this store refused: each is one failed write, to be said exactly once."""
         self.closed = threading.Event()
@@ -4328,6 +4374,8 @@ class _StoreThatCanFail:
     def set_preference(
         self, name: PreferenceName, value: PreferenceValue, *, source: PreferenceSource
     ) -> PreferenceRow | None:
+        if self.preference_gate is not None:
+            self.preference_gate.wait()
         return self._real.set_preference(name, value, source=source)
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
