@@ -63,6 +63,16 @@ Every refusal measured a few microseconds against about 70 for that document, an
 entity attacks cost 60 to 140 times it, so the ceiling sits well clear of both.
 """
 
+SCREEN_RATIO = 5
+"""How many times its own length of plain text an entity attack may cost with the DOCTYPE screen on.
+
+A margin rather than a bare "less than", because the shorter attack's control is about 1250
+characters and parses in a few microseconds, where a scheduler's hiccup is the same size as the
+thing measured. Measured 2026-09-29 over twenty interleaved runs each: screened, the attacks cost
+at most 0.015 times their control; with the screen removed, 99 to 1430 times it. Five sits more
+than two hundred times above the first and twenty times below the second.
+"""
+
 
 def plain(length: int) -> str:
     """A document this master reads, of exactly ``length`` characters: one element holding text."""
@@ -139,20 +149,22 @@ def test_a_hostile_document_is_refused_rather_than_worked_through(name: str) -> 
 
 
 @pytest.mark.parametrize("name", ["billion laughs", "quadratic blowup"])
-def test_the_doctype_screen_makes_an_entity_attack_cheaper_than_reading_its_length(name: str) -> None:
+def test_the_doctype_screen_keeps_an_entity_attack_to_the_cost_of_reading_its_length(name: str) -> None:
     """The control for the screen: an entity-free document of the same length, which IS parsed.
 
     Written because "refused" alone is not the point - expat refuses both attacks too, after
-    milliseconds of expanding them. The screen refuses on a substring search, so the attack must
-    cost LESS than parsing its own length of plain text; that makes the ceiling above the screen's
-    doing rather than the document's size, and with the screen gone it is the other way round by
-    two orders of magnitude.
+    milliseconds of expanding them. The screen refuses on a substring search, so the attack may
+    cost no more than a few times parsing its own length of plain text (:data:`SCREEN_RATIO`);
+    that makes the ceiling above the screen's doing rather than the document's size, and with the
+    screen gone the attack costs two to three orders of magnitude more than its control.
     """
     entity_free = plain(len(HOSTILE[name]))
     assert parse(entity_free) is not None, "the control must be a document this master reads"
 
     spent, control = best_of(HOSTILE[name], entity_free)
-    assert spent < control, f"{name} cost {spent * 1e6:.0f} us, its length of plain text {control * 1e6:.0f} us"
+    assert spent < SCREEN_RATIO * control, (
+        f"{name} cost {spent * 1e6:.0f} us, its length of plain text {control * 1e6:.0f} us"
+    )
 
 
 def test_a_document_at_the_depth_limit_is_read_and_one_deeper_is_not() -> None:
