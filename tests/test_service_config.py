@@ -621,6 +621,35 @@ def test_a_config_file_that_will_not_parse_stops_the_service_with_an_envelope(
     assert envelope["error"] == "ConfigInputError"
 
 
+@pytest.mark.parametrize("argv", [(), ("config",)], ids=["the-run", "config"])
+def test_a_config_file_line_that_will_not_parse_is_refused_without_the_value_it_holds(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
+    *,
+    argv: tuple[str, ...],
+) -> None:
+    """The refusal says WHERE the file is broken and never what it read there.
+
+    The broken line here is the one that would hold the database password, so a refusal quoting
+    the parser's view of it - the offending text - would print a secret into a journal or a
+    terminal. The golden corpus no longer pins the library's sentence (lib_layered_config 6.0.0
+    reworded it), so this is what holds that the sentence names a file and a position only.
+    """
+    secret = "NOT-A-SECRET-kept-out-of-the-refusal"
+    written = _user_config(isolated_config_layers, f'[database]\npassword = "{secret}" and then some\n')
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json-bare", *argv])
+
+    assert main() == 2
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    assert (envelope["ok"], envelope["error"]) == (False, "ConfigInputError")
+    assert str(written) in envelope["message"], "the control: the refusal does name the file"
+    assert "line 2" in envelope["message"], "and where in it"
+    assert secret not in captured.out
+    assert secret not in captured.err
+
+
 def test_config_deploy_writes_the_file_once_and_then_says_it_did_not(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path
 ) -> None:
