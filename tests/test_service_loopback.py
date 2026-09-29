@@ -70,6 +70,7 @@ from soundtouch_zonemaster.composition import build_production, hold_the_zone, o
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.dialling import WINDOW_DEFAULT_S, WINDOW_FLOOR_S
 from soundtouch_zonemaster.domain.enums import ChannelEnd, ChannelKind, KeyName, KeyState, SourceName
+from soundtouch_zonemaster.domain.events import SpeakerEvent
 from soundtouch_zonemaster.domain.logfn import ERROR_KIND
 from soundtouch_zonemaster.domain.longpress import HOLD_THRESHOLD_DEFAULT_S
 from soundtouch_zonemaster.domain.membership import UNREACHABLE_TIMEOUT_S, WAKE_WINDOW_S
@@ -83,7 +84,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ChannelsExport, LegacyFiles
-    from soundtouch_zonemaster.application.ports import HouseStore, SwitchReader
+    from soundtouch_zonemaster.application.ports import (
+        AddressOf,
+        HouseStore,
+        SpeakerWatch,
+        SwitchReader,
+        ZoneServicePorts,
+    )
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.preferences import PreferenceRow, PreferenceValue
     from soundtouch_zonemaster.domain.secret import Secret
@@ -378,12 +385,18 @@ def _unset_preference(options: ServiceOptions, name: PreferenceName) -> None:
 
 
 @asynccontextmanager
-async def _running(options: ServiceOptions, logs: list[str]) -> AsyncGenerator[ZoneService, None]:
-    """The service as the unit runs it, ended the way SIGINT ends it: cancelled, then cleaned up."""
+async def _running(
+    options: ServiceOptions, logs: list[str], *, ports: ZoneServicePorts | None = None
+) -> AsyncGenerator[ZoneService, None]:
+    """The service as the unit runs it, ended the way SIGINT ends it: cancelled, then cleaned up.
+
+    ``ports`` is the production wiring unless a test hands in its own, built from that wiring with
+    one port replaced at the seam (:func:`_relaying`, for instance).
+    """
     service = ZoneService(
         options,
         log=recording_into(logs),
-        ports=build_production().zone_ports,
+        ports=ports if ports is not None else build_production().zone_ports,
     )
     task = asyncio.create_task(service.run())
     try:
@@ -392,6 +405,64 @@ async def _running(options: ServiceOptions, logs: list[str]) -> AsyncGenerator[Z
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+class _Frames:
+    """Every frame the observers put on the reader's queue, and a clock step applied on the way.
+
+    A plain class rather than a dataclass, so the list is typed without a factory pyright reads
+    as a list of nothing in particular.
+    """
+
+    def __init__(self) -> None:
+        self.put: list[SpeakerEvent] = []
+        """Each event as it went onto the queue, re-stamped. Appended in the same step as the put."""
+        self.clock_step_s = 0.0
+        """Added to ``received_at`` of every frame put while it is set: the wall clock stepped by it."""
+
+
+class _Relay(asyncio.Queue[SpeakerEvent]):
+    """One observer's view of the reader's queue: each frame re-stamped, written down, and passed on.
+
+    Only ``put`` is overridden, because it is all an observer calls. The put into the real queue
+    never suspends (the queue is unbounded), so a test that sees a frame in :attr:`_Frames.put` and
+    the reader's queue empty knows the reader has taken it - and read it to the end, because the
+    reader does nothing between two ``get`` calls that could let another task run.
+    """
+
+    def __init__(self, into: asyncio.Queue[SpeakerEvent], frames: _Frames) -> None:
+        super().__init__()
+        self._into = into
+        self._frames = frames
+
+    async def put(self, item: SpeakerEvent) -> None:
+        stamped = replace(item, received_at=item.received_at + self._frames.clock_step_s)
+        self._frames.put.append(stamped)
+        await self._into.put(stamped)
+
+
+def _relaying(frames: _Frames) -> ZoneServicePorts:
+    """The production wiring with every observer putting its frames through a :class:`_Relay`.
+
+    The seam is the ``watch_speaker`` port, which is handed the reader's queue: nothing inside the
+    service is replaced, and the observer is the real one reading a real WebSocket.
+    """
+    production = build_production().zone_ports
+
+    def watch(
+        device_id: str,
+        /,
+        *,
+        address_of: AddressOf,
+        events: asyncio.Queue[SpeakerEvent],
+        log: LogFn,
+        policy: ChannelPolicy,
+    ) -> SpeakerWatch:
+        return production.watch_speaker(
+            device_id, address_of=address_of, events=_Relay(events, frames), log=log, policy=policy
+        )
+
+    return replace(production, watch_speaker=watch)
 
 
 def the_master(service: ZoneService) -> ZoneMaster:
@@ -4892,8 +4963,18 @@ def _answered(logs: list[str], name: str, source: str) -> bool:
     return any(line.startswith("probe: ") and name in line and source in line for line in logs)
 
 
+@pytest.mark.parametrize(
+    "clock_step_s",
+    [
+        pytest.param(0.0, id="one-clock"),
+        # The wall clock set back an hour between the question and the frame - an NTP correction,
+        # or somebody setting the date. The frame then carries a time EARLIER than the moment the
+        # question went out, and a rule comparing the two read the stale answer as the newer word.
+        pytest.param(-3600.0, id="the-clock-stepped-back"),
+    ],
+)
 async def test_an_answer_the_box_contradicted_on_the_way_is_dropped_and_leaves_it_off(
-    world: World, tmp_path: Path
+    world: World, tmp_path: Path, clock_step_s: float
 ) -> None:
     """A box switched off while its answer is on the wire stays off: the frame is the newer word.
 
@@ -4904,6 +4985,10 @@ async def test_an_answer_the_box_contradicted_on_the_way_is_dropped_and_leaves_i
     on a box a person had just switched off. The answer is dropped instead, because the box has
     named a source in a frame of its own since the question went out.
 
+    "Since" is the ORDER the reader took things in, never a comparison of two wall-clock readings:
+    the second arm stamps the STANDBY frame an hour before the question, which is what a clock set
+    back in between produces, and the answer must still be dropped.
+
     The last step is the liveness pair: the same box, really switched on afterwards, IS taken in,
     so nothing unrelated kept it out while the answer was being refused.
     """
@@ -4913,14 +4998,19 @@ async def test_an_answer_the_box_contradicted_on_the_way_is_dropped_and_leaves_i
     world.hallway.held["/now_playing"] = released
     options = _options(world, tmp_path)
     logs: list[str] = []
+    frames = _Frames()
 
-    async with _running(options, logs) as service:
+    async with _running(options, logs, ports=_relaying(frames)) as service:
         try:
             await eventually(lambda: _said(logs, f"({STUDIO_ID}) at {STUDIO_IP}"), "the start read the registry")
             world.registry.body = json.dumps(entries)
             await eventually(lambda: "/now_playing" in world.hallway.paths(), "the hallway was asked what it plays")
+            frames.clock_step_s = clock_step_s
             await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=SourceName.STANDBY))
             await eventually(lambda: service.policy.is_asleep(HALLWAY_ID), "the service read it switching off")
+            # Only that frame: after the step every reading, the service's and the observer's
+            # alike, is on the new clock, and unshifted they agree with each other again.
+            frames.clock_step_s = 0.0
         finally:
             released.set()
         await eventually(lambda: _answered(logs, "Bose Hallway", RADIO), "the held answer arrived")

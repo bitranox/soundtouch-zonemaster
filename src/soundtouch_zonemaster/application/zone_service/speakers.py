@@ -13,7 +13,6 @@ allowed to drop a speaker.
 from __future__ import annotations
 
 import asyncio
-import math
 import time
 from dataclasses import replace
 from typing import TYPE_CHECKING
@@ -180,13 +179,18 @@ class SpeakerBook(ChannelBook):
         time it is read. A frame the box sent in between is newer, and applied after it the stale
         answer is worse than none: a box somebody switched off while its answer was on the way
         reads as standby-then-radio, which is a wake, and the house would switch it back on.
+
+        "In between" is counted, never timed: the reader counts the frames in which each box named
+        its source, and an answer is stale when that count moved while it was on the way. Two
+        wall-clock readings would say the same thing only while nobody sets the clock - one set
+        back between the question and the frame makes the frame look older than the question.
         """
-        asked_at = time.time()
+        said_before = self._source_frames.get(speaker.device_id, 0)
         event = await self.ports.ask_now_playing(speaker.ip, speaker.device_id)
         if event is None:
             self.log("probe", f"{speaker.name} did not answer; what is remembered about it stands")
             return
-        if self._source_named_at.get(speaker.device_id, -math.inf) >= asked_at:
+        if self._source_frames.get(speaker.device_id, 0) != said_before:
             self.log(
                 "probe",
                 f"{speaker.name} answered {event.source}, but it has named a source itself since it was "
@@ -201,9 +205,9 @@ class SpeakerBook(ChannelBook):
         self._wanted.set()
 
     def _a_frame_named_a_source(self, event: SpeakerEvent) -> None:
-        """Note when a box last said what it is playing in a frame of its own: newer than any answer asked before it."""
+        """Count a frame in which a box said what it is playing: newer than any answer asked for before it."""
         if event.device_id and event.source is not None:
-            self._source_named_at[event.device_id] = event.received_at
+            self._source_frames[event.device_id] = self._source_frames.get(event.device_id, 0) + 1
 
     def _named(self, event: SpeakerEvent) -> SpeakerEvent:
         """A forwarded key press names its speaker by ADDRESS; the registry turns that into an id.
