@@ -4585,6 +4585,7 @@ async def test_a_write_still_queued_when_the_service_stops_is_written_before_the
         # Both fades have put their boxes back and saved that, so the next save is the reader's.
         await eventually(lambda: not _state_of(options).muted, "the joins have finished writing")
         store.save_stalls = [1.5]
+        readers_save = len(store.named("save_state"))
         await _double_tap_key(STUDIO_IP, KeyName.THUMBS_DOWN)
         await eventually(
             lambda: any("out of multiroom, on its own from here" in line for line in logs), "the double tap was read"
@@ -4593,6 +4594,12 @@ async def test_a_write_still_queued_when_the_service_stops_is_written_before_the
 
     assert out_of_multiroom(options) == (STUDIO_ID,), "the queued write reached the database before it was closed"
     assert store.calls[-1].name == "close", [call.name for call in store.calls[-3:]]
+    # The READER's save, not a later one that happens to carry the same flag: it is the first save
+    # asked for after the tap, and it was taken before the pass let the studio go, so the studio is
+    # still one of the members it records. A pass's save after the release would not list it.
+    first_after_the_tap = store.saved[readers_save]
+    assert first_after_the_tap.out_of_multiroom == (STUDIO_ID,), first_after_the_tap
+    assert STUDIO_ID in first_after_the_tap.members, "the first save after the tap was the reader's own"
 
 
 async def test_a_save_the_reader_could_not_wait_for_is_said_when_it_fails_and_the_house_goes_on(
