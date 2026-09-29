@@ -20,13 +20,14 @@ All notable changes to this project are documented here. The format follows
   base the registry named makes the next one read the registry again, so an Orion adapter that
   moved is found. The channel list keeps the location exactly as given. What a speaker is sent - a
   `/select`, or the item the zone shows its slaves - carries the absolute location only once the
-  registry has named its base; before that, and whenever the registry cannot say, it carries the
-  location as stored, for the speaker to complete through its own registry, and never the
-  fallback. Speakers are proven to resolve a stored relative preset; a `/select` carrying a
-  relative location has not been measured on a real speaker yet. Building it never waits for the registry: it starts a background read instead, so a
-  later one can be absolute. The service starts that read itself as it starts, without waiting
-  for it, so the first station a box is switched on to is normally absolute already. The
-  prototype reads `[registry] url` too.
+  registry has named its base; before that, and for as long as the registry cannot be read (it is
+  asked again every minute), it carries the location as stored, for the speaker to complete
+  through its own registry, and never the fallback. Speakers are proven to resolve a stored
+  relative preset; a `/select` carrying a relative location has not been measured on a real
+  speaker yet. Building what a speaker is sent never waits for the registry: it starts a
+  background read instead, so a later document can be absolute. The service starts that read
+  itself as it starts, without waiting for it, so the first station a box is switched on to is
+  normally absolute already. The prototype reads `[registry] url` too.
   The absolute form (`http://.../orion/station?data=...`) and the legacy
   `/custom/v1/playback/...` form still work unchanged; every other bare path is still refused.
 - `tools/deploy_service.py`: one tested deploy, shipped to the service host and run there. It backs up

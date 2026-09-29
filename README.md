@@ -211,13 +211,13 @@ asks the registry again a minute later. The channel keeps the location as writte
 speaker is sent, in a `/select` or in the item the zone shows its slaves, is the absolute
 location only once the registry has named its base - what the speaker would compute from its
 own registry - and otherwise the location as written, for the speaker to complete through its own
-registry. Speakers are proven to resolve a stored relative preset; whether one resolves a relative
-location sent in a `/select` has not been measured on a real speaker yet. It is never the
-fallback, and building it never waits for the registry. The service reads the
-registry in the background as it starts, so the base is normally known before the first box is
-switched on. The absolute form (that base URL plus `/station?data=...`), the older
-`/custom/v1/playback/...` URLs and any other `http://` or `https://` URL still work; any other
-bare path is refused.
+registry: before the first registry read answers, and for as long as the registry cannot be read.
+Speakers are proven to resolve a stored relative preset; whether one resolves a relative location
+sent in a `/select` has not been measured on a real speaker yet. What a speaker is sent is never
+the fallback, and building it never waits for the registry. The service reads the registry in the
+background as it starts, so the base is normally known before the first box is switched on.
+The absolute form (that base URL plus `/station?data=...`), the older `/custom/v1/playback/...`
+URLs and any other `http://` or `https://` URL still work; any other bare path is refused.
 
 The three files under `[files]` (the channel list, the switch and the state) are one-time import
 sources only: on the first start after an upgrade, each is read once into whichever part of the
