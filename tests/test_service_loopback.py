@@ -743,6 +743,37 @@ async def test_a_box_arriving_while_a_number_is_still_open_waits_for_the_number(
         assert len(world.fetches) == 2, f"one press named one channel and fetched {world.fetches}"
 
 
+async def test_with_the_house_switched_off_a_dial_is_booked_and_the_log_claims_no_join(
+    world: World, tmp_path: Path
+) -> None:
+    """A dial while the switch is off is remembered for the switch coming on, and that is all.
+
+    Measured on the house 2026-10-01 13:41: the switch went off, the zone was dissolved, and a box
+    pressed afterwards was logged "woke on no preset of its own: joining the zone" and "dialled 3"
+    while no master existed and nothing was sent to it. A reader took that as the switch failing to
+    stand the house down. The lines must say what happened: the number is booked, and nothing
+    joins until the switch comes on.
+    """
+    options = _dialable_world(world, tmp_path, dial_window_s=0.5)
+    _flip(options, on=False)
+    world.hallway.now_playing = now_playing_document(device_id=HALLWAY_ID, source=SourceName.STANDBY)
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await _press_preset(world.studio, STUDIO_ID, 1)
+        await eventually(lambda: any(" dialled 1: " in line for line in logs), "the number completed")
+        dialled = next(line for line in logs if " dialled 1: " in line)
+        assert "switched off" in dialled, "the dial says it waits for the switch"
+        # The wake the house logged: a box out of standby on a selection that is no preset of its own.
+        await _press_preset(world.hallway, HALLWAY_ID, 0)
+        await eventually(lambda: any("woke on no preset of its own" in line for line in logs), "the wake was read")
+        woke = next(line for line in logs if "woke on no preset of its own" in line)
+        assert "joining the zone" not in woke, "nothing can join with no master"
+        assert "switched off" in woke
+        assert service.master is None
+        assert joins(world.studio) == [], "and nothing did"
+
+
 async def test_a_dial_from_an_awake_box_starts_exactly_one_stream(world: World, tmp_path: Path) -> None:
     """The anti-churn rule, re-recorded after rank 34 changed who gets taken in (user, 2026-09-20).
 

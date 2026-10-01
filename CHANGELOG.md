@@ -19,6 +19,10 @@ All notable changes to this project are documented here. The format follows
   a value given nowhere, which was false whenever a config file held a real value the null hid. A
   typed `--database` or `--bind-ip` still wins over such a null, and `config` still shows it as
   `null`.
+- With the house switched off, a box woken onto no preset of its own, and a number dialled on a
+  box, are logged as booked and waiting for the switch. They used to read "joining the zone" and
+  "dialled N: <channel>" although no master was running and nothing was sent to any box, which was
+  read as the switch failing to stand the house down.
 
 ## [0.6.0] 2026-10-01 12:31:14
 

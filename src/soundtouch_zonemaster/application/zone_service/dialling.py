@@ -35,6 +35,12 @@ if TYPE_CHECKING:
 
 __all__ = ["Dialling"]
 
+_WAITS_FOR_THE_SWITCH = "; the house is switched off, so it is booked and waits for the switch"
+"""What a wake or a dial says while the switch is off. Nothing joins then and no box is sent
+anything: the pass stands down before it reaches a speaker, so the number and the wake are only
+remembered for the switch coming on. Logged as "joining the zone", that read on 2026-10-01 as the
+switch failing to stand the house down."""
+
 
 STEP_OF: dict[str, int] = {KeyName.NEXT_TRACK: 1, KeyName.PREV_TRACK: -1}
 """Which key is a step and in which direction. A key absent from this is not a step."""
@@ -138,7 +144,10 @@ class Dialling(PreferenceBook):
         # mark the wake, and without this the strongest evidence there is - somebody pressed a
         # key - is thrown away and the box waits for a source frame that may never come.
         self.policy.woke(device_id, at=press.pressed_at)
-        self.log("dial", f"{self._name(device_id)} woke on no preset of its own: joining the zone")
+        if self._on:
+            self.log("dial", f"{self._name(device_id)} woke on no preset of its own: joining the zone")
+        else:
+            self.log("dial", f"{self._name(device_id)} woke on no preset of its own{_WAITS_FOR_THE_SWITCH}")
         self._wanted.set()
 
     def _switched_back_on(self, device_id: str) -> None:
@@ -357,7 +366,8 @@ class Dialling(PreferenceBook):
         if channel is None:
             self.log("dial", f"{self._name(device_id)} dialled {number}: no such channel, doing nothing")
             return
-        self.log("dial", f"{self._name(device_id)} dialled {number}: {channel.name}")
+        waits = "" if self._on else _WAITS_FOR_THE_SWITCH
+        self.log("dial", f"{self._name(device_id)} dialled {number}: {channel.name}{waits}")
         master = await self._book_the_dialled_number(device_id, channel, number)
         if master is not None:
             # OUTSIDE the lock, and dispatched rather than awaited. Holding the pass lock across
