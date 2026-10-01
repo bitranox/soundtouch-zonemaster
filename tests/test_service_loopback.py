@@ -3989,6 +3989,71 @@ async def test_an_mpd_channel_is_loaded_before_the_master_is_pointed_at_the_stre
             )
 
 
+def _one_mpd_channel(world: World, tmp_path: Path, fake: FakeMpd) -> ServiceOptions:
+    """A seeded service whose only channel is a stored MPD playlist, told where its MPD is."""
+    options = _with_mpd(_options(world, tmp_path, seed=True), fake)
+    save_channels(
+        _channel_file(options),
+        ChannelList(
+            channels=(
+                Channel(
+                    number="1",
+                    name="Hoerbuecher",
+                    kind=ChannelKind.MPD,
+                    url=f"{world.station_url}?c=1",
+                    mpd_entry="hoerbuecher",
+                ),
+            )
+        ),
+    )
+    return options
+
+
+async def test_ending_the_service_closes_its_mpd_connection_rather_than_leaving_it_to_the_collector(
+    world: World, tmp_path: Path
+) -> None:
+    """A connection the service lets go of without closing stays open at MPD until a garbage
+    collection happens to reach it, which is a socket held for no one and a warning raised in
+    whatever runs next (OPEN-WORK rank 240).
+
+    The service is kept referenced until the end on purpose: dropping it would free the client,
+    and a stream writer that is freed closes its own transport, which this fake would read as
+    the service closing it.
+    """
+    async with _mpd() as fake:
+        options = _one_mpd_channel(world, tmp_path, fake)
+        logs: list[str] = []
+
+        async with _running(options, logs) as service:
+            await world.studio.notify(now_playing_frame(device_id=STUDIO_ID, source=RADIO))
+            await eventually(lambda: len(joins(world.studio)) == 1, "the studio was taken into the zone")
+            assert fake.connections == 1, "the service never opened its connection to mpd"
+
+        await eventually(lambda: fake.hung_up_by_client == fake.connections, "the service closed its mpd connection")
+        assert service.master is None, "the service is still referenced, so nothing but the service closed it"
+
+
+async def test_switching_the_house_off_closes_the_mpd_connection_with_the_zone(world: World, tmp_path: Path) -> None:
+    """The stand-down is the same event whether the switch went off or the service is ending, so
+    the connection goes with it in both. A house that stays off for an evening would otherwise
+    hold a socket MPD closes after its own idle timeout, and the next channel opens a fresh one
+    either way."""
+    async with _mpd() as fake:
+        options = _one_mpd_channel(world, tmp_path, fake)
+        logs: list[str] = []
+
+        async with _running(options, logs) as service:
+            await world.studio.notify(now_playing_frame(device_id=STUDIO_ID, source=RADIO))
+            await eventually(lambda: len(joins(world.studio)) == 1, "the studio was taken into the zone")
+            assert fake.connections == 1, "the service never opened its connection to mpd"
+
+            _flip(options, on=False)
+            await eventually(lambda: service.master is None, "the house stood down")
+            await eventually(
+                lambda: fake.hung_up_by_client == fake.connections, "the stand-down closed the mpd connection"
+            )
+
+
 async def test_a_dialled_mpd_channel_is_loaded_before_the_house_is_moved_onto_it(world: World, tmp_path: Path) -> None:
     """Dialling is how a person chooses a channel, and it does not go through the pass: it starts
     the stream from its own line. So the MPD half has to sit in the one method both of them end

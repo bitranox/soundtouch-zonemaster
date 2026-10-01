@@ -386,6 +386,43 @@ async def test_a_greeting_that_is_not_mpd_is_refused_by_name() -> None:
         await server.wait_closed()
 
 
+async def test_a_connect_given_up_before_the_greeting_closes_the_connection_it_opened() -> None:
+    """Between opening the socket and keeping it, the connection belongs to nobody but ``connect``.
+
+    The service bounds every MPD exchange and cancels a channel start at stop, so the greeting read
+    is where a connect is abandoned in practice. A connection dropped there unclosed stays open at
+    MPD until a garbage collection reaches it (OPEN-WORK rank 240). The raised exception is held
+    to the end, and with it ``connect``'s frame, so nothing but ``connect`` can have closed it.
+    """
+    hung_up = asyncio.Event()
+    accepted: list[asyncio.StreamWriter] = []
+
+    async def never_greet(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        accepted.append(writer)
+        await reader.read()
+        hung_up.set()
+        writer.close()
+
+    server = await asyncio.start_server(never_greet, HOST, 0)
+    try:
+        client = MpdControl(HOST, int(server.sockets[0].getsockname()[1]), log=_silent)
+        with pytest.raises(TimeoutError) as abandoned:
+            async with asyncio.timeout(0.2):
+                await client.connect()
+        try:
+            await asyncio.wait_for(hung_up.wait(), timeout=2.0)
+        except TimeoutError:
+            pytest.fail("the connection connect() opened was left open when it gave up")
+        assert abandoned.value is not None
+    finally:
+        # Ours first: wait_closed waits for every accepted connection, and on a failure here the
+        # client never closed its end, so the wait would hang where it should report.
+        server.close()
+        for writer in accepted:
+            writer.close()
+        await server.wait_closed()
+
+
 # --- the contract proof against a real binary -------------------------------------------------
 #
 # The fake above can only ever be as right as the measurement it was written from, and the real

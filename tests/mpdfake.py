@@ -72,6 +72,10 @@ class FakeMpd:
         """How many callers have connected, ever. A client that had to open a SECOND one is
         a client that threw the first away, which is the only way to see a reconnect from
         out here - the bytes of the second connection look exactly like the first."""
+        self.hung_up_by_client = 0
+        """How many connections the CLIENT closed: an end of input on one this fake had not dropped
+        itself. ``connections`` minus this is what a client still holds open, and a client that
+        lets go of one without closing it leaves it open here until its garbage collector runs."""
         self._server: asyncio.AbstractServer | None = None
         self._writers: set[asyncio.StreamWriter] = set()
 
@@ -114,6 +118,12 @@ class FakeMpd:
         while True:
             raw = await reader.readline()
             if not raw:
+                # Still in the set only if this fake never dropped it, so its own drop and stop are
+                # not counted as the client hanging up.
+                if writer in self._writers:
+                    self._writers.discard(writer)
+                    self.hung_up_by_client += 1
+                    writer.close()
                 return
             line = raw.decode("utf-8").rstrip("\n")
             if self.first_command_at is None:

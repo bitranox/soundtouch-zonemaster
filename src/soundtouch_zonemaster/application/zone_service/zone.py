@@ -707,14 +707,15 @@ class ZoneReconcile(VolumeGuard):
         await self._forget_the_mpd_connection()
 
     async def _forget_the_mpd_connection(self) -> None:
-        """Drop a connection that failed, so the next channel change opens a fresh one.
+        """Close the connection and forget it, so the next channel change opens a fresh one.
 
-        Closing can fail on a socket that is already gone, and this runs inside the handling of
-        the failure that brought us here - so a raise would replace a channel nobody can hear with
-        a service nobody can use.
+        Called after a failure and by the stand-down, which runs on every pass with the switch off
+        and so usually finds nothing open. Closing can fail on a socket that is already gone, and
+        both callers are on a path that must finish - so a raise would replace a channel nobody can
+        hear, or a zone that has to be let go, with a service nobody can use.
         """
         mpd, self._mpd = self._mpd, None
-        if mpd is None:  # pragma: no cover - only reachable if something cleared it in between
+        if mpd is None:
             return
         with contextlib.suppress(Exception):
             await mpd.close()
@@ -743,6 +744,10 @@ class ZoneReconcile(VolumeGuard):
                 f"could not remember where mpd was within {STAND_DOWN_SAVE_S:g} s, so the house dissolves "
                 "without waiting for it; the write stays queued",
             )
+        # Right after the last thing that asks MPD anything. Left open, the connection outlives
+        # the service holding it until a garbage collection reaches it, and through an evening
+        # with the switch off it is a socket MPD drops after its own idle timeout anyway.
+        await self._forget_the_mpd_connection()
         await self._stop_fading()
         await self._stop_house_writes()
         master, self.master = self.master, None

@@ -90,12 +90,19 @@ class MpdControl:
         greeting at all: something else listening on the port would take every command, and every
         answer would be read as pairs or as a refusal, so the house would report an MPD problem
         about a program that is not MPD.
+
+        Until it is kept, the connection belongs to this call alone, so EVERY way out before that
+        closes it: a greeting that is not MPD's, one that does not decode, and a read abandoned by
+        the caller's deadline or a cancel, which is how the service gives up on an MPD in practice.
         """
         reader, writer = await asyncio.open_connection(self.host, self.port)
-        greeting = (await reader.readline()).decode("utf-8").rstrip("\n")
-        if not greeting.startswith(_GREETING_PREFIX):
+        try:
+            greeting = (await reader.readline()).decode("utf-8").rstrip("\n")
+            if not greeting.startswith(_GREETING_PREFIX):
+                raise MpdError(f"not an MPD on {self.host}:{self.port}: {greeting!r}")
+        except BaseException:
             writer.close()
-            raise MpdError(f"not an MPD on {self.host}:{self.port}: {greeting!r}")
+            raise
         self._reader, self._writer = reader, writer
         self.log("mpd", f"connected to {self.host}:{self.port}, {greeting}")
         return greeting

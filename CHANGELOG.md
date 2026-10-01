@@ -14,6 +14,12 @@ All notable changes to this project are documented here. The format follows
   listeners two loop turns later, which works around CPython issue 109564 (an asyncio server
   closed between accepting a connection and building its transport drops the socket
   silently). The collection used to raise `TypeError` from asyncio's `Server._wakeup`.
+- The service closes its MPD control connection when the house stands down, whether the switch
+  went off or the service is ending. It used to close it only after a failure, so every stop
+  left the socket open at MPD until a garbage collection reached it; the next channel opens a
+  fresh one as it always did after an idle timeout.
+- A connection to MPD that is given up while waiting for MPD's greeting (the service's deadline
+  on every MPD exchange, or a channel start cancelled at stop) is closed instead of dropped open.
 
 ## [0.6.1] 2026-10-01 18:27:58
 
