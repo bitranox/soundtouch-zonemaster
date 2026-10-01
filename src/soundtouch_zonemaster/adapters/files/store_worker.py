@@ -97,13 +97,10 @@ it had got to: a status, and for a directory channel the queue after it, each bo
 ``MPD_TIMEOUT_S`` (five seconds). A daemon that has stopped answering costs one of those, because a
 status that times out ends the reading; the full ten needs a status that answers just inside its
 bound and then a queue answer that stalls.
-Then come at most three seconds for the save (``STAND_DOWN_SAVE_S``) and the dissolve, which waits
-up to eight seconds (the speaker HTTP timeout) for each box it cannot reach, one box after another.
-At worst that is 5 + 5 + 3 + 8 per unreachable box + 10: four make 55 s, inside the sixty; five
-make 63 s, and the kill lands in this close after every box has been told, costing only the writes
-the close says it lost; six make 71 s, and the kill lands in the dissolve itself, while it waits on
-the sixth box it cannot reach, so a box after that one in the dissolve's order is not told. With
-no MPD channel on, or MPD answering, the same sums are about ten seconds shorter."""
+Then come at most three seconds for the save (``STAND_DOWN_SAVE_S``) and the dissolve, which tells
+every box at once and so waits up to eight seconds (the speaker HTTP timeout) however many boxes it
+cannot reach. At worst that is 5 + 5 + 3 + 8 + 10 = 31 s, inside the sixty whatever the number of
+boxes. With no MPD channel on, or MPD answering, it is about ten seconds shorter."""
 
 _THREAD_END_POLL_S = 0.005
 """How often a close looks whether the thread has ended: a join would be a wait on the loop."""

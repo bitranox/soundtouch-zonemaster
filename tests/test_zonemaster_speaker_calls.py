@@ -165,6 +165,33 @@ async def test_a_speaker_that_refuses_does_not_stop_the_others_being_dissolved(s
     assert master.slaves == {}
 
 
+async def test_dissolving_tells_every_slave_at_once_so_slow_boxes_cost_one_wait_not_six() -> None:
+    """The stop has to fit inside the unit's ``TimeoutStopSec``, and the dissolve is most of it.
+
+    Told one after another, six boxes that are off cost six ``SPEAKER_HTTP_TIMEOUT_S`` waits, and
+    with MPD hung as well a stop ran past systemd's 60 s: the SIGKILL then landed inside the
+    dissolve and every box not told yet stayed bound to a master that had gone. Told at once, the
+    slowest box decides how long it takes. Six boxes that each take a second to answer stand in for
+    six that time out, eight seconds each, because the arithmetic is the same and the run is short.
+    """
+    hosts = [f"127.0.0.{n}" for n in range(11, 17)]
+    boxes = [FakeSpeaker({}, host=host, device_id=f"AABBCC0000{n:02d}") for n, host in enumerate(hosts)]
+    for box in boxes:
+        box.slow["POST /setZone"] = 1.0
+        await box.start()
+    try:
+        master = _master(slaves={box.host: Slave(ip=box.host, device_id=box.device_id) for box in boxes})
+        started = asyncio.get_running_loop().time()
+        await master.dissolve()
+        took = asyncio.get_running_loop().time() - started
+    finally:
+        for box in boxes:
+            await box.stop()
+    assert all(box.bodies_for("/setZone") for box in boxes), "every box was told the zone is over"
+    assert took < 3.0, f"the dissolve took {took:.1f} s, so the boxes were told one after another"
+    assert master.slaves == {}
+
+
 async def test_playing_a_station_sends_every_slave_both_documents(speaker: FakeSpeaker) -> None:
     """A box needs the selection AND the now-playing note; one without the other leaves it stale.
 

@@ -510,17 +510,25 @@ class ZoneMaster:
         send a speaker the switch sequence for a zone that no longer exists - it would start
         playing again with nobody expecting it. Dissolving is the end of the zone, so it is also
         the end of anything a slave asked for.
+
+        Every box is told at ONCE, so the slowest one decides how long this takes. Told one after
+        another, six boxes that are off cost six ``SPEAKER_HTTP_TIMEOUT_S`` waits, and a stop ran
+        past the unit's ``TimeoutStopSec``: systemd's SIGKILL then landed in here and every box not
+        told yet stayed bound to a master that had gone.
         """
         if self._http_api is not None:
             await self._http_api.aclose()
         body = zonexml.dissolve_body(device_id=self.device_id, bind_ip=self.bind_ip)
-        for ip in list(self.slaves):
-            try:
-                await http_post(ip, "/setZone", body)
-                self.log("master", f"dissolved zone at {ip}")
-            except Exception as exc:  # noqa: BLE001 - keep dissolving the others
-                self.log("master", f"dissolve {ip}: {exc!r}")
+        await asyncio.gather(*(self._dissolve_at(ip, body) for ip in list(self.slaves)))
         self.slaves.clear()
+
+    async def _dissolve_at(self, ip: str, body: str) -> None:
+        """Tell one box the zone is over; a box that does not answer costs a log line, never the others."""
+        try:
+            await http_post(ip, "/setZone", body)
+            self.log("master", f"dissolved zone at {ip}")
+        except Exception as exc:  # noqa: BLE001 - keep dissolving the others
+            self.log("master", f"dissolve {ip}: {exc!r}")
 
     async def _on_transport(self, tc: connections.TransportConnection) -> None:
         """Place a channel a box has just opened, on the station the zone is on.

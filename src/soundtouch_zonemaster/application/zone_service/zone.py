@@ -57,9 +57,9 @@ and a database whose host vanished can hold a call for minutes where nothing on 
 it. A save takes milliseconds, so a wait of seconds already means the database is in trouble,
 and three of them are short against the sixty seconds the house's unit gives a stop - of which
 asking MPD where it had got to may already have spent up to ten before this (two exchanges of
-``MPD_TIMEOUT_S`` each, on a directory channel), the dissolve after it may spend eight for each box
-it cannot reach, one after another, and the store's close ten more (``STOP_BOUND_S`` in
-``adapters/files/store_worker.py``, which does the sum)."""
+``MPD_TIMEOUT_S`` each, on a directory channel), the dissolve after it may spend eight however many
+boxes it cannot reach, since it tells them all at once, and the store's close ten more
+(``STOP_BOUND_S`` in ``adapters/files/store_worker.py``, which does the sum)."""
 
 OWN_SELECT_TAIL_S = 1.0
 """How long after one of our ``/select`` calls returns its echo may still arrive.
