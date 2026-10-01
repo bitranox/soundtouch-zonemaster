@@ -421,8 +421,10 @@ class Dialling(PreferenceBook):
             await saved
             master = self.master
             if master is None:
-                # Nobody is holding the house, so there is nothing to switch; the number is
-                # remembered and the switch coming on will start it.
+                # The switch is on but no pass has built the zone yet - it has only just come on,
+                # or a port is busy - so there is nothing to switch. The number is booked above,
+                # and the pass that builds the zone starts it. (With the switch OFF a number never
+                # gets here: _ignored_while_off drops it first.)
                 return None
             if not master.slaves:
                 # The same reason one line up, for the case that actually happens: a box WAKING
