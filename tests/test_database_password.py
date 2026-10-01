@@ -16,7 +16,6 @@ from nothing_typed import NOTHING_TYPED
 from service_database import created_by_the_service
 
 from soundtouch_zonemaster.adapters.cli.boundary import parse_service_options
-from soundtouch_zonemaster.adapters.config import loader
 from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.application.options import ServiceOptions
@@ -524,9 +523,9 @@ def test_a_database_url_that_is_not_text_refuses_the_store_verbs(
 
 
 NO_VALUE_URLS = [
-    pytest.param("null", [], id="env-null"),
-    pytest.param("None", [], id="env-None"),
-    pytest.param(None, ["--set", "database.url=null"], id="set-null"),
+    pytest.param("null", [], f"{ENV_PREFIX}DATABASE__URL", id="env-null"),
+    pytest.param("None", [], f"{ENV_PREFIX}DATABASE__URL", id="env-None"),
+    pytest.param(None, ["--set", "database.url=null"], "--set database.url", id="set-null"),
 ]
 """Every way ``database.url`` arrives as no value at all (measured through the real loader): the
 environment layer reads ``null`` and ``none`` in any case that way, ``--set`` the JSON ``null``."""
@@ -552,29 +551,62 @@ def _refusal_of(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[s
 
 
 @pytest.mark.parametrize("command", EVERY_COMMAND_THAT_OPENS_THE_DATABASE)
-@pytest.mark.parametrize(("environment", "argv"), NO_VALUE_URLS)
-def test_a_database_url_that_arrived_as_no_value_is_refused_as_no_database_at_all(
+@pytest.mark.parametrize(("environment", "argv", "named"), NO_VALUE_URLS)
+def test_a_database_url_that_arrived_as_no_value_is_refused_naming_where_the_null_came_from(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
     *,
     environment: str | None,
     argv: list[str],
+    named: str,
     command: list[str],
 ) -> None:
-    """A url written as ``null`` is no database: the start and every store verb refuse it in the
-    one sentence a database given nowhere gets, which names the setting and the option to type,
-    rather than in the record field's name and pydantic's own words."""
+    """A url written as ``null`` is somebody writing a value, so the start and every store verb
+    refuse it by the place it was written, never as a database given nowhere: a lower layer may
+    well hold a real one, and "give it somewhere" would send the reader to add what is there."""
     if environment is not None:
         monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", environment)
     refused = _refusal_of(monkeypatch, capsys, tmp_path, *argv, *command)
-    monkeypatch.delenv(f"{ENV_PREFIX}DATABASE__URL", raising=False)
-    loader.clear_config_cache()
-    given_nowhere = _refusal_of(monkeypatch, capsys, tmp_path, "--bind-ip", "10.0.0.1")
-    assert refused == given_nowhere
-    assert "no value anywhere for database" in refused
-    assert "database.url" in refused
-    assert "--database" in refused
+    assert "database.url is null" in refused
+    assert named in refused, "the place the null was written"
+    assert "--database" in refused, "the option that types a database past it"
+    assert "no value anywhere" not in refused
+
+
+def test_a_null_in_the_environment_over_a_file_url_names_the_environment_not_nowhere(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """The case the old wording got wrong: the file HAS a database, a higher layer's null hides it,
+    and the refusal said there was no value anywhere. Removing the null is what lets the file's
+    value apply, so that is what the refusal must point at."""
+    _user_config(isolated_config_layers, f'[database]\nurl = "{tmp_path / "z.sqlite"}"\n')
+    monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", "null")
+    refused = _refusal_of(monkeypatch, capsys, tmp_path, "--bind-ip", "10.0.0.1")
+    assert f"{ENV_PREFIX}DATABASE__URL" in refused
+    assert "no value anywhere" not in refused
+
+
+def test_a_typed_database_still_wins_over_a_url_that_arrived_as_no_value(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A typed option beats every layer, a null one included: the null is only refused when it is
+    the value the run would use."""
+    database = str(tmp_path / "typed.sqlite")
+    assert _run_with(monkeypatch, tmp_path, "--set", "database.url=null", "--database", database).database == database
+
+
+def test_a_bind_ip_that_arrived_as_no_value_is_refused_naming_where_the_null_came_from(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The bind address is the other required setting a layer can null, and the same rule holds."""
+    refused = _refusal_of(
+        monkeypatch, capsys, tmp_path, "--set", "zone.bind_ip=null", "--database", str(tmp_path / "z.sqlite")
+    )
+    assert "zone.bind_ip is null" in refused
+    assert "--set zone.bind_ip" in refused
+    assert "--bind-ip" in refused
+    assert "no value anywhere" not in refused
 
 
 FAKE_IN_A_SHAPE = "fake-pw-1"

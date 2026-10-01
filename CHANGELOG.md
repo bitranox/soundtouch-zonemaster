@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- A stop now tells every speaker the zone is over at once rather than one after another, so the
+  slowest box decides how long the dissolve takes. Told in turn, each box that was off cost a whole
+  8 s speaker timeout, and with MPD hung as well six such boxes ran a stop past the unit's 60 s
+  `TimeoutStopSec`: the kill landed inside the dissolve and the boxes not told yet stayed bound to
+  a master that had gone. The worst stop is now about 31 s whatever the number of boxes.
+- A required setting (`database.url`, `zone.bind_ip`) that a layer wrote as `null` - the
+  environment's `null`/`none`, a `.env` file, or `--set ...=null` - is refused naming where the null
+  was written, and says that removing it lets a lower layer's value apply. It used to be refused as
+  a value given nowhere, which was false whenever a config file held a real value the null hid. A
+  typed `--database` or `--bind-ip` still wins over such a null, and `config` still shows it as
+  `null`.
+
 ## [0.6.0] 2026-10-01 12:31:14
 
 ### Added

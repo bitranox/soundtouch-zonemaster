@@ -264,13 +264,13 @@ REQUIRED_SETTINGS = (
     pytest.param("database", "database.url", id="database"),
 )
 """The ``ServiceOptionsInput`` fields with no pydantic default and no fallback: the ones a higher
-layer's ``null`` must refuse the same way a value given nowhere is refused, rather than as a record
-field that is not a string. ``device_id`` has no pydantic default either, but giving it nowhere is
+layer's ``null`` must refuse by the setting's name and the place the null was written, rather than
+as a record field that is not a string. ``device_id`` has no pydantic default either, but giving it nowhere is
 valid - it falls back to this host's MAC - so its ``null`` has a refusal of its own (below)."""
 
 
 @pytest.mark.parametrize(("field", "path"), REQUIRED_SETTINGS)
-def test_a_required_setting_given_as_null_is_refused_the_same_as_given_nowhere(
+def test_a_required_setting_given_as_null_is_refused_by_where_the_null_was_written(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     isolated_config_layers: Path,
@@ -281,15 +281,17 @@ def test_a_required_setting_given_as_null_is_refused_the_same_as_given_nowhere(
 ) -> None:
     """``database.url`` was the only required setting this held for; a higher layer's ``null`` over
     ``zone.bind_ip`` or ``zone.device_id`` used to reach pydantic's own words about the record
-    field instead ("Input should be a valid string"). All three now refuse by the SETTING's name,
-    in the one sentence a value given nowhere gets."""
+    field instead ("Input should be a valid string"). All three now refuse by the SETTING's name.
+    Not in the sentence a value given nowhere gets: the file here HAS a value, which the null hides,
+    so "give it somewhere" would send the reader to add what is already there."""
     _user_config(isolated_config_layers, _house(tmp_path, zone='device_id = "AABBCC001122"\n'))
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--set", f"{path}=null"])
 
     assert main() == 2
     message = capsys.readouterr().err
-    assert f"no value anywhere for {field}" in message
-    assert path in message
+    assert f"{path} is null" in message
+    assert f"--set {path}" in message, "the place the null was written"
+    assert "no value anywhere" not in message
     assert "Input should be a valid string" not in message
 
 
@@ -1177,7 +1179,7 @@ def test_config_shows_a_database_url_that_arrived_as_no_value_as_null(
     redact: list[str],
 ) -> None:
     """No value carries no password, and showing it says what is wrong: the service refuses it as
-    a database given nowhere. Every other url that is not text is masked whole."""
+    a null, naming where it was written. Every other url that is not text is masked whole."""
     _, overrides = source(monkeypatch, isolated_config_layers)
     monkeypatch.setattr(
         "sys.argv",

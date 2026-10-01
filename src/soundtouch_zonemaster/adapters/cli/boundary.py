@@ -57,6 +57,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ChannelPolicyInput",
+    "GivenAsNull",
     "ServiceOptionsInput",
     "configured_database_text",
     "configured_settings",
@@ -64,6 +65,7 @@ __all__ = [
     "database_setting_of",
     "database_text_or_refuse",
     "device_id_given_as_null",
+    "given_as_null",
     "layered_preferences",
     "merge_service_settings",
     "no_value_anywhere",
@@ -287,13 +289,60 @@ class ServiceOptionsInput(BaseModel):
 
 _REQUIRED_FIELDS = tuple(name for name, field in ServiceOptionsInput.model_fields.items() if field.is_required())
 """The fields with no pydantic default: ``bind_ip``, ``device_id`` and ``database`` today. A higher
-layer's explicit ``null`` over ``bind_ip`` or ``database`` is dropped in
-:func:`parse_service_options` before validation, so it is refused as a value given nowhere rather
-than as a record field that is not a string. ``device_id`` is refused by a sentence of its own
-(:func:`device_id_given_as_null`), because given nowhere it falls back to this host's MAC and "give
-it somewhere" would be false. A field WITH a default is left alone, because ``None`` there is a
-value that field's own default or a later layer is entitled to fill, not a refusal this program
-should manufacture."""
+layer's explicit ``null`` over ``bind_ip`` or ``database`` is refused by the place it was written
+(:class:`GivenAsNull`, :func:`given_as_null`) rather than as a record field that is not a string.
+``device_id`` is refused by a sentence of its own (:func:`device_id_given_as_null`), because given
+nowhere it falls back to this host's MAC and "give it somewhere" would be false. A field WITH a
+default is left alone, because ``None`` there is a value that field's own default or a later layer
+is entitled to fill, not a refusal this program should manufacture."""
+
+_NULL_IS_REFUSED_BY_ITS_PLACE = tuple(name for name in _REQUIRED_FIELDS if name != _DEVICE_ID_FIELD)
+"""The required fields whose ``null`` :func:`configured_settings` replaces with a :class:`GivenAsNull`."""
+
+
+@dataclasses.dataclass(frozen=True)
+class GivenAsNull:
+    """A required setting a config layer wrote as ``null``, kept with the place it was written.
+
+    It stands in the configured mapping where the ``None`` was, so a typed option still replaces it
+    in the merge exactly as it replaces any configured value, and only a null the run would actually
+    use is refused. Dropping the ``None`` instead, as this once did, refused it as a value given
+    nowhere - false whenever a lower layer holds a real value the null hides, and it sent the reader
+    to add what is already there.
+    """
+
+    where: str
+    """The place, as a refusal names it: an environment variable, ``--set``, or a ``.env`` file."""
+
+
+def given_as_null(field_name: str, null: GivenAsNull) -> OptionsError:
+    """The refusal (exit 2) for a required setting a layer wrote as ``null``, naming where it was written.
+
+    Removing the null is the first way out because it is the one that leaves everything else as it
+    was: whatever a lower layer says then applies, and a lower layer saying nothing brings back the
+    refusal for a value given nowhere, which names every place a value can go.
+    """
+    path = config_path_of(field_name)
+    flag = f"--{field_name.replace('_', '-')}"
+    message = (
+        f"refused: {path} is null in {null.where}; an explicit null is not a value. "
+        f"Remove it there so a lower layer's value applies, or give one on the command line ({flag})."
+    )
+    return OptionsError(message, exit_code=ExitCode.ERROR)
+
+
+def _written_in(field_name: str, origin: Mapping[str, Any] | None) -> str:
+    """Where a layer wrote a setting, in the words a refusal uses. A TOML file cannot write a null,
+    so the three layers that can are named precisely and anything else by its layer and path."""
+    layer = None if origin is None else origin.get("layer")
+    path = None if origin is None else origin.get("path")
+    if layer == "env":
+        return f"the environment ({ENV_PREFIX}{env_name_of(field_name)})"
+    if layer == "override":
+        return f"--set {config_path_of(field_name)}"
+    if layer == "dotenv":
+        return f"the .env file {path}"
+    return f"the {layer} layer ({path})" if path else f"the {layer or 'unknown'} layer"
 
 
 def database_text_or_refuse(value: object) -> str | None:
@@ -304,9 +353,10 @@ def database_text_or_refuse(value: object) -> str | None:
     number. None of them is a URL or a path, and turning one back into text would name a file
     nobody meant (a number) or hand the store the printed form of a list, password and all. It is
     refused instead, naming the setting and the type it arrived as, never the value. ``None`` is
-    passed through, because no value is not a type error but no database: both callers answer it
-    with :func:`no_value_anywhere`, the store verbs through :func:`database_setting_of` and the run
-    by dropping a ``None`` before the record is validated (:func:`parse_service_options`).
+    passed through, because no value is not a type error but no database: the store verbs answer it
+    with :func:`no_value_anywhere` (:func:`database_setting_of`). A ``null`` a layer wrote never
+    reaches here: :func:`configured_settings` has replaced it with a :class:`GivenAsNull`, which each
+    caller answers itself.
     """
     if value is None or isinstance(value, str):
         return value
@@ -419,7 +469,10 @@ def database_password_of(configured: Mapping[str, Any]) -> Secret | None:
 def database_setting_of(configured: Mapping[str, Any]) -> str:
     """The database the configuration layers give, for the store verbs that open it without
     building the whole option record: text, or refused (exit 2) as not text or as given nowhere,
-    by the same two rules the record's own field follows."""
+    by the same two rules the record's own field follows, or as a null by where it was written."""
+    null = configured.get(_DATABASE_FIELD)
+    if isinstance(null, GivenAsNull):
+        raise given_as_null(_DATABASE_FIELD, null)
     setting = configured_database_text(configured)
     if setting is None:
         raise no_value_anywhere([_DATABASE_FIELD])
@@ -428,8 +481,12 @@ def database_setting_of(configured: Mapping[str, Any]) -> str:
 
 def configured_database_text(configured: Mapping[str, Any]) -> str | None:
     """The database the configuration layers give, as text, or ``None`` when no layer gives one.
-    Refused (exit 2) only when it arrived as something that is not text."""
-    return database_text_or_refuse(configured.get(_DATABASE_FIELD))
+    Refused (exit 2) only when it arrived as something that is not text. A null a layer wrote is no
+    database here: this answers a reader (``config``), and a reader shows the null rather than refuse it."""
+    value = configured.get(_DATABASE_FIELD)
+    if isinstance(value, GivenAsNull):
+        return None
+    return database_text_or_refuse(value)
 
 
 def _database_file(database: str) -> Path | None:
@@ -492,14 +549,18 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     )
     # The environment layer reads `null` and `none` as no value, and `--set` the JSON null. Left as
     # it arrived, pydantic would refuse a required field as not a string, naming the record field
-    # rather than the setting; dropped, each is a value given nowhere, refused in the one sentence
-    # every other missing setting gets. Only a REQUIRED field is dropped: one with a default is
-    # correctly a value of None if a later layer (or the default itself) does not fill it, which
+    # rather than the setting. A null the layers wrote arrives here as a GivenAsNull and is refused
+    # by where it was written; a bare None (a mapping not read through configured_settings) is
+    # dropped, so it is a value given nowhere. Only a REQUIRED field is touched: one with a default
+    # is correctly a value of None if a later layer (or the default itself) does not fill it, which
     # is not this program's business to second-guess.
     if _DEVICE_ID_FIELD in merged and merged[_DEVICE_ID_FIELD] is None:
         raise device_id_given_as_null()
     for name in _REQUIRED_FIELDS:
-        if name in merged and merged[name] is None:
+        value = merged.get(name)
+        if isinstance(value, GivenAsNull):
+            raise given_as_null(name, value)
+        if name in merged and value is None:
             del merged[name]
     try:
         return ServiceOptionsInput.model_validate(merged).record()
@@ -564,13 +625,18 @@ def configured_settings(config: Config, *, narrate: LogFn = log) -> dict[str, An
 
     Both the service run and the store verbs read the configuration through here, which is what
     makes it the one place a malformed password - no value, or not text - is refused for both,
-    whatever database the command then opens.
+    whatever database the command then opens. It is also where a required setting a layer wrote as
+    ``null`` becomes a :class:`GivenAsNull`, because the configuration's provenance - which layer
+    wrote it - is in hand only here.
     """
     for stray in unknown_settings(config):
         section, _, key = stray.partition(".")
         narrate("config", f"ignored: [{section}] has no setting called {key!r}")
     found = service_settings(config)
     _refuse_a_malformed_password(found)
+    for name in _NULL_IS_REFUSED_BY_ITS_PLACE:
+        if name in found and found[name] is None:
+            found[name] = GivenAsNull(where=_written_in(name, config.origin(config_path_of(name))))
     return found
 
 
