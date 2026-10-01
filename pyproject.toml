@@ -51,7 +51,7 @@ dev = [
     # The gate's own tools, declared so `uv run <tool>` in this venv matches what
     # bmk runs. bmk resolves them from its own pinned toolchain either way, so a
     # floor here documents the version this project was proven against.
-    "ruff>=0.16.9",
+    "ruff>=0.16.10",
     "pyright[nodejs]>=1.1.414",
     "bandit>=1.9.4",
     "pip-audit>=2.10.1",
