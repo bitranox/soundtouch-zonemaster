@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] 2026-10-01 18:27:58
+
 ### Changed
 
 - A stop now tells every speaker the zone is over at once rather than one after another, so the
@@ -26,6 +28,11 @@ All notable changes to this project are documented here. The format follows
   switched on, so an update, a test or a press made an hour earlier decided what the whole house
   played; the log also said "joining the zone" while no master was running. A press, or a number
   begun just before the switch went off, is now logged as ignored.
+- Example addresses in `--help`, the shipped `10-zone.toml` comment and the research scripts now
+  use the documentation range 203.0.113.x (RFC 5737) instead of a real private subnet.
+- Requires `lib_layered_config>=6.1.1`, which warns when a secret setting such as
+  `database.password` is set to an unquoted `null` in the environment and caps a `.env` file at
+  10 MiB.
 
 ## [0.6.0] 2026-10-01 12:31:14
 

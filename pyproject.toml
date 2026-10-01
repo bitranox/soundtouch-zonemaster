@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "soundtouch-zonemaster"
-version = "0.6.0"
+version = "0.6.1"
 description = "A software zone master for Bose SoundTouch speakers, and the protocol research behind it"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -29,7 +29,7 @@ dependencies = [
     "alembic>=1.20.0",
     "httpx>=0.28.1",
     "lib_cli_exit_tools>=2.3.4",
-    "lib_layered_config>=6.0.0",
+    "lib_layered_config>=6.1.1",
     "protobuf>=7.36.2",
     "pydantic>=2.13.5",
     "pydantic-xml>=2.21.1",
