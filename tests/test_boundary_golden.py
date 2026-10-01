@@ -1167,24 +1167,24 @@ def test_the_service_replays_as_many_seeding_cases_as_a_box_can_produce() -> Non
 async def test_the_service_says_the_seeding_lines_the_rule_used_to_say(case: dict[str, Any], tmp_path: Path) -> None:
     """DELTA 1, the other half: in order, under the kind ``channels``, out of a whole service."""
     presets = presets_of(case["input"]["presets"])
+    recorded = texts_of(case["expect"]["logs"], kind="channels")
     speaker = a_speaker("AABBCC000010")
     service, lines = wired_service(tmp_path, speaker=speaker, presets=presets)
 
     task = asyncio.create_task(service.run())
     try:
-        # The probe line is the marker, and it is unique to the end of the start-up: it is written
-        # AFTER the seeding and under a kind nothing else here uses, so it cannot fire early.
-        await until(lambda: bool(lines_of_kind(lines, "probe")), "the start-up to finish")
+        # The marker is the rule's own LAST line, the count it closes every seeding with. The start
+        # asks every box what it is playing, and only once that round is over does its first pass
+        # seed, so the probe line lands BEFORE the seeding, with a read of the switch on the store's
+        # thread between the two. The caller's own "no presets" line follows the count in the same
+        # step, with no await between them, so nothing the comparison reads can still be on its way.
+        await until(lambda: recorded[-1] in lines_of_kind(lines, "channels"), "the seeding to finish")
     finally:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
 
-    assert lines_of_kind(lines, "channels") == [
-        *probe_lines(presets),
-        *texts_of(case["expect"]["logs"], kind="channels"),
-        *nothing_to_seed(case),
-    ]
+    assert lines_of_kind(lines, "channels") == [*probe_lines(presets), *recorded, *nothing_to_seed(case)]
 
 
 async def test_the_service_says_what_the_seeding_said_before_it_refused(tmp_path: Path) -> None:
@@ -1253,7 +1253,11 @@ async def test_the_service_says_the_ignored_digit_the_dialler_used_to_say(
 
     task = asyncio.create_task(service.run())
     try:
-        await until(lambda: bool(lines_of_kind(lines, "probe")), "the start-up to finish")
+        # The probe line marks the box heard AWAKE, which is all the press needs: the same step that
+        # writes it hands the answer to the membership rule. It does not mark the end of the start;
+        # it does not have to, because the frames below are read only by a worker the start
+        # launches once it is over.
+        await until(lambda: bool(lines_of_kind(lines, "probe")), "the box to be heard awake")
         now = time.time()
         service.events.put_nowait(
             SpeakerEvent(
