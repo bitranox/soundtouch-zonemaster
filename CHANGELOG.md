@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] 2026-10-01 12:31:14
+
 ### Added
 
 - A channel url, and a speaker preset the channel list is seeded from, may be a RELATIVE Orion
