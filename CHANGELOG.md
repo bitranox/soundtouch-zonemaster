@@ -19,10 +19,13 @@ All notable changes to this project are documented here. The format follows
   a value given nowhere, which was false whenever a config file held a real value the null hid. A
   typed `--database` or `--bind-ip` still wins over such a null, and `config` still shows it as
   `null`.
-- With the house switched off, a box woken onto no preset of its own, and a number dialled on a
-  box, are logged as booked and waiting for the switch. They used to read "joining the zone" and
-  "dialled N: <channel>" although no master was running and nothing was sent to any box, which was
-  read as the switch failing to stand the house down.
+- With the house switched off, nothing a person presses is booked for later: the house comes back
+  on exactly as it was switched off. A box still plays its own preset meanwhile, as any SoundTouch
+  speaker does. Before, a number dialled while the house was off became the channel every room
+  started on at the next switch-on, and a box taken out of multiroom was let back in by being
+  switched on, so an update, a test or a press made an hour earlier decided what the whole house
+  played; the log also said "joining the zone" while no master was running. A press, or a number
+  begun just before the switch went off, is now logged as ignored.
 
 ## [0.6.0] 2026-10-01 12:31:14
 

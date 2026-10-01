@@ -743,35 +743,62 @@ async def test_a_box_arriving_while_a_number_is_still_open_waits_for_the_number(
         assert len(world.fetches) == 2, f"one press named one channel and fetched {world.fetches}"
 
 
-async def test_with_the_house_switched_off_a_dial_is_booked_and_the_log_claims_no_join(
+async def test_with_the_house_switched_off_a_press_changes_nothing_the_house_comes_back_to(
     world: World, tmp_path: Path
 ) -> None:
-    """A dial while the switch is off is remembered for the switch coming on, and that is all.
+    """Off is hands-off: the house comes back exactly as it was switched off (user, 2026-10-01).
 
-    Measured on the house 2026-10-01 13:41: the switch went off, the zone was dissolved, and a box
-    pressed afterwards was logged "woke on no preset of its own: joining the zone" and "dialled 3"
-    while no master existed and nothing was sent to it. A reader took that as the switch failing to
-    stand the house down. The lines must say what happened: the number is booked, and nothing
-    joins until the switch comes on.
+    A box still plays its own preset while the house is off - that is the speaker, not us - but
+    nothing a person presses then is booked for later. Before this, a number dialled while the
+    house was off became the channel every room started on at the next switch-on, and a box that
+    had been taken out of multiroom was let back in by being switched on, so an update, a test or a
+    press an hour ago decided what the whole house played. Both are pinned here: the dial and the
+    wake are read, said to be ignored, and leave the channel and the out-of-multiroom flag as they
+    were.
     """
     options = _dialable_world(world, tmp_path, dial_window_s=0.5)
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="12", out_of_multiroom=(HALLWAY_ID,))))
     _flip(options, on=False)
     world.hallway.now_playing = now_playing_document(device_id=HALLWAY_ID, source=SourceName.STANDBY)
     logs: list[str] = []
 
     async with _running(options, logs) as service:
         await _press_preset(world.studio, STUDIO_ID, 1)
-        await eventually(lambda: any(" dialled 1: " in line for line in logs), "the number completed")
-        dialled = next(line for line in logs if " dialled 1: " in line)
-        assert "switched off" in dialled, "the dial says it waits for the switch"
-        # The wake the house logged: a box out of standby on a selection that is no preset of its own.
         await _press_preset(world.hallway, HALLWAY_ID, 0)
-        await eventually(lambda: any("woke on no preset of its own" in line for line in logs), "the wake was read")
-        woke = next(line for line in logs if "woke on no preset of its own" in line)
-        assert "joining the zone" not in woke, "nothing can join with no master"
-        assert "switched off" in woke
+        await eventually(
+            lambda: sum("the house is switched off" in line for line in logs) == 2, "both presses were read"
+        )
+        # Past the dial window: a digit that had been booked would have completed by now.
+        await asyncio.sleep(1.0)
+        assert not any(" dialled " in line or " woke on " in line for line in logs), "nothing was booked"
+        assert _state_of(options).channel == "12", "the channel the house comes back to is the one it left"
+        assert out_of_multiroom(options) == (HALLWAY_ID,), "a box switched on while off stays out"
         assert service.master is None
-        assert joins(world.studio) == [], "and nothing did"
+        assert joins(world.studio) == []
+        assert joins(world.hallway) == []
+
+
+async def test_a_number_begun_before_the_switch_went_off_is_not_booked_when_it_completes(
+    world: World, tmp_path: Path
+) -> None:
+    """The other half of off being hands-off: a gesture that straddles the switch.
+
+    A digit pressed while the house was on completes into a number one dial window later. If the
+    switch went off in between, that number arrives at a house that is off, and it is dropped like a
+    press made then - otherwise the last thing somebody typed before an update would still choose
+    the channel the house comes back on.
+    """
+    options = _dialable_world(world, tmp_path, dial_window_s=0.5)
+    save_state(_state_file(options), LegacyState(state=ZoneState(channel="12")))
+    logs: list[str] = []
+
+    async with _running(options, logs) as service:
+        await eventually(lambda: service.master is not None, "the switch is on and the master is up")
+        await _press_preset(world.studio, STUDIO_ID, 1)
+        _flip(options, on=False)
+        await eventually(lambda: any("the number 1 ignored" in line for line in logs), "the number completed")
+        assert not any(" dialled 1: " in line for line in logs)
+        assert _state_of(options).channel == "12", "the channel the house comes back to is the one it left"
 
 
 async def test_a_dial_from_an_awake_box_starts_exactly_one_stream(world: World, tmp_path: Path) -> None:

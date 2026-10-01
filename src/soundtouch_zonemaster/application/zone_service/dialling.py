@@ -35,12 +35,6 @@ if TYPE_CHECKING:
 
 __all__ = ["Dialling"]
 
-_WAITS_FOR_THE_SWITCH = "; the house is switched off, so it is booked and waits for the switch"
-"""What a wake or a dial says while the switch is off. Nothing joins then and no box is sent
-anything: the pass stands down before it reaches a speaker, so the number and the wake are only
-remembered for the switch coming on. Logged as "joining the zone", that read on 2026-10-01 as the
-switch failing to stand the house down."""
-
 
 STEP_OF: dict[str, int] = {KeyName.NEXT_TRACK: 1, KeyName.PREV_TRACK: -1}
 """Which key is a step and in which direction. A key absent from this is not a step."""
@@ -118,8 +112,30 @@ class Dialling(PreferenceBook):
         for device_id, press in self._presses.due(at=at):
             self._a_press(device_id, press)
 
+    def _ignored_while_off(self, device_id: str, what: str) -> bool:
+        """Whether the house is switched off, in which case what a person did is said and dropped.
+
+        Off is hands-off (user, 2026-10-01, OPEN-WORK 237 option B): the house comes back on exactly
+        as it was switched off. A box still plays its own preset meanwhile - that is the speaker,
+        not us - but nothing pressed then is booked for later. Booked, a number dialled while the
+        house was off became the channel every room started on at the next switch-on, and a box
+        that had been taken out of multiroom was let back in by being switched on, so an update, a
+        test or a press made an hour earlier decided what the whole house played.
+
+        Every place a key action becomes a decision asks this first: a press, a completed number, a
+        hold, a step. Keys other than presets cannot arrive while the house is off (a box forwards
+        them only to a master, and none runs), but a gesture begun before the switch went off can
+        still complete after it.
+        """
+        if self._on:
+            return False
+        self.log("dial", f"{self._name(device_id)}: {what} ignored, the house is switched off")
+        return True
+
     def _a_press(self, device_id: str, press: Press) -> None:
         """One press, decided: a digit for the house, or a box asking to be let into the zone."""
+        if self._ignored_while_off(device_id, f"preset {press.preset_id}"):
+            return
         if press.asked.asleep and device_id in self._out_of_multiroom:
             self._switched_back_on(device_id)
         if not press.asked.may_choose_the_channel:
@@ -144,10 +160,7 @@ class Dialling(PreferenceBook):
         # mark the wake, and without this the strongest evidence there is - somebody pressed a
         # key - is thrown away and the box waits for a source frame that may never come.
         self.policy.woke(device_id, at=press.pressed_at)
-        if self._on:
-            self.log("dial", f"{self._name(device_id)} woke on no preset of its own: joining the zone")
-        else:
-            self.log("dial", f"{self._name(device_id)} woke on no preset of its own{_WAITS_FOR_THE_SWITCH}")
+        self.log("dial", f"{self._name(device_id)} woke on no preset of its own: joining the zone")
         self._wanted.set()
 
     def _switched_back_on(self, device_id: str) -> None:
@@ -362,12 +375,13 @@ class Dialling(PreferenceBook):
         what makes a mistyped sequence harmless - wait a second, nothing happened, start again.
         Without a display that is the friendliest error handling available.
         """
+        if self._ignored_while_off(device_id, f"the number {number}"):
+            return
         channel = self._channels.by_number(number)
         if channel is None:
             self.log("dial", f"{self._name(device_id)} dialled {number}: no such channel, doing nothing")
             return
-        waits = "" if self._on else _WAITS_FOR_THE_SWITCH
-        self.log("dial", f"{self._name(device_id)} dialled {number}: {channel.name}{waits}")
+        self.log("dial", f"{self._name(device_id)} dialled {number}: {channel.name}")
         master = await self._book_the_dialled_number(device_id, channel, number)
         if master is not None:
             # OUTSIDE the lock, and dispatched rather than awaited. Holding the pass lock across
@@ -480,6 +494,8 @@ class Dialling(PreferenceBook):
         gesture run is broken for the same reason: four alternating presses are a calibration only
         while all four are taps.
         """
+        if self._ignored_while_off(device_id, f"holding {hold.key}"):
+            return
         self.log("dial", f"{self._name(device_id)} held {hold.key} for {hold.seconds:.1f} s")
         if hold.key in ROTATION_OF:
             # A held thumb is the rotation (user, 2026-09-25): a hold cannot happen by brushing a
@@ -552,6 +568,8 @@ class Dialling(PreferenceBook):
         there; on every other kind it means the next channel. The branch is deliberately the
         FIRST thing here, because everything below it is about the rotation and none of it applies.
         """
+        if self._ignored_while_off(device_id, "a step"):
+            return
         # From what is PLAYING rather than from what was dialled: nothing has been dialled on a
         # fresh start, and the zone is on the lowest channel there is rather than on nothing.
         playing = self._the_channel_to_play()
