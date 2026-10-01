@@ -1,6 +1,6 @@
 """The service's group: argv over six config layers, one validated record, and the house held.
 
-    uv run soundtouch-zonemaster-service --bind-ip 192.168.0.190 \
+    uv run soundtouch-zonemaster-service --bind-ip 203.0.113.190 \
         --database /var/lib/zonemaster/zonemaster.sqlite
 
 Every setting may also live in a configuration file, and a value typed on the command line still

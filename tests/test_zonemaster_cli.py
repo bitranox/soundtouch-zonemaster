@@ -21,13 +21,13 @@ from soundtouch_zonemaster.entry import prototype_main as main
 if TYPE_CHECKING:
     from soundtouch_zonemaster.application.options import Options
 
-ROOM5 = "192.168.0.30"
+ROOM5 = "203.0.113.30"
 BASE_ARGV = [
     "soundtouch-zonemaster",
     "--bind-ip",
-    "192.168.0.190",
+    "203.0.113.190",
     "--preset-from",
-    "192.168.0.21",
+    "203.0.113.21",
 ]
 
 
@@ -59,7 +59,7 @@ def test_a_log_line_carries_its_kind_and_text(capsys: pytest.CaptureFixture[str]
 def test_a_device_id_that_is_not_twelve_hex_digits_is_refused(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--device-id", "nothex"))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21", "--device-id", "nothex"))
     assert main() == 2
     assert "12 hex digits" in capsys.readouterr().err
 
@@ -74,7 +74,7 @@ def test_room5_is_refused_as_a_slave(monkeypatch: pytest.MonkeyPatch, capsys: py
 @pytest.mark.usefixtures("a_house_that_protects_its_console")
 def test_room5_is_refused_as_a_late_slave(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """The late-joining list is checked too; only checking --slave would leave the console reachable."""
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--late-slave", ROOM5))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21", "--late-slave", ROOM5))
     assert main() == 1
     assert "Room5" in capsys.readouterr().err
 
@@ -92,9 +92,9 @@ def test_ignore_selects_defaults_off_and_can_be_turned_on(monkeypatch: pytest.Mo
         seen.append(options)
         return 0
 
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21"))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21"))
     assert main(run_zone=capture) == 0
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--ignore-selects"))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21", "--ignore-selects"))
     assert main(run_zone=capture) == 0
     assert [options.ignore_selects for options in seen] == [False, True]
 
@@ -113,7 +113,7 @@ def test_a_ctrl_c_ends_a_run_cleanly_rather_than_as_an_error(
     async def interrupted(_options: Options) -> int:
         raise lib_cli_exit_tools.SigIntInterrupt("Aborted (SIGINT).")
 
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21"))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21"))
 
     assert main(run_zone=interrupted) == 0
 
@@ -132,9 +132,9 @@ def test_the_prototype_reads_the_service_s_registry_url_from_the_configuration(m
         seen.append(options)
         return 0
 
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21"))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21"))
     assert main(run_zone=capture) == 0
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--set", "registry.url=http://127.0.0.1:8123"))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21", "--set", "registry.url=http://127.0.0.1:8123"))
     assert main(run_zone=capture) == 0
     assert [options.registry_url for options in seen] == [DEFAULT_BASE_URL, "http://127.0.0.1:8123"]
 
@@ -148,7 +148,7 @@ def test_a_registry_url_that_is_not_text_is_refused_by_its_own_name(
     async def must_not_run(_options: Options) -> int:
         raise AssertionError("the prototype must not start on a configuration it could not read")
 
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--set", "registry.url=[1]"))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21", "--set", "registry.url=[1]"))
     assert main(run_zone=must_not_run) == 2
     err = capsys.readouterr().err
     assert "[registry] url" in err

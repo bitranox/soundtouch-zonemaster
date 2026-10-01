@@ -42,7 +42,7 @@ def parse_set_override(raw: str) -> tuple[tuple[str, ...], Any]:
 
     The value is read as JSON when it parses as JSON, so ``=1.2`` is a number, ``=true`` is a
     boolean and ``=["A","B"]`` is a list; anything else stays the text that was typed, which is
-    what makes ``--set service.bind_ip=192.168.0.190`` do the obvious thing.
+    what makes ``--set service.bind_ip=203.0.113.190`` do the obvious thing.
     """
     if "=" not in raw:
         message = f"refused: --set {raw!r} must be SECTION.KEY=VALUE"

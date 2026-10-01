@@ -17,7 +17,7 @@
 # Consequence of changing it while the house is playing: every slave keeps the OLD address until
 # it rejoins, so turn the switch off first and let the zone dissolve.
 #   env: SOUNDTOUCH_ZONEMASTER___ZONE__BIND_IP
-# bind_ip = "192.168.0.190"
+# bind_ip = "203.0.113.190"
 
 # Twelve hex digits, the shape a real speaker's device id has.
 #

@@ -38,8 +38,8 @@ RUN_LOG = FIXTURES / "sync-run.log"
 SILENT_LOG = FIXTURES / "sync-silent.log"
 SPREAD_LOG = FIXTURES / "sync-spread.log"
 
-AGAINST_THE_ZONE = "02:32:41.089 sync         192.168.0.31 renders +0 ms vs zone (frames; counter says -4 ms)"
-AGAINST_A_PEER = "01:34:59.735 sync         192.168.0.34 renders -6 ms vs 192.168.0.31"
+AGAINST_THE_ZONE = "02:32:41.089 sync         203.0.113.31 renders +0 ms vs zone (frames; counter says -4 ms)"
+AGAINST_A_PEER = "01:34:59.735 sync         203.0.113.34 renders -6 ms vs 203.0.113.31"
 
 
 async def test_every_line_the_master_actually_emits_is_read_by_this_tool() -> None:
@@ -79,7 +79,7 @@ async def test_every_line_the_master_actually_emits_is_read_by_this_tool() -> No
 def test_the_current_line_shape_yields_both_columns() -> None:
     sample = parse_line(AGAINST_THE_ZONE)
     assert sample is not None
-    assert sample.peer == "192.168.0.31"
+    assert sample.peer == "203.0.113.31"
     assert sample.clock_ms == 0
     assert sample.counter_ms == -4
     assert sample.shape is LineShape.AGAINST_THE_ZONE
@@ -89,7 +89,7 @@ def test_the_older_line_shape_yields_no_counter_column() -> None:
     """The byte-plan runs compared two slaves and carried no cross-check; None, never 0."""
     sample = parse_line(AGAINST_A_PEER)
     assert sample is not None
-    assert sample.peer == "192.168.0.34"
+    assert sample.peer == "203.0.113.34"
     assert sample.clock_ms == -6
     assert sample.counter_ms is None
     assert sample.shape is LineShape.AGAINST_A_PEER
@@ -105,12 +105,12 @@ def test_a_sync_line_whose_wording_changed_is_not_read_as_a_sample() -> None:
     If this ever starts returning a sample, the tool has grown a tolerance that would let a real
     format change through while reporting numbers - which is the failure it exists to prevent.
     """
-    assert parse_line("02:32:41.089 sync         192.168.0.31 is +0 ms from the zone") is None
+    assert parse_line("02:32:41.089 sync         203.0.113.31 is +0 ms from the zone") is None
 
 
 def test_the_fixture_summarises_to_the_two_slaves_that_wrote_it() -> None:
     summary = read_log(RUN_LOG)
-    assert [peer.peer for peer in summary.peers] == ["192.168.0.31", "192.168.0.34"]
+    assert [peer.peer for peer in summary.peers] == ["203.0.113.31", "203.0.113.34"]
     assert summary.shapes == [LineShape.AGAINST_THE_ZONE]
     assert summary.samples == sum(peer.samples for peer in summary.peers)
     for peer in summary.peers:
@@ -146,7 +146,7 @@ def test_a_readable_run_exits_zero_with_the_numbers_in_the_envelope(capsys: pyte
     envelope = json.loads(captured.out)
     assert envelope["ok"] is True
     peers = envelope["data"]["logs"][0]["peers"]
-    assert [peer["peer"] for peer in peers] == ["192.168.0.31", "192.168.0.34"]
+    assert [peer["peer"] for peer in peers] == ["203.0.113.31", "203.0.113.34"]
     assert all(peer["median_ms"] == 0 for peer in peers)
 
 
@@ -163,7 +163,7 @@ def test_the_prose_form_names_every_slave_and_warns_on_stderr(capsys: pytest.Cap
     rc = main(["--log", str(RUN_LOG), "--log", str(SILENT_LOG)])
     captured = capsys.readouterr()
     assert rc == 1
-    assert "192.168.0.31: n=" in captured.out
+    assert "203.0.113.31: n=" in captured.out
     assert "NO sync line" in captured.err, "a warning belongs on stderr, never in the parsed stream"
 
 
@@ -193,7 +193,7 @@ def test_the_five_numbers_are_the_five_numbers_and_not_four_of_them() -> None:
     """
     summary = read_log(SPREAD_LOG)
     assert summary.shapes == [LineShape.AGAINST_A_PEER], "the older shape, read end to end"
-    subject = next(peer for peer in summary.peers if peer.peer == "192.168.0.34")
+    subject = next(peer for peer in summary.peers if peer.peer == "203.0.113.34")
     assert subject.samples == 5
     assert subject.median_ms == 98, "the median, not the mean, which would be 88.6"
     assert subject.min_ms == 71
@@ -204,7 +204,7 @@ def test_the_five_numbers_are_the_five_numbers_and_not_four_of_them() -> None:
 def test_samples_are_grouped_by_the_slave_they_are_about() -> None:
     """The other slave in the same fixture reads negative where the first reads positive."""
     summary = read_log(SPREAD_LOG)
-    other = next(peer for peer in summary.peers if peer.peer == "192.168.0.31")
+    other = next(peer for peer in summary.peers if peer.peer == "203.0.113.31")
     assert other.samples == 3
     assert other.median_ms == -91
     assert other.min_ms == -93

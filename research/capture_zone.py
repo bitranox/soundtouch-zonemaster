@@ -25,7 +25,7 @@ For each step it appends timestamped records to <out>/events.jsonl (HTTP answers
 frames, netstat snapshots) and keeps a tcpdump running on BOTH speakers, streamed over ssh into
 <out>/<box>.pcap, so nothing is written on the speakers' tiny flash.
 
-    uv run capture_zone.py --master 192.168.0.35 --slave 192.168.0.33 --out /tmp/zone-capture
+    uv run capture_zone.py --master 203.0.113.35 --slave 203.0.113.33 --out /tmp/zone-capture
 
 Refuses any speaker named in the ``[capture] never_touch`` setting (research/_settings.py): a box
 belongs there when a POWER over its API disturbs it beyond this experiment, as it flips the input

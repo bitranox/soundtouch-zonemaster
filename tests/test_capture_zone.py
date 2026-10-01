@@ -51,19 +51,19 @@ PRESETS = (
 @pytest.mark.os_agnostic
 def test_options_reject_an_address_that_is_not_one() -> None:
     with pytest.raises(ValueError, match="--slave is not an IP address"):
-        Options(master="192.168.0.35", slave="192.168.0.333", out=Path("/tmp/x"), volume=12, force=False)
+        Options(master="203.0.113.35", slave="203.0.113.333", out=Path("/tmp/x"), volume=12, force=False)
 
 
 @pytest.mark.os_agnostic
 def test_options_reject_a_volume_off_the_speaker_scale() -> None:
     with pytest.raises(ValueError, match="--volume out of range"):
-        Options(master="192.168.0.35", slave="192.168.0.33", out=Path("/tmp/x"), volume=250, force=False)
+        Options(master="203.0.113.35", slave="203.0.113.33", out=Path("/tmp/x"), volume=250, force=False)
 
 
 @pytest.mark.os_agnostic
 def test_parse_options_builds_the_record_from_argv() -> None:
-    options = parse_options(master="192.168.0.35", slave="192.168.0.33", out=Path("/tmp/zone"))
-    assert options.speakers == ("192.168.0.35", "192.168.0.33")
+    options = parse_options(master="203.0.113.35", slave="203.0.113.33", out=Path("/tmp/zone"))
+    assert options.speakers == ("203.0.113.35", "203.0.113.33")
     assert options.out == Path("/tmp/zone")
     assert options.volume == 12
     assert options.force is False
@@ -74,11 +74,11 @@ def test_speakers_is_a_named_pair_that_still_iterates() -> None:
     """Both halves matter: the eighteen call sites in ``research/capture_zone.py`` iterate or test
     membership, and the two same-typed fields are only distinguishable by name, which is what the
     record adds. The five here are the only ones that read a field by name."""
-    options = parse_options(master="192.168.0.35", slave="192.168.0.33", out=Path("/tmp/zone"))
-    assert options.speakers.master == "192.168.0.35"
-    assert options.speakers.slave == "192.168.0.33"
-    assert list(options.speakers) == ["192.168.0.35", "192.168.0.33"]
-    assert "192.168.0.33" in options.speakers
+    options = parse_options(master="203.0.113.35", slave="203.0.113.33", out=Path("/tmp/zone"))
+    assert options.speakers.master == "203.0.113.35"
+    assert options.speakers.slave == "203.0.113.33"
+    assert list(options.speakers) == ["203.0.113.35", "203.0.113.33"]
+    assert "203.0.113.33" in options.speakers
 
 
 @pytest.mark.os_agnostic
@@ -108,11 +108,11 @@ def test_a_key_is_a_press_then_a_release_naming_the_key() -> None:
 
 @pytest.mark.os_agnostic
 def test_the_zone_document_names_every_member_by_ip_and_device_id() -> None:
-    members = [ZoneMember("192.168.0.31", "AAAAAAAAAAAA"), ZoneMember("192.168.0.35", "BBBBBBBBBBBB")]
+    members = [ZoneMember("203.0.113.31", "AAAAAAAAAAAA"), ZoneMember("203.0.113.35", "BBBBBBBBBBBB")]
     assert zone_document("CCCCCCCCCCCC", members) == (
         '<zone master="CCCCCCCCCCCC">'
-        '<member ipaddress="192.168.0.31">AAAAAAAAAAAA</member>'
-        '<member ipaddress="192.168.0.35">BBBBBBBBBBBB</member>'
+        '<member ipaddress="203.0.113.31">AAAAAAAAAAAA</member>'
+        '<member ipaddress="203.0.113.35">BBBBBBBBBBBB</member>'
         "</zone>"
     )
 
@@ -150,23 +150,23 @@ def test_the_journal_writes_the_enums_as_their_bare_values(tmp_path: Path) -> No
     """A reader greps events.jsonl for the value, so no member name may reach the file."""
     path = tmp_path / "events.jsonl"
     j = Journal(path)
-    j.add(EventKind.HTTP, "192.168.0.33", req="/volume", resp="<ok />")
+    j.add(EventKind.HTTP, "203.0.113.33", req="/volume", resp="<ok />")
     j.add(EventKind.STEP, "run", name=Step.SET_ZONE)
     first, second = (json.loads(line) for line in path.read_text(encoding="utf-8").splitlines())
     assert first["kind"] == "http"
-    assert first["box"] == "192.168.0.33"
+    assert first["box"] == "203.0.113.33"
     assert isinstance(first["t"], float)
     assert second == {"t": second["t"], "kind": "step", "box": "run", "name": "1b-setZone"}
 
 
 @pytest.mark.os_agnostic
 def test_a_speaker_named_in_never_touch_is_refused_as_master_or_slave() -> None:
-    options = parse_options(master="192.168.0.35", slave="192.168.0.30", out=Path("/tmp/zone"))
-    assert refused_speaker(options.speakers, ("192.168.0.30",)) == "192.168.0.30"
-    as_master = parse_options(master="192.168.0.30", slave="192.168.0.35", out=Path("/tmp/zone"))
-    assert refused_speaker(as_master.speakers, ("192.168.0.30",)) == "192.168.0.30"
+    options = parse_options(master="203.0.113.35", slave="203.0.113.30", out=Path("/tmp/zone"))
+    assert refused_speaker(options.speakers, ("203.0.113.30",)) == "203.0.113.30"
+    as_master = parse_options(master="203.0.113.30", slave="203.0.113.35", out=Path("/tmp/zone"))
+    assert refused_speaker(as_master.speakers, ("203.0.113.30",)) == "203.0.113.30"
     assert refused_speaker(options.speakers, ()) is None
-    assert refused_speaker(options.speakers, ("192.168.0.99",)) is None
+    assert refused_speaker(options.speakers, ("203.0.113.99",)) is None
 
 
 @pytest.mark.os_agnostic
@@ -185,7 +185,7 @@ def test_the_run_refuses_before_it_sends_anything(tmp_path: Path, capsys: pytest
 
 @pytest.mark.os_agnostic
 def test_the_speaker_shell_logs_in_as_the_configured_user() -> None:
-    argv = ssh_argv("admin", "192.168.0.33", "netstat -tunap")
+    argv = ssh_argv("admin", "203.0.113.33", "netstat -tunap")
     assert argv[0] == "ssh"
-    assert argv[-2:] == ["admin@192.168.0.33", "netstat -tunap"]
+    assert argv[-2:] == ["admin@203.0.113.33", "netstat -tunap"]
     assert "BatchMode=yes" in argv

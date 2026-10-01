@@ -132,7 +132,7 @@ def isolated_config_layers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> I
 
 
 _THE_HOUSE_S_HOST_LAYER = """[prototype]
-never_touch = [{ ip = "192.168.0.30", name = "Room5", why = "the Lifestyle console" }]
+never_touch = [{ ip = "203.0.113.30", name = "Room5", why = "the Lifestyle console" }]
 """
 
 

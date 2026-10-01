@@ -10,7 +10,7 @@ Frames on the zone TCP ports are ``uint32 big-endian length`` + ``IPCMessageEnve
 envelope names the payload type in clear text (``msg_typename``) and the payload is decoded with
 the schemas recovered by extract_protos.py from the same firmware.
 
-    analyze_capture.py --pcap captures/<run>/<master-ip>.pcap --master 192.168.0.33 --slave 192.168.0.31 \
+    analyze_capture.py --pcap captures/<run>/<master-ip>.pcap --master 203.0.113.33 --slave 203.0.113.31 \
         --firmware firmware/APServer firmware/BoseApp firmware/libIPC.so firmware/libSoundTouch_SDK_Protobuf.so
 
 Prints a human-readable report on stdout, or the same document inside a JSON envelope with

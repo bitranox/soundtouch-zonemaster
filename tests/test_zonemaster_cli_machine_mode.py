@@ -149,7 +149,7 @@ def test_a_refusal_in_machine_mode_is_an_envelope_on_stdout_rather_than_prose(
     """
     monkeypatch.setattr(
         "sys.argv",
-        ["soundtouch-zonemaster", "--bind-ip", MASTER, "--preset-from", SPEAKER, "--slave", "192.168.0.30", "--json"],
+        ["soundtouch-zonemaster", "--bind-ip", MASTER, "--preset-from", SPEAKER, "--slave", "203.0.113.30", "--json"],
     )
     assert main() == 1
     out = capsys.readouterr().out
@@ -159,5 +159,5 @@ def test_a_refusal_in_machine_mode_is_an_envelope_on_stdout_rather_than_prose(
         "ok": False,
         "command": "soundtouch-zonemaster",
         "error": "OptionsError",
-        "message": "refused: Room5 (192.168.0.30) is the Lifestyle console",
+        "message": "refused: Room5 (203.0.113.30) is the Lifestyle console",
     }

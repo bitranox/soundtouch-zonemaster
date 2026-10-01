@@ -15,7 +15,7 @@ previous, the thumbs) reaches anyone at all, and how far apart two quick presses
 once radio jitter has had its say. Its parser is what the service's observer will be built from,
 which is why the preset number is a named field rather than a regex at a call site.
 
-    uv run research/observe_keys.py --speaker 192.168.0.31 --speaker 192.168.0.33 \\
+    uv run research/observe_keys.py --speaker 203.0.113.31 --speaker 203.0.113.33 \\
         --seconds 120 --out /tmp/keys.jsonl --json
 
 Exit codes: 0 frames were recorded, 1 it ran and recorded nothing, 2 it could not run.

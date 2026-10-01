@@ -53,7 +53,7 @@ def test_every_captured_frame_decodes_to_its_named_type(entry: CapturedFrame) ->
 
 def test_encoder_reproduces_the_captured_set_clock_master_frame_byte_for_byte() -> None:
     entry = _frame("AudioServerMsgSetClockMasterMsg", "master->slave")
-    payload = audio.AudioServerMsgSetClockMasterMsg(clockMasterIp="192.168.0.33", clockMasterPort=40005)
+    payload = audio.AudioServerMsgSetClockMasterMsg(clockMasterIp="203.0.113.33", clockMasterPort=40005)
     encoded = ipc.encode_frame(ipc.REQUEST, payload, sequence=entry["sequence"])
     assert encoded[4:] == bytes.fromhex(entry["body_hex"])
     assert int.from_bytes(encoded[:4], "big") == len(encoded) - 4
@@ -62,7 +62,7 @@ def test_encoder_reproduces_the_captured_set_clock_master_frame_byte_for_byte() 
 def test_encoder_reproduces_the_captured_set_url_frame_byte_for_byte() -> None:
     entry = _frame("AudioServerMsgSetURL", "master->slave")
     payload = audio.AudioServerMsgSetURL(
-        url="stream://192.168.0.33:40003?no_delay&nonblocking&assuredforwarding&master=true&id=1&force_connect=true",
+        url="stream://203.0.113.33:40003?no_delay&nonblocking&assuredforwarding&master=true&id=1&force_connect=true",
         passthrough=0,
         url_id=1,
         url_is_realtime=True,
@@ -88,7 +88,7 @@ def test_a_mutated_payload_does_not_match_the_capture() -> None:
     # The byte-for-byte tests above could pass against a broken encoder only if the capture were
     # trivially reproducible; a one-field change must break equality.
     entry = _frame("AudioServerMsgSetClockMasterMsg", "master->slave")
-    payload = audio.AudioServerMsgSetClockMasterMsg(clockMasterIp="192.168.0.33", clockMasterPort=40006)
+    payload = audio.AudioServerMsgSetClockMasterMsg(clockMasterIp="203.0.113.33", clockMasterPort=40006)
     assert ipc.encode_frame(ipc.REQUEST, payload, sequence=entry["sequence"])[4:] != bytes.fromhex(entry["body_hex"])
 
 
@@ -118,8 +118,8 @@ def test_data_request_and_response_round_trip() -> None:
 
 
 def test_captured_clock_request_parses_and_the_reply_layout_matches_the_speaker_reply() -> None:
-    req_hex = next(u["hex"] for u in FIX["udp"] if u["to"] == "192.168.0.33")
-    rep_hex = next(u["hex"] for u in FIX["udp"] if u["from"] == "192.168.0.33")
+    req_hex = next(u["hex"] for u in FIX["udp"] if u["to"] == "203.0.113.33")
+    rep_hex = next(u["hex"] for u in FIX["udp"] if u["from"] == "203.0.113.33")
     req = clock.SyncPacket.parse(bytes.fromhex(req_hex))
     rep = clock.SyncPacket.parse(bytes.fromhex(rep_hex))
     assert req.magic == clock.CLOCK_MAGIC == 0x0B05E901 and req.version == 3

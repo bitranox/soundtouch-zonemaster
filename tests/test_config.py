@@ -262,7 +262,7 @@ def test_the_three_identifiers_that_decide_where_the_config_lives_are_the_deploy
 @pytest.mark.parametrize(
     ("raw", "path", "value"),
     [
-        ("zone.bind_ip=192.168.0.190", ("zone", "bind_ip"), "192.168.0.190"),
+        ("zone.bind_ip=203.0.113.190", ("zone", "bind_ip"), "203.0.113.190"),
         ("dialling.window_s=1.9", ("dialling", "window_s"), 1.9),
         ("observer.port=1234", ("observer", "port"), 1234),
         ('membership.consoles_allowed=["AABBCC000012"]', ("membership", "consoles_allowed"), ["AABBCC000012"]),

@@ -36,7 +36,7 @@ ACTIVITY = '<userActivityUpdate deviceID="AABBCC0000A3" />'
 
 
 def test_a_selection_frame_yields_its_preset_number() -> None:
-    event = parse_frame("192.168.0.31", SELECTION, 1788641085.4676714)
+    event = parse_frame("203.0.113.31", SELECTION, 1788641085.4676714)
     assert event.device_id == "AABBCC0000A1"
     assert event.kind == "nowSelectionUpdated"
     assert event.preset_id == 2
@@ -44,14 +44,14 @@ def test_a_selection_frame_yields_its_preset_number() -> None:
 
 
 def test_a_frame_with_no_preset_yields_none_rather_than_a_guess() -> None:
-    event = parse_frame("192.168.0.33", ACTIVITY, 1.0)
+    event = parse_frame("203.0.113.33", ACTIVITY, 1.0)
     assert event.device_id == "AABBCC0000A3"
     assert event.kind == "userActivityUpdate"
     assert event.preset_id is None
 
 
 def test_an_unparseable_frame_is_kept_whole_rather_than_dropped() -> None:
-    event = parse_frame("192.168.0.31", "not xml at all", 2.0)
+    event = parse_frame("203.0.113.31", "not xml at all", 2.0)
     assert event.kind == "unknown"
     assert event.preset_id is None
     assert event.frame == "not xml at all"

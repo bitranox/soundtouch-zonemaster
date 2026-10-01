@@ -748,7 +748,7 @@ All notable changes to this project are documented here. The format follows
   commits) lives in an archive sibling of the repository; every sha dated before 2026-09-11
   resolves only there.
 - The Lifestyle-console refusal is a setting. A `[prototype] never_touch` list in the configuration
-  (shipped default: the Lifestyle console at 192.168.0.30) names the boxes an API POWER would
+  (shipped default: the Lifestyle console at 203.0.113.30) names the boxes an API POWER would
   disturb; the refusal message and exit code are unchanged. The prototype now reads the same six
   configuration layers as the service and takes `--profile` and `--set` like it does.
 - The project is called `soundtouch-zonemaster`, everywhere: the distribution, the importable

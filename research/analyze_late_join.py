@@ -24,7 +24,7 @@ bears on the joiner's timeline onto the capture clock:
 The verdict line per join compares the slave's first PLAYING report with the capture time at which
 ``at_microseconds + first_offset / consumption_rate`` falls.
 
-    analyze_late_join.py --pcap captures/<run>/<master-ip>.pcap --master 192.168.0.33 --slave 192.168.0.31 \
+    analyze_late_join.py --pcap captures/<run>/<master-ip>.pcap --master 203.0.113.33 --slave 203.0.113.31 \
         --firmware firmware/APServer firmware/BoseApp firmware/ClockSync firmware/libIPC.so \
                    firmware/libSoundTouch_SDK_Protobuf.so firmware/libCore.so firmware/libCommonTypes.so \
                    firmware/libProtobufMessagingIPC.so

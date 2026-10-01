@@ -1314,7 +1314,7 @@ async def test_the_service_says_the_ignored_digit_the_dialler_used_to_say(
 #    checking it is that default, before comparing with the recorded record.
 
 
-ARCHIVE_NEVER_TOUCH = (ProtectedSpeaker(ip="192.168.0.30", name="Room5", why="the Lifestyle console"),)
+ARCHIVE_NEVER_TOUCH = (ProtectedSpeaker(ip="203.0.113.30", name="Room5", why="the Lifestyle console"),)
 """What the archive's constant held: the corpus was recorded against it, so this is what makes the
 replay comparable. The house's host layer carries the same entry today."""
 

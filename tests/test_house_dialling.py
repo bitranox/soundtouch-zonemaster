@@ -31,7 +31,7 @@ from soundtouch_zonemaster.domain.presses import AskedAtTheFrame, Presses
 
 FIXTURE = Path(__file__).parent / "fixtures" / "house-20260921-dialling-frames.json"
 
-ROOM1 = "192.168.0.31"
+ROOM1 = "203.0.113.31"
 
 AWAKE = AskedAtTheFrame(asleep=False, may_choose_the_channel=True)
 """The box was awake and in the zone throughout, which is the room this feature is for."""

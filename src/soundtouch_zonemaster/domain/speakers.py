@@ -58,7 +58,7 @@ class ProtectedSpeaker:
     """One address this house never sends anything to, and the reason a refusal quotes.
 
     The reason travels WITH the address because it is what the refusal says out loud: a person
-    reading ``refused: Room5 (192.168.0.30) is the Lifestyle console`` learns why, and the
+    reading ``refused: Room5 (203.0.113.30) is the Lifestyle console`` learns why, and the
     alternative - a bare list of addresses plus a sentence somewhere in the program - is a list
     that grows an entry nobody can explain a year later.
     """

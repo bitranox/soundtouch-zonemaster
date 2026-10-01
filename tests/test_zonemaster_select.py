@@ -32,7 +32,7 @@ def _master(*, ignore_selects: bool) -> tuple[ZoneMaster, list[str]]:
 
 def test_the_flag_stops_select_at_the_guard() -> None:
     master, logs = _master(ignore_selects=True)
-    asyncio.run(master.select(NO_LOCATION, origin="192.168.0.31"))
+    asyncio.run(master.select(NO_LOCATION, origin="203.0.113.31"))
     assert master.station is None
     assert any("ignoring" in line for line in logs), logs
     assert not any("no location" in line for line in logs), logs
@@ -41,7 +41,7 @@ def test_the_flag_stops_select_at_the_guard() -> None:
 def test_without_the_flag_select_gets_past_the_guard() -> None:
     """The control. It must fail for a DIFFERENT reason, further along, or the guard is untested."""
     master, logs = _master(ignore_selects=False)
-    asyncio.run(master.select(NO_LOCATION, origin="192.168.0.31"))
+    asyncio.run(master.select(NO_LOCATION, origin="203.0.113.31"))
     assert master.station is None
     assert any("no location" in line for line in logs), logs
     assert not any("ignoring" in line for line in logs), logs

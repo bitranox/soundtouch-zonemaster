@@ -1,9 +1,9 @@
 """Run a software zone master against one or more real SoundTouch speakers. AUDIBLE.
 
     uv run python -m soundtouch_zonemaster \
-        --bind-ip 192.168.0.190 --slave 192.168.0.31 --preset-from 192.168.0.31 --preset 1 \
+        --bind-ip 203.0.113.190 --slave 203.0.113.31 --preset-from 203.0.113.31 --preset 1 \
         --duration 60 [--switch-after 30 --preset2 2] [--encryption none|obfuscated] \
-        [--late-slave 192.168.0.34 --join-after 30 --join-mode schedule|restart]
+        [--late-slave 203.0.113.34 --join-after 30 --join-mode schedule|restart]
 
 Prototype: it proves (or refutes) that a speaker accepts a non-Bose master and unobfuscated data,
 and (late join) that a speaker joining a running stream lands in sync. ``--join-mode schedule`` is

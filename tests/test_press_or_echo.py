@@ -39,7 +39,7 @@ AWAKE = AskedAtTheFrame(asleep=False, may_choose_the_channel=True)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "live-run-frames.json"
 
-ROOM1, ROOM4 = "192.168.0.31", "192.168.0.32"
+ROOM1, ROOM4 = "203.0.113.31", "203.0.113.32"
 
 WHAT_A_PERSON_DID: tuple[tuple[float, str, int, str], ...] = (
     (1788800840.4354403, ROOM1, 1, "19:07:20 POWER on, before the run"),
@@ -136,7 +136,7 @@ def test_the_frame_alone_cannot_say_who_caused_it() -> None:
     press = by_time[1788801221.2434554]
     echo = by_time[1788801044.7991238]
     assert press == echo
-    assert "192.168.0.190:8000" in press, "and the echo names OUR url, so that cannot separate them either"
+    assert "203.0.113.190:8000" in press, "and the echo names OUR url, so that cannot separate them either"
 
 
 def test_every_press_a_person_made_is_read_as_one() -> None:
@@ -417,7 +417,7 @@ def test_a_box_with_something_undecided_says_so() -> None:
 
 FIXTURE_2 = Path(__file__).parent / "fixtures" / "live-run-2-frames.json"
 
-ROOM3, ROOM2 = "192.168.0.33", "192.168.0.34"
+ROOM3, ROOM2 = "203.0.113.33", "203.0.113.34"
 
 PRESSED_AS_A_SLAVE: tuple[float, ...] = (
     1788806567.8134596,

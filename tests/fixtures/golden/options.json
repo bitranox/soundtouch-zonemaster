@@ -31,7 +31,7 @@
       "input": {
         "op": "parse_service_options",
         "given": {
-          "bind_ip": "192.168.0.190",
+          "bind_ip": "203.0.113.190",
           "device_id": "AABBCC001122",
           "channel_file": "<WORK>/options/channels.json",
           "switch_file": "<WORK>/options/zone.switch",
@@ -47,7 +47,7 @@
         "value": {
           "type": "ServiceOptions",
           "fields": {
-            "bind_ip": "192.168.0.190",
+            "bind_ip": "203.0.113.190",
             "device_id": "AABBCC001122",
             "switch_file": "<WORK>/options/zone.switch",
             "state_file": "<WORK>/options/zone-state.json",
@@ -1558,7 +1558,7 @@
           "device_id": "AABBCC001122",
           "slaves": [
             "192.0.2.21",
-            "192.168.0.30"
+            "203.0.113.30"
           ],
           "preset_from": "192.0.2.21",
           "preset": 1,
@@ -1575,22 +1575,22 @@
       "expect": {
         "raises": {
           "type": "OptionsError",
-          "message": "refused: Room5 (192.168.0.30) is the Lifestyle console",
+          "message": "refused: Room5 (203.0.113.30) is the Lifestyle console",
           "exit_code": 1
         },
         "logs": [],
         "envelopes": {
           "json_bare": {
-            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (192.168.0.30) is the Lifestyle console\"}\n",
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (203.0.113.30) is the Lifestyle console\"}\n",
             "stderr": ""
           },
           "json": {
-            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (192.168.0.30) is the Lifestyle console\"\n}\n",
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (203.0.113.30) is the Lifestyle console\"\n}\n",
             "stderr": ""
           },
           "human": {
             "stdout": "",
-            "stderr": "refused: Room5 (192.168.0.30) is the Lifestyle console\n"
+            "stderr": "refused: Room5 (203.0.113.30) is the Lifestyle console\n"
           }
         }
       },
@@ -1613,7 +1613,7 @@
           "duration": 60.0,
           "encryption": "none",
           "late_slaves": [
-            "192.168.0.30"
+            "203.0.113.30"
           ],
           "join_after": 30.0,
           "join_mode": "schedule",
@@ -1623,22 +1623,22 @@
       "expect": {
         "raises": {
           "type": "OptionsError",
-          "message": "refused: Room5 (192.168.0.30) is the Lifestyle console",
+          "message": "refused: Room5 (203.0.113.30) is the Lifestyle console",
           "exit_code": 1
         },
         "logs": [],
         "envelopes": {
           "json_bare": {
-            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (192.168.0.30) is the Lifestyle console\"}\n",
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (203.0.113.30) is the Lifestyle console\"}\n",
             "stderr": ""
           },
           "json": {
-            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (192.168.0.30) is the Lifestyle console\"\n}\n",
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (203.0.113.30) is the Lifestyle console\"\n}\n",
             "stderr": ""
           },
           "human": {
             "stdout": "",
-            "stderr": "refused: Room5 (192.168.0.30) is the Lifestyle console\n"
+            "stderr": "refused: Room5 (203.0.113.30) is the Lifestyle console\n"
           }
         }
       },
@@ -1652,7 +1652,7 @@
           "bind_ip": "192.0.2.190",
           "device_id": "AABBCC001122",
           "slaves": [
-            "192.168.0.30"
+            "203.0.113.30"
           ],
           "preset_from": "192.0.2.21",
           "preset": 1,
@@ -1661,7 +1661,7 @@
           "duration": 60.0,
           "encryption": "none",
           "late_slaves": [
-            "192.168.0.30"
+            "203.0.113.30"
           ],
           "join_after": 30.0,
           "join_mode": "schedule",
@@ -1671,22 +1671,22 @@
       "expect": {
         "raises": {
           "type": "OptionsError",
-          "message": "refused: Room5 (192.168.0.30) is the Lifestyle console",
+          "message": "refused: Room5 (203.0.113.30) is the Lifestyle console",
           "exit_code": 1
         },
         "logs": [],
         "envelopes": {
           "json_bare": {
-            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (192.168.0.30) is the Lifestyle console\"}\n",
+            "stdout": "{\"ok\":false,\"command\":\"soundtouch-zonemaster\",\"error\":\"OptionsError\",\"message\":\"refused: Room5 (203.0.113.30) is the Lifestyle console\"}\n",
             "stderr": ""
           },
           "json": {
-            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (192.168.0.30) is the Lifestyle console\"\n}\n",
+            "stdout": "{\n  \"ok\": false,\n  \"command\": \"soundtouch-zonemaster\",\n  \"error\": \"OptionsError\",\n  \"message\": \"refused: Room5 (203.0.113.30) is the Lifestyle console\"\n}\n",
             "stderr": ""
           },
           "human": {
             "stdout": "",
-            "stderr": "refused: Room5 (192.168.0.30) is the Lifestyle console\n"
+            "stderr": "refused: Room5 (203.0.113.30) is the Lifestyle console\n"
           }
         }
       },
@@ -1745,7 +1745,7 @@
           "bind_ip": "192.0.2.190",
           "device_id": "nothex",
           "slaves": [
-            "192.168.0.30"
+            "203.0.113.30"
           ],
           "preset_from": "192.0.2.21",
           "preset": 1,
@@ -2143,7 +2143,7 @@
           "bind_ip": "192.0.2.190",
           "device_id": "AABBCC001122",
           "slaves": [
-            "192.168.0.30 "
+            "203.0.113.30 "
           ],
           "preset_from": "192.0.2.21",
           "preset": 1,
@@ -2164,7 +2164,7 @@
             "bind_ip": "192.0.2.190",
             "device_id": "AABBCC001122",
             "slaves": [
-              "192.168.0.30 "
+              "203.0.113.30 "
             ],
             "preset_from": "192.0.2.21",
             "preset": 1,

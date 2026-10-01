@@ -41,7 +41,7 @@ def _argv(tmp_path: Path, *extra: str) -> list[str]:
     return [
         "soundtouch-zonemaster-service",
         "--bind-ip",
-        "192.168.0.190",
+        "203.0.113.190",
         "--database",
         str(tmp_path / "zonemaster.sqlite"),
         *extra,
@@ -104,7 +104,7 @@ def _hold_the_zone_bounded(bound: _Bound) -> RunService:
 def test_no_database_anywhere_is_refused_by_name(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--bind-ip", "192.168.0.190"])
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--bind-ip", "203.0.113.190"])
     rc = main(run_service=_refuse_to_run)
     assert rc == 2
     assert "database" in capsys.readouterr().err
@@ -115,7 +115,7 @@ def test_a_database_in_a_directory_that_does_not_exist_is_refused(
 ) -> None:
     monkeypatch.setattr(
         "sys.argv",
-        ["soundtouch-zonemaster-service", "--bind-ip", "192.168.0.190", "--database", str(tmp_path / "nope" / "db")],
+        ["soundtouch-zonemaster-service", "--bind-ip", "203.0.113.190", "--database", str(tmp_path / "nope" / "db")],
     )
     rc = main(run_service=_refuse_to_run)
     assert rc == 1, "the same refusal as the state, channel and switch file directories: ExitCode.REFUSED"
@@ -236,7 +236,7 @@ def test_what_was_typed_is_what_the_service_is_handed(monkeypatch: pytest.Monkey
 
     assert main(run_service=capture) == 0
     options = seen[0]
-    assert options.bind_ip == "192.168.0.190"
+    assert options.bind_ip == "203.0.113.190"
     assert options.channel_file == tmp_path / "channels.json"
     assert options.consoles_allowed == ("AABBCC000012",)
     assert options.unreachable_timeout_s == 60

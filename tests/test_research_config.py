@@ -64,17 +64,17 @@ def test_each_setting_has_one_default_the_tracked_file_mirrors(tmp_path: Path) -
 def test_a_house_file_beside_the_defaults_overrides_them(tmp_path: Path) -> None:
     header = _tracked_tree(tmp_path / "tree")
     (header.parent / "defaultconfig.d" / "91-capture-rnhome.toml").write_text(
-        '[capture]\nnever_touch = ["192.168.0.30"]\n', encoding="utf-8"
+        '[capture]\nnever_touch = ["203.0.113.30"]\n', encoding="utf-8"
     )
     (header.parent / "defaultconfig.d" / "92-golden-rnhome.toml").write_text(
-        '[golden]\ncapture = "captures/run-1"\npcap = "192.168.0.33.pcap"\n'
-        'master = "192.168.0.33"\nslave = "192.168.0.31"\n',
+        '[golden]\ncapture = "captures/run-1"\npcap = "203.0.113.33.pcap"\n'
+        'master = "203.0.113.33"\nslave = "203.0.113.31"\n',
         encoding="utf-8",
     )
     config = _load(header, tmp_path)
-    assert rc.capture_settings(config) == rc.CaptureSettings(never_touch=("192.168.0.30",), ssh_user="root")
+    assert rc.capture_settings(config) == rc.CaptureSettings(never_touch=("203.0.113.30",), ssh_user="root")
     assert rc.golden_settings(config).capture == "captures/run-1"
-    assert rc.golden_settings(config).slave == "192.168.0.31"
+    assert rc.golden_settings(config).slave == "203.0.113.31"
 
 
 @pytest.mark.os_agnostic
@@ -84,7 +84,7 @@ def test_an_example_file_is_documentation_and_never_read(tmp_path: Path) -> None
     examples = sorted((header.parent / "defaultconfig.d").glob("*.example"))
     assert examples, "each scope ships a -rnhome.toml.example beside its default"
     (header.parent / "defaultconfig.d" / "99-planted-rnhome.toml.example").write_text(
-        '[capture]\nnever_touch = ["192.168.0.99"]\n', encoding="utf-8"
+        '[capture]\nnever_touch = ["203.0.113.99"]\n', encoding="utf-8"
     )
     assert rc.capture_settings(_load(header, tmp_path)).never_touch == ()
 
@@ -93,7 +93,7 @@ def test_an_example_file_is_documentation_and_never_read(tmp_path: Path) -> None
 def test_a_value_of_the_wrong_type_is_refused_by_name(tmp_path: Path) -> None:
     header = _tracked_tree(tmp_path / "tree")
     (header.parent / "defaultconfig.d" / "91-capture-rnhome.toml").write_text(
-        '[capture]\nnever_touch = "192.168.0.30"\n', encoding="utf-8"
+        '[capture]\nnever_touch = "203.0.113.30"\n', encoding="utf-8"
     )
     with pytest.raises(rc.SettingsError, match=r"capture\.never_touch"):
         rc.capture_settings(_load(header, tmp_path))

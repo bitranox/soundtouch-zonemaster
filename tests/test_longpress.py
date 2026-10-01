@@ -19,7 +19,7 @@ import pytest
 
 from soundtouch_zonemaster.domain.longpress import HOLD_CEILING_S, Hold, LongPresses
 
-BOX, OTHER = "192.168.0.31", "192.168.0.32"
+BOX, OTHER = "203.0.113.31", "203.0.113.32"
 
 THRESHOLD = 0.6
 """The hold threshold these tests run the rule at: 0.6 s, close above this house's recorded taps.

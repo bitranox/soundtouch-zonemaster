@@ -31,15 +31,15 @@ if TYPE_CHECKING:
 
     from soundtouch_zonemaster.application.options import Options
 
-ROOM5 = "192.168.0.30"
-ELSEWHERE = "192.168.0.99"
+ROOM5 = "203.0.113.30"
+ELSEWHERE = "203.0.113.99"
 
-_REFUSAL = "refused: Room5 (192.168.0.30) is the Lifestyle console"
+_REFUSAL = "refused: Room5 (203.0.113.30) is the Lifestyle console"
 
 
 def _argv(*extra: str) -> list[str]:
     """An otherwise-valid prototype argv with ``extra`` appended."""
-    return ["soundtouch-zonemaster", "--bind-ip", "192.168.0.190", "--preset-from", "192.168.0.21", *extra]
+    return ["soundtouch-zonemaster", "--bind-ip", "203.0.113.190", "--preset-from", "203.0.113.21", *extra]
 
 
 async def _must_not_run(_options: Options) -> int:
@@ -146,7 +146,7 @@ def test_the_late_joining_list_is_checked_too(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Guarding only ``--slave`` would leave the console reachable through ``--late-slave``."""
-    monkeypatch.setattr("sys.argv", _argv("--slave", "192.168.0.21", "--late-slave", ROOM5))
+    monkeypatch.setattr("sys.argv", _argv("--slave", "203.0.113.21", "--late-slave", ROOM5))
 
     assert main(run_zone=_must_not_run) == 1
     assert capsys.readouterr().err.strip() == _REFUSAL

@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 
 DEPLOYED_ARGV = (
     "--bind-ip",
-    "192.168.0.190",
+    "203.0.113.190",
     "--channel-file",
     "/var/lib/zonemaster/channels.json",
     "--switch-file",
@@ -116,7 +116,7 @@ def test_the_deployed_units_argv_still_wins_over_a_config_file_that_disagrees(
 
     assert main(run_service=run) == 0
     options = seen[0]
-    assert options.bind_ip == "192.168.0.190", "the unit's address, not the file's"
+    assert options.bind_ip == "203.0.113.190", "the unit's address, not the file's"
     assert options.channel_file == tmp_path / "channels.json", "the unit's own value, not the file's"
     assert options.dial_window_s == 1.4, "and a setting the unit says nothing about still comes from the file"
 
