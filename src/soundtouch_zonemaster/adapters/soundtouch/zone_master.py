@@ -259,17 +259,13 @@ class ZoneMaster:
         """Undo a partial bind, so the next attempt meets the world and not this master.
 
         Without it the retry fails on the ports this master is holding itself, and the log names
-        the wrong port. The yield is the same one :meth:`stop` needs and for the same reason: a
-        datagram transport's close is scheduled, so the clock's socket is bound until the loop
-        takes its next turn.
+        the wrong port. The listeners close the way :meth:`stop` closes them, for the same reasons.
         """
         if self._http_api is not None:
             await self._http_api.aclose()
             self._http_api = None
-        for s in self._servers:
-            s.close()
+        await connections.close_listeners(self._servers)
         self._servers.clear()
-        await asyncio.sleep(0)
 
     async def stop(self) -> None:
         """Close every listener and stop every source.
@@ -286,14 +282,12 @@ class ZoneMaster:
         """
         if self._http_api is not None:
             await self._http_api.aclose()
-        for s in self._servers:
-            s.close()
+        # Stops accepting before it closes, so a speaker connecting in this very turn is handed to
+        # its handler rather than left on a socket nobody owns; and it returns only once the ports
+        # are free - a service stands down and comes back whenever somebody flips the switch, and
+        # the master after it would die on bind.
+        await connections.close_listeners(self._servers)
         self._servers.clear()
-        # A datagram transport's close is SCHEDULED, not immediate: it goes through call_soon, so
-        # the clock's UDP socket is still bound until the loop takes its next turn. One yield is
-        # what makes "stopped" mean the ports are free - a service stands down and comes back
-        # whenever somebody flips the switch, and the master after it would die on bind.
-        await asyncio.sleep(0)
         for src in self.sources.values():
             await src.stop()
 

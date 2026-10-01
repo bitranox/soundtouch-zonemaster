@@ -15,7 +15,7 @@ one thing a filename is there to prevent.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple, Protocol
@@ -45,6 +45,7 @@ __all__ = [
     "StateReport",
     "TransportConnection",
     "chunk_plan",
+    "close_listeners",
     "close_quietly",
     "serve_data",
     "serve_transport",
@@ -419,6 +420,42 @@ async def close_quietly(writer: ClosingWriter) -> None:
     writer.close()
     with suppress(ConnectionError):
         await writer.wait_closed()
+
+
+ACCEPT_DRAIN_TURNS = 2
+"""Loop turns between the last accept and the close: one for an accept already queued, one for its build."""
+
+
+async def close_listeners(listeners: Iterable[asyncio.AbstractServer | asyncio.BaseTransport]) -> None:
+    """Close every listener without dropping a connection the loop has already accepted.
+
+    The selector loop accepts in one callback and builds the transport in a task one turn later. A
+    ``Server.close()`` between the two makes that build fail ``Server._attach``'s assertion; the loop
+    swallows it, and the accepted socket stays open until the garbage collector reaches it - a
+    speaker that connected as the master stopped waits on a connection nobody reads or closes, and
+    the collection then raises from ``Server._wakeup`` (CPython issue 109564, open in 3.14.5). So the
+    accepting stops FIRST, the loop takes :data:`ACCEPT_DRAIN_TURNS` turns, and only then is
+    anything closed: two, because an accept callback already queued for this turn still runs after
+    its reader is removed, and the transports it builds need the turn after that.
+
+    The last yield is the one a stop always needed: a datagram transport's close is SCHEDULED, so
+    the clock's UDP socket is still bound until the loop takes its next turn, and "closed" has to
+    mean the ports are free for the master that comes after.
+    """
+    loop = asyncio.get_running_loop()
+    held = list(listeners)
+    for listener in held:
+        # The concrete Server, which start_server returns: the abstract one declares no sockets.
+        if isinstance(listener, asyncio.Server):
+            for sock in listener.sockets:
+                # A proactor loop accepts without a reader to remove; there is no gap to close there.
+                with suppress(NotImplementedError):
+                    loop.remove_reader(sock.fileno())
+    for _ in range(ACCEPT_DRAIN_TURNS):
+        await asyncio.sleep(0)
+    for listener in held:
+        listener.close()
+    await asyncio.sleep(0)
 
 
 class PingingConnection(Protocol):

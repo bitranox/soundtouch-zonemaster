@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A speaker that connects to the master in the very moment the master stops is now handed to
+  its handler and answered, instead of being left on an open connection nobody reads until the
+  garbage collector happens to close it. The master stops accepting first and closes its
+  listeners two loop turns later, which works around CPython issue 109564 (an asyncio server
+  closed between accepting a connection and building its transport drops the socket
+  silently). The collection used to raise `TypeError` from asyncio's `Server._wakeup`.
+
 ## [0.6.1] 2026-10-01 18:27:58
 
 ### Changed
