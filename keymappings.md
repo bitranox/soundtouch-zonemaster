@@ -70,7 +70,7 @@ What a completed number does depends on the box and the house:
 | asleep, in multiroom, woken onto no preset of its own (id 0) | either                   | Taken as a wake: the box joins the zone.                                                                                          |
 | out of multiroom, awake                                      | either                   | That box alone plays the channel. The house keeps playing what it was, and its remembered channel is not changed.                 |
 | out of multiroom, asleep                                     | either                   | Switching a box on is the way back: it is in multiroom again, and the press then does what it does at an asleep box in multiroom. |
-| in multiroom                                                 | switch off               | The number is remembered and becomes the channel the house starts on when the switch is turned on.                                |
+| any box                                                      | switch off               | Ignored, and logged as such: the house comes back on exactly as it was switched off. The box itself still plays its own preset.   |
 | any other box                                                | a calibration is running | Ignored, and logged as pressed while another box is calibrating.                                                                  |
 | the box being calibrated                                     | a calibration is running | Not dialled: the press is a calibration sample.                                                                                   |
 
