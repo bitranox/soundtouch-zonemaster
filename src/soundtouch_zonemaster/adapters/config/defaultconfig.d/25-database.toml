@@ -47,12 +47,12 @@
 # file the unit names with EnvironmentFile=. Not in a file anybody else can read, and never in the
 # URL. `config` always shows it masked, with or without --redact; no envelope and no log line
 # carries it.
-# Write it as a quoted string. The environment layer reads a value of digits as a number, true or
-# false as a boolean, and null or none (in any case) as no value; a password that arrives as
-# anything but text is refused rather than changed, so give such a password in a file, or with
-# --set database.password='"0123"'. A password that arrives as no value (that environment spelling,
-# or --set database.password=null) refuses the start too, rather than quietly meaning no password:
-# for no password leave the variable unset or empty. In a .env, quote a password containing " #":
+# Write it as a quoted string. The environment layer reads a value of digits as a number and true
+# or false as a boolean, but keeps null and none as text for this setting, so PASSWORD=null is the
+# password "null"; a password that arrives as anything but text is refused rather than changed, so
+# give such a password in a file, or with --set database.password='"8675309"'. The one way to hand
+# it no value, --set database.password=null, refuses the start too, rather than quietly meaning no
+# password: for no password leave the variable unset or empty. In a .env, quote a password containing " #":
 # unquoted, the value ends where that inline comment begins.
 #   env: SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD
 # password = "..."

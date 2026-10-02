@@ -29,7 +29,7 @@ dependencies = [
     "alembic>=1.20.0",
     "httpx>=0.28.1",
     "lib_cli_exit_tools>=2.3.4",
-    "lib_layered_config>=6.1.1",
+    "lib_layered_config>=7.0.1",
     "protobuf>=7.36.2",
     "pydantic>=2.13.5",
     "pydantic-xml>=2.21.1",
@@ -60,7 +60,7 @@ dev = [
     # pyright strict, scapy to read the capture pcaps.
     "grpcio-tools>=1.84.0",
     "types-protobuf>=7.35.1.20260906",
-    "scapy>=2.7.0",
+    "scapy>=2.8.0",
     # The build backend, imported by tests/test_wheel_contents.py to build the wheel and sdist
     # in-process and check that no private file ships.
     "hatchling>=1.32.4",

@@ -372,7 +372,7 @@ def password_text_or_refuse(value: object) -> str | None:
 
     Empty is none: the store then hands the driver no password, and libpq's own ``~/.pgpass``,
     ``PGPASSFILE`` and ``PGPASSWORD`` apply. A value that is not text is refused rather than turned
-    back into text: the environment layer reads ``0123`` as the number 123 and ``true`` as a
+    back into text: the environment layer reads ``8675309`` as a number and ``true`` as a
     boolean, so converting it would hand the driver a password that differs from the one written.
     The refusal names the setting and the type it arrived as, never the value. It exits 2, like
     the password that arrived as no value: a password setting that cannot be used means the
@@ -394,9 +394,10 @@ def password_text_or_refuse(value: object) -> str | None:
 def _refuse_a_malformed_password(configured: Mapping[str, Any]) -> None:
     """Refuse (exit 2) a password setting that is present but is not a password: no value, or not text.
 
-    The environment layer reads ``null`` and ``none``, in any case, as no value, and ``--set``
-    reads the JSON ``null`` the same way. Passed on, that would mean "no password" while somebody
-    plainly wrote one, and ``config`` would still list the setting as coming from the environment.
+    ``--set`` reads the JSON ``null`` as no value. Passed on, that would mean "no password" while
+    somebody plainly wrote one, and ``config`` would still list the setting as coming from the
+    command line. The environment layer no longer produces it for this setting: it keeps ``null``
+    and ``none`` as text for a sensitive key, so a password spelled that way is that password.
     A setting that is absent, or empty text, stays "no password": only the mapping can tell
     absent from present-but-nothing, which is why this reads the mapping rather than the value.
     Anything else that is not text is refused by :func:`password_text_or_refuse`, the one rule for
@@ -411,7 +412,7 @@ def _refuse_a_malformed_password(configured: Mapping[str, Any]) -> None:
     if configured[_CREDENTIAL_FIELD] is None:
         message = (
             f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as no value, which is not the same as no password; "
-            "unset the variable (or drop the --set) for no password, or give the password in a config file"
+            "drop the --set for no password, or give the password as a JSON string"
         )
         raise OptionsError(message, exit_code=ExitCode.ERROR)
     password_text_or_refuse(configured[_CREDENTIAL_FIELD])

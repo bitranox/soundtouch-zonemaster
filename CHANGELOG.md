@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Requires lib_layered_config 7.0.1 or later. From 7.0 the environment layer keeps `null` and
+  `none` (in any case) as text for a sensitive key, so `database.password` spelled that way in
+  the environment or a `.env` is now that password rather than a refused start. The only way left
+  to hand the password no value, `--set database.password=null`, is still refused; its message
+  now names the two ways out that remain (drop the `--set`, or give a JSON string).
+
 ### Fixed
 
 - A speaker that connects to the master in the very moment the master stops is now handed to
