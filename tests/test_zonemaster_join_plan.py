@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from soundtouch_zonemaster.adapters.soundtouch import placement
 from soundtouch_zonemaster.adapters.soundtouch.clock import now_us
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.placement import RESTART_PREROLL_BYTES, JoinSlot, StreamKey
@@ -22,6 +23,17 @@ from soundtouch_zonemaster.domain.timeline import JOIN_LEAD_US, ZoneTimeline
 
 pytestmark = pytest.mark.asyncio
 S = 1_000_000
+RATE = 16_000
+"""The zone's byte rate in every fixture here, in bytes per second."""
+
+
+def _byte_at(slot_t0_us: int, *, report_t_us: int, report_byte: int) -> int:
+    """The byte the zone renders at the plan's own start time, extrapolated from one report.
+
+    Taken from the slot's ``t0_us`` rather than from a clock read in the test: ``plan_join`` reads
+    the clock itself, and a slow runner between the two reads moved a fixed expectation by 0.23 s.
+    """
+    return report_byte + (slot_t0_us - report_t_us) * RATE // S
 
 
 def _byte_of(src: StreamSource, frame: int) -> int:
@@ -84,23 +96,32 @@ async def test_a_joiner_whose_byte_is_not_in_the_ring_yet_waits_for_it_rather_th
     slot = await _master().plan_join("a", src)
     assert slot.base_offset >= src.ring.end_offset
     assert src.t0_us == t0_before, "the stream's t0 is untouched: no restart"
-    assert abs(slot.base_offset - (300_000 - 16_000 + 3 * 16_000)) <= 16_000 * 0.05
+    expected = _byte_at(slot.t0_us, report_t_us=t - 1 * S, report_byte=300_000 - 2 * 16_000)
+    assert abs(slot.base_offset - expected) <= 1, "the zone's byte at the planned start, about 3 s ahead"
 
 
 async def test_a_joiner_waits_for_the_rate_when_only_one_report_exists():
     t0_before = now_us() - 30 * S
     src = await _source(300_000, t0_us=t0_before)
-    src.timeline.add_report(t_us=now_us(), absolute_byte=100_000)
+    first_t = now_us()
+    src.timeline.add_report(t_us=first_t, absolute_byte=100_000)
+    second: list[tuple[int, int]] = []
 
     async def second_report_soon():
         await asyncio.sleep(0.4)
-        src.timeline.add_report(t_us=now_us(), absolute_byte=100_000 + int(16_000 * 0.4))
+        # The bytes of the time that really passed, so the rate is 16 kB/s however late the sleep ends.
+        t = now_us()
+        second.append((t, 100_000 + (t - first_t) * RATE // S))
+        src.timeline.add_report(t_us=t, absolute_byte=second[0][1])
 
     task = asyncio.create_task(second_report_soon())
     slot = await _master().plan_join("a", src)
     await task
     assert src.t0_us == t0_before, "no restart happened"
-    assert abs(slot.base_offset - (100_000 + 16_000 * 3.4)) <= 16_000 * 0.15
+    ((report_t, report_byte),) = second
+    # The second report's byte is whole, so the rate carries up to one byte of error over a 0.4 s
+    # baseline; extrapolated about 3 s, that is under 8 bytes. 16 bytes is 1 ms of stream.
+    assert abs(slot.base_offset - _byte_at(slot.t0_us, report_t_us=report_t, report_byte=report_byte)) <= 16
 
 
 async def test_every_report_logs_how_far_the_slave_renders_from_the_others():
@@ -131,7 +152,9 @@ async def test_every_report_logs_how_far_the_slave_renders_from_the_others():
     assert 45 <= delta <= 55, sync[0]
 
 
-async def test_a_joiner_is_placed_on_a_frame_start_and_its_start_time_moves_with_it():
+async def test_a_joiner_is_placed_on_a_frame_start_and_its_start_time_moves_with_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # The zone renders mid-frame at the joiner's planned start. A slave discards the rest of a
     # frame it is handed mid-way and renders from the next one, ahead of the zone (hearing test
     # 2026-09-06, runs 1 and 3). So the joiner gets the next frame start, and a start time later by
@@ -146,10 +169,14 @@ async def test_a_joiner_is_placed_on_a_frame_start_and_its_start_time_moves_with
     boundary = first.start
     unaligned = boundary - 200  # where the raw plan lands: 200 B before a frame start
     t = now_us()
+    # The clock held still where the plan reads it: the raw plan lands 200 B before a frame start,
+    # which at 16 kB/s is 12.5 ms, and a runner slower than that between the test's clock read and
+    # the plan's would put it past the boundary and test a different frame.
+    monkeypatch.setattr(placement, "now_us", lambda: t)
     src.timeline.add_report(t_us=t - 2 * S, absolute_byte=unaligned - 5 * 16_000)
     src.timeline.add_report(t_us=t - 1 * S, absolute_byte=unaligned - 4 * 16_000)
     logs: list[str] = []
-    before = now_us()
+    before = t
     slot = await ZoneMaster(bind_ip="127.0.0.1", device_id="5EB0CE000001", log=lambda k, x: logs.append(x)).plan_join(
         "a", src
     )
@@ -168,7 +195,8 @@ async def test_a_joiner_whose_bytes_are_not_in_the_ring_stays_unaligned_and_says
     slot = await ZoneMaster(bind_ip="127.0.0.1", device_id="5EB0CE000001", log=lambda k, x: logs.append(x)).plan_join(
         "a", src
     )
-    assert abs(slot.base_offset - (116_000 + 4 * 16_000)) <= 16_000 * 0.05, "last report plus 4 s at 16 kB/s"
+    expected = _byte_at(slot.t0_us, report_t_us=t - 1 * S, report_byte=116_000)
+    assert abs(slot.base_offset - expected) <= 1, "the last report carried on to the planned start at 16 kB/s"
     assert any("unaligned" in line for line in logs), logs
 
 
@@ -226,10 +254,12 @@ async def test_with_frame_reports_the_joiner_starts_on_the_frame_the_zone_render
         )
     before = now_us()
     slot = await m.plan_join("b", src)
+    after = now_us()
     frame = src.frames.index_of(slot.base_offset)
     assert frame is not None, f"joiner's first byte {slot.base_offset} is not a frame start; {logs}"
     assert abs(slot.t0_us - (_t0(src) + frame * FRAME_US)) <= 25_000, "started when the zone renders that frame"
-    assert before + JOIN_LEAD_US - FRAME_US <= slot.t0_us <= before + JOIN_LEAD_US + 2 * FRAME_US
+    # Bounded by a clock read on EACH side of the plan, which reads the clock itself in between.
+    assert before + JOIN_LEAD_US - FRAME_US <= slot.t0_us <= after + JOIN_LEAD_US + 2 * FRAME_US
     assert any(line.startswith("master b: joins at frame ") for line in logs), logs
     assert not any("joins at byte" in line for line in logs), "the byte plan must not have run"
 
