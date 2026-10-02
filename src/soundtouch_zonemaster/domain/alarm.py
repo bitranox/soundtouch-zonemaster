@@ -10,14 +10,19 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from .device_id import normalized_device_id
 
 if TYPE_CHECKING:
-    from datetime import datetime, time
+    from collections.abc import Collection, Iterable, Iterator
+    from datetime import date, time, tzinfo
 
 __all__ = [
+    "GAP_SEARCH_MINUTES",
+    "LOOKAHEAD_DAYS",
+    "LOOKBACK_DAYS",
     "NAME_CEILING",
     "RAMP_CEILING_S",
     "RING_LIMIT_CEILING_S",
@@ -33,6 +38,11 @@ __all__ = [
     "Alarm",
     "AlarmBox",
     "AlarmRefusedError",
+    "Firing",
+    "due_on",
+    "limit_at",
+    "missed_firings",
+    "next_firing",
     "validated",
 ]
 
@@ -202,3 +212,118 @@ def _check_volume(name: str, value: object) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= VOLUME_CEILING:
         message = f"refused: alarm {name!r}: a volume is a whole number between 0 and {VOLUME_CEILING}, not {value!r}"
         raise AlarmRefusedError(message)
+
+
+LOOKBACK_DAYS = 1
+"""How far back a late firing can reach: the ring limit is at most four hours, so yesterday covers it."""
+
+LOOKAHEAD_DAYS = 7
+"""A week ahead finds the next firing of any alarm that has a day set at all."""
+
+GAP_SEARCH_MINUTES = 180
+"""How far past a nonexistent wall time to look for the first one that exists.
+
+The gaps a daylight-saving change opens are an hour (thirty minutes on Lord Howe); a whole day a
+zone skipped, as Samoa did on 2011-12-30, has no minute that exists and the alarm is simply not
+due that day."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Firing:
+    """One alarm due on one local day, at one moment."""
+
+    alarm: Alarm
+    day: date
+    due: datetime
+
+
+def limit_at(alarm: Alarm, due: datetime) -> datetime:
+    """When this firing stops on its own: the ring limit, counted from the SCHEDULED time.
+
+    One rule for an on-time firing, a late one and a restart mid-ring: a 07:00 alarm fired late at
+    07:50 with a 60-minute limit still stops at 08:00.
+    """
+    return due + timedelta(seconds=alarm.ring_limit_s)
+
+
+def due_on(alarm: Alarm, day: date, *, zone: tzinfo) -> datetime | None:
+    """When ``alarm`` is due on ``day`` in ``zone``, or ``None`` when it has no wake that day.
+
+    ``fold=0`` is what ``datetime`` builds, which is the FIRST of a doubled autumn hour, so a time
+    there rings once. A time inside a spring gap does not exist; it rings at the first minute after
+    it that does.
+    """
+    at = alarm.times[day.weekday()]
+    if at is None:
+        return None
+    local = datetime.combine(day, at, tzinfo=zone)
+    for _ in range(GAP_SEARCH_MINUTES + 1):
+        if _exists(local):
+            return local
+        local += timedelta(minutes=1)
+    return None
+
+
+def next_firing(
+    alarms: Iterable[Alarm],
+    *,
+    now: datetime,
+    zone: tzinfo,
+    paused_through: date | None,
+    handled: Collection[tuple[str, date]],
+) -> Firing | None:
+    """The earliest firing still owed, which may already be due (a late firing), or ``None``."""
+    owed = [
+        firing
+        for firing in _open_firings(alarms, now=now, zone=zone, paused_through=paused_through, handled=handled)
+        if limit_at(firing.alarm, firing.due) > now
+    ]
+    return min(owed, key=lambda firing: (firing.due, firing.alarm.name), default=None)
+
+
+def missed_firings(
+    alarms: Iterable[Alarm],
+    *,
+    now: datetime,
+    zone: tzinfo,
+    paused_through: date | None,
+    handled: Collection[tuple[str, date]],
+) -> tuple[Firing, ...]:
+    """Every firing whose ring limit passed before anything rang it: the service was down for all of it."""
+    return tuple(
+        firing
+        for firing in _open_firings(alarms, now=now, zone=zone, paused_through=paused_through, handled=handled)
+        if limit_at(firing.alarm, firing.due) <= now
+    )
+
+
+def _open_firings(
+    alarms: Iterable[Alarm],
+    *,
+    now: datetime,
+    zone: tzinfo,
+    paused_through: date | None,
+    handled: Collection[tuple[str, date]],
+) -> Iterator[Firing]:
+    today = now.astimezone(zone).date()
+    for alarm in alarms:
+        if alarm.enabled:
+            yield from _firings_of(alarm, today=today, zone=zone, paused_through=paused_through, handled=handled)
+
+
+def _firings_of(
+    alarm: Alarm, *, today: date, zone: tzinfo, paused_through: date | None, handled: Collection[tuple[str, date]]
+) -> Iterator[Firing]:
+    for offset in range(-LOOKBACK_DAYS, LOOKAHEAD_DAYS + 1):
+        day = today + timedelta(days=offset)
+        if (paused_through is not None and day <= paused_through) or (alarm.name, day) in handled:
+            continue
+        due = due_on(alarm, day, zone=zone)
+        if due is not None and due >= alarm.set_at:
+            yield Firing(alarm=alarm, day=day, due=due)
+
+
+def _exists(local: datetime) -> bool:
+    """Whether this wall time happens at all: a time in a spring gap does not survive a round trip."""
+    back = local.astimezone(UTC).astimezone(local.tzinfo)
+    return back.replace(tzinfo=None) == local.replace(tzinfo=None)

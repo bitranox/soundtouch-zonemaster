@@ -44,6 +44,7 @@ postgres = [
 ]
 dev = [
     "pytest>=9.1.1",
+    "tzdata>=2026.4; sys_platform == 'win32'",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "coverage[toml]>=7.16.2",
