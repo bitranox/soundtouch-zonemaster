@@ -5,7 +5,7 @@ directly - by the composition root's tests, by a caller that is not a CLI - and 
 the master's own id with the ``stream_owner`` a speaker reports EXACTLY. A record that kept a
 lower-case id would therefore read every box playing the house's stream as playing somebody
 else's, and take none of them in. So the fold lives in the records themselves, through the one
-helper every other surface uses (``domain/preferences.normalized_device_id``), and these build the
+helper every other surface uses (``domain/device_id.normalized_device_id``), and these build the
 records the way a non-CLI caller would.
 """
 

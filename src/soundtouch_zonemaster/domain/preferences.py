@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING, cast
 
+from .device_id import normalized_device_id
 from .dialling import WINDOW_CEILING_S, WINDOW_FLOOR_S
 from .longpress import HOLD_THRESHOLD_CEILING_S, HOLD_THRESHOLD_FLOOR_S
 
@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
 __all__ = [
-    "DEVICE_ID",
     "FADE_CEILING_S",
     "FADE_DEFAULT_S",
     "FADE_FLOOR_S",
@@ -45,7 +44,6 @@ __all__ = [
     "Stored",
     "checked",
     "decoded",
-    "normalized_device_id",
     "plain_value",
     "quoted",
     "resolved",
@@ -65,22 +63,6 @@ FADE_FLOOR_S = 0.0
 
 FADE_CEILING_S = 5.0
 """Past this a joining room is audibly quiet for long enough to read as a fault."""
-
-DEVICE_ID = re.compile(r"[0-9A-F]{12}")
-"""A speaker's device id: its MAC, twelve hex digits, as the registry spells it (upper case)."""
-
-
-def normalized_device_id(value: str) -> str | None:
-    """Twelve hex digits of either case, folded to upper case; ``None`` if it is not one.
-
-    The one place a device id is both checked and normalised, so every surface that takes one - a
-    console in :func:`_device_ids`, the master's own ``--device-id`` / ``zone.device_id`` in
-    :func:`~..application.outcome.device_id_or_refuse` - holds a person or a deployed config to the
-    same rule and hands back the same shape the registry reports, however it was spelled.
-    """
-    upper = value.upper()
-    return upper if DEVICE_ID.fullmatch(upper) else None
-
 
 PreferenceValue = float | tuple[str, ...]
 

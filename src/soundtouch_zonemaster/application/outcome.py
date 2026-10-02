@@ -17,7 +17,8 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import cast
 
-from ..domain.preferences import PreferenceName, PreferenceRefusedError, checked, normalized_device_id
+from ..domain.device_id import normalized_device_id
+from ..domain.preferences import PreferenceName, PreferenceRefusedError, checked
 
 __all__ = ["ExitCode", "OptionsError", "device_id_or_refuse", "preference_or_refuse", "tcp_port_or_refuse"]
 
@@ -60,7 +61,7 @@ def device_id_or_refuse(value: str) -> str:
     """Twelve hex digits, or a refusal. Both programs take one, so both refuse the same way.
 
     Either case is accepted and folded to upper case through
-    :func:`~..domain.preferences.normalized_device_id`, the same rule
+    :func:`~..domain.device_id.normalized_device_id`, the same rule
     ``membership.consoles_allowed`` already applies to a console: a ``--device-id`` typed or a
     ``zone.device_id`` deployed lower-case is not refused for a reason the console surface does
     not refuse it for either.
