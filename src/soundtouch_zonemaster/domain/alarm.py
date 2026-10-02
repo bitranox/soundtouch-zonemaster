@@ -238,12 +238,16 @@ class Firing:
 
 
 def limit_at(alarm: Alarm, due: datetime) -> datetime:
-    """When this firing stops on its own: the ring limit, counted from the SCHEDULED time.
+    """When this firing stops on its own: the ring limit, counted in REAL seconds from the SCHEDULED time.
 
     One rule for an on-time firing, a late one and a restart mid-ring: a 07:00 alarm fired late at
-    07:50 with a 60-minute limit still stops at 08:00.
+    07:50 with a 60-minute limit still stops at 08:00. ``due`` is normalised to UTC before the
+    limit is added: a ``timedelta`` added to an aware local datetime is wall-clock arithmetic, so
+    across a daylight-saving change a 60-minute limit would last 120 real minutes in the autumn or
+    only the clock change short of 4 hours in the spring. Counting from the UTC instant keeps the
+    limit a fixed REAL duration whichever side of a change it falls on.
     """
-    return due + timedelta(seconds=alarm.ring_limit_s)
+    return due.astimezone(UTC) + timedelta(seconds=alarm.ring_limit_s)
 
 
 def due_on(alarm: Alarm, day: date, *, zone: tzinfo) -> datetime | None:
@@ -264,6 +268,11 @@ def due_on(alarm: Alarm, day: date, *, zone: tzinfo) -> datetime | None:
     return None
 
 
+def _in_time_order(firing: Firing) -> tuple[datetime, str]:
+    """Sort key: the firing's due instant in UTC, then its alarm's name to break a tie."""
+    return firing.due.astimezone(UTC), firing.alarm.name
+
+
 def next_firing(
     alarms: Iterable[Alarm],
     *,
@@ -273,12 +282,13 @@ def next_firing(
     handled: Collection[tuple[str, date]],
 ) -> Firing | None:
     """The earliest firing still owed, which may already be due (a late firing), or ``None``."""
+    instant = now.astimezone(UTC)
     owed = [
         firing
-        for firing in _open_firings(alarms, now=now, zone=zone, paused_through=paused_through, handled=handled)
-        if limit_at(firing.alarm, firing.due) > now
+        for firing in _open_firings(alarms, now=instant, zone=zone, paused_through=paused_through, handled=handled)
+        if limit_at(firing.alarm, firing.due) > instant
     ]
-    return min(owed, key=lambda firing: (firing.due, firing.alarm.name), default=None)
+    return min(owed, key=_in_time_order, default=None)
 
 
 def missed_firings(
@@ -289,12 +299,14 @@ def missed_firings(
     paused_through: date | None,
     handled: Collection[tuple[str, date]],
 ) -> tuple[Firing, ...]:
-    """Every firing whose ring limit passed before anything rang it: the service was down for all of it."""
-    return tuple(
+    """Every firing within the lookback whose ring limit passed before anything rang it, in time order."""
+    instant = now.astimezone(UTC)
+    missed = [
         firing
-        for firing in _open_firings(alarms, now=now, zone=zone, paused_through=paused_through, handled=handled)
-        if limit_at(firing.alarm, firing.due) <= now
-    )
+        for firing in _open_firings(alarms, now=instant, zone=zone, paused_through=paused_through, handled=handled)
+        if limit_at(firing.alarm, firing.due) <= instant
+    ]
+    return tuple(sorted(missed, key=_in_time_order))
 
 
 def _open_firings(
@@ -319,7 +331,7 @@ def _firings_of(
         if (paused_through is not None and day <= paused_through) or (alarm.name, day) in handled:
             continue
         due = due_on(alarm, day, zone=zone)
-        if due is not None and due >= alarm.set_at:
+        if due is not None and due.astimezone(UTC) >= alarm.set_at.astimezone(UTC):
             yield Firing(alarm=alarm, day=day, due=due)
 
 

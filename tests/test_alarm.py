@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -15,6 +15,7 @@ from soundtouch_zonemaster.domain.alarm import (
     AlarmRefusedError,
     Firing,
     due_on,
+    limit_at,
     missed_firings,
     next_firing,
     validated,
@@ -197,3 +198,71 @@ def test_a_late_firing_reaches_back_across_midnight() -> None:
 
 def test_nothing_is_due_when_every_alarm_is_off() -> None:
     assert _next((_alarm(enabled=False),), _vienna(date(2026, 10, 1), 6)) is None
+
+
+def test_a_ring_limit_across_the_autumn_change_is_counted_in_real_minutes() -> None:
+    alarm = _alarm(times=(None,) * 6 + (time(2, 30),))
+    due = due_on(alarm, date(2026, 10, 25), zone=VIENNA)
+    assert due is not None
+    assert limit_at(alarm, due) == datetime(2026, 10, 25, 1, 30, tzinfo=UTC)  # 60 real minutes after 00:30 UTC
+
+
+def test_a_ring_limit_across_the_spring_change_is_counted_in_real_hours() -> None:
+    alarm = _alarm(times=(None,) * 6 + (time(1, 45),), ring_limit_s=4 * 3600.0)
+    due = due_on(alarm, date(2026, 3, 29), zone=VIENNA)
+    assert due is not None
+    assert limit_at(alarm, due) == due.astimezone(UTC) + timedelta(hours=4)
+
+
+def test_the_same_instant_gives_the_same_answer_in_either_representation() -> None:
+    alarm = _alarm(times=(None,) * 6 + (time(2, 30),))
+    # 2026-10-25 02:30 Vienna (fold=0) is due 00:30 UTC; its 60-minute limit is 01:30 UTC.
+    # 01:35 UTC is past that limit, expressed here both as UTC and as the fold=1 wall time
+    # that names the same instant on the doubled clock.
+    as_utc = datetime(2026, 10, 25, 1, 35, tzinfo=UTC)
+    as_vienna_fold1 = datetime(2026, 10, 25, 2, 35, fold=1, tzinfo=VIENNA)
+    assert as_utc.astimezone(UTC) == as_vienna_fold1.astimezone(UTC)  # the same instant
+    for now in (as_utc, as_vienna_fold1):
+        firing = _next((alarm,), now)
+        assert firing is not None
+        assert firing.day != date(2026, 10, 25)
+        missed = missed_firings((alarm,), now=now, zone=VIENNA, paused_through=None, handled=frozenset())
+        assert date(2026, 10, 25) in [f.day for f in missed]
+
+
+def test_a_firing_due_before_a_fold_one_set_at_is_not_owed() -> None:
+    saved_late = _alarm(
+        times=(None,) * 6 + (time(2, 30),),
+        set_at=datetime(2026, 10, 25, 2, 10, fold=1, tzinfo=VIENNA),  # 01:10 UTC
+    )
+    now = datetime(2026, 10, 25, 2, 31, fold=0, tzinfo=VIENNA)
+    firing = _next((saved_late,), now)
+    assert firing is not None
+    assert firing.day != date(2026, 10, 25)
+    assert firing.day == date(2026, 11, 1)
+
+
+def test_due_on_answers_none_for_a_day_a_zone_skipped_entirely() -> None:
+    apia = ZoneInfo("Pacific/Apia")
+    alarm = _alarm(times=(time(7, 0),) * 7)
+    assert due_on(alarm, date(2011, 12, 30), zone=apia) is None  # Samoa's skipped calendar day
+
+
+def test_the_next_firing_can_be_exactly_a_week_ahead() -> None:
+    thursday_only = _alarm(times=(None,) * 3 + (time(7, 0),) + (None,) * 3)
+    firing = _next((thursday_only,), _vienna(date(2026, 10, 1), 9, 0))
+    assert firing is not None
+    assert firing.day == date(2026, 10, 8)
+
+
+def test_missed_firings_of_several_alarms_are_in_time_order() -> None:
+    x = _alarm(name="x", times=(time(7, 0),) * 7)
+    y = _alarm(name="y", times=(time(6, 0),) * 7)
+    now = _vienna(date(2026, 10, 1), 9, 0)
+    missed = missed_firings((x, y), now=now, zone=VIENNA, paused_through=None, handled=frozenset())
+    assert [(f.alarm.name, f.day) for f in missed] == [
+        ("y", date(2026, 9, 30)),
+        ("x", date(2026, 9, 30)),
+        ("y", date(2026, 10, 1)),
+        ("x", date(2026, 10, 1)),
+    ]
