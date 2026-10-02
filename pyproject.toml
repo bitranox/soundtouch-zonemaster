@@ -249,7 +249,9 @@ forbidden_modules = [
 # Each of these decides one thing from what the speakers said, and none of them may consult
 # another: a membership answer that depended on what was dialled, or a hold that read the
 # dialler's buffers, would make two rules one and neither testable alone. domain.presses joins
-# this list with M4, which is the milestone that lands it.
+# this list with M4, which is the milestone that lands it. domain.alarm joins it because an alarm
+# decides what a key means while it rings, which must not read the dialler's or the press rule's
+# state.
 name = "The house policies decide independently"
 type = "independence"
 modules = [
@@ -258,6 +260,7 @@ modules = [
   "soundtouch_zonemaster.domain.longpress",
   "soundtouch_zonemaster.domain.presses",
   "soundtouch_zonemaster.domain.housevolume",
+  "soundtouch_zonemaster.domain.alarm",
 ]
 
 [[tool.importlinter.contracts]]
