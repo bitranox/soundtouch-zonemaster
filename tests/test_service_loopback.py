@@ -33,11 +33,14 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
+from importlib.metadata import version
 from typing import TYPE_CHECKING
 
+import anyio
 import pytest
 from mpdfake import HOST as MPD_HOST
 from mpdfake import FakeMpd
+from packaging.version import Version
 from registry_double import FakeRegistry, devices_at
 from service_log import recording_into
 from slow_store import SlowStore
@@ -127,6 +130,12 @@ MOVED_IP = "127.0.0.5"
 AUX = "AUX"
 """What a box reports with somebody listening on the aux input. Never measured here, and nothing
 in the policy matches on it - that is the point: anything that is not our stream keeps a box out."""
+
+ANYIO_SWALLOWS_A_RACING_CANCEL = Version(version("anyio")) <= Version("4.15.1")
+"""Whether the installed anyio loses a native cancel landing in the turn after its own (anyio#1214).
+
+The fix is merged and in no release up to 4.15.1, so the first later release is the one to depend on.
+"""
 
 RADIO = SourceName.LOCAL_INTERNET_RADIO
 
@@ -1475,6 +1484,58 @@ async def test_a_first_start_takes_the_old_files_into_the_database_and_a_restart
     assert _switch_of(options) is False, "a file written after the import changes nothing"
     assert _switch_file(options).exists(), "and it is left in place for a person to find"
     assert _channels_of(options) == two, "the list the first start imported is the one a restart reads"
+
+
+@pytest.mark.xfail(
+    ANYIO_SWALLOWS_A_RACING_CANCEL,
+    reason=(
+        "agronholm/anyio#1214, fixed by #1330 (5d3830d) and in no release up to 4.15.1. When this "
+        "XPASSes, raise the anyio floor in pyproject to the release that carries the fix and drop the mark."
+    ),
+    strict=True,
+)
+async def test_a_stop_in_the_turn_after_a_connect_still_stops_the_service(
+    world: World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stop that lands right after one of the service's own connects must still stop it.
+
+    ``anyio.connect_tcp`` cancels its own scope on every successful connect, and that scope is
+    hosted by the task that asked for the connection - here the service, reading the registry in
+    its start-up. An anyio before the fix folds a native cancel landing in that same loop turn into
+    its own CancelledError and swallows both, so the service runs on with ``cancelling() == 1`` and
+    a ``systemctl stop`` waits for it until it is killed, leaving the zone behind. That is how
+    ``make test-all`` hung for two hours on 2026-10-02.
+
+    The race is one loop turn wide, so it is staged rather than waited for: anyio's own
+    ``cancel`` is wrapped, at the edge of a library nothing here can inject, to stop the service in
+    the same turn as the first scope cancel the service task hosts. The bound turns a regression
+    into a failure instead of a hang, and the second cancel after it leaves no service running
+    into the next test.
+    """
+    options = _options(world, tmp_path, seed=True)
+    service = ZoneService(options, log=recording_into([]), ports=build_production().zone_ports)
+    backend_scope = type(anyio.CancelScope())
+    anyio_cancel = backend_scope.cancel
+    stopped_at_a_connect: list[bool] = []
+    task: asyncio.Task[None] | None = None
+
+    def cancel_then_stop(scope: anyio.CancelScope, reason: str | None = None) -> None:
+        anyio_cancel(scope, reason)
+        if task is not None and not stopped_at_a_connect and getattr(scope, "_host_task", None) is task:
+            stopped_at_a_connect.append(True)
+            task.cancel()
+
+    monkeypatch.setattr(backend_scope, "cancel", cancel_then_stop)
+    task = asyncio.create_task(service.run())
+    done, _ = await asyncio.wait({task}, timeout=10.0)
+    still_asked = task.cancelling()
+    if not done:
+        task.cancel()
+        await asyncio.wait({task}, timeout=10.0)
+
+    assert stopped_at_a_connect, "no scope the service hosts was cancelled, so the stop was never staged"
+    assert done, f"one stop did not end the service: still running with cancelling() == {still_asked}"
+    assert task.cancelled(), "the service ended some other way than by the stop"
 
 
 async def test_the_last_box_leaving_stops_the_stream_nobody_is_listening_to(world: World, tmp_path: Path) -> None:
