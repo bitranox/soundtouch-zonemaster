@@ -57,6 +57,11 @@ All notable changes to this project are documented here. The format follows
   could fail or load their playlists in the wrong order behind the one `httpd` stream. Starts
   now talk to MPD one at a time, and a start that a later one has overtaken gives up without
   loading MPD or switching the zone.
+- The service's first HTTP request no longer holds up the event loop, which also keeps the zone's
+  clock and frames. Importing httpx's transport and anyio's asyncio backend and building an SSL
+  context happened on the loop the first time a client was built or used, a stall of tens of
+  milliseconds at the registry warm-up of every start; they now happen when the program starts.
+  Every client shares that one SSL context rather than building its own for each speaker call.
 
 ## [0.6.1] 2026-10-01 18:27:58
 
