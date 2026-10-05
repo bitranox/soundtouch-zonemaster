@@ -18,9 +18,14 @@ All notable changes to this project are documented here. The format follows
 
 - Requires lib_layered_config 7.0.1 or later. From 7.0 the environment layer keeps `null` and
   `none` (in any case) as text for a sensitive key, so `database.password` spelled that way in
-  the environment or a `.env` is now that password rather than a refused start. The only way left
-  to hand the password no value, `--set database.password=null`, is still refused; its message
-  now names the two ways out that remain (drop the `--set`, or give a JSON string).
+  the environment or a `.env` is now that password rather than a refused start.
+- `--set SECTION.KEY=VALUE` reads its value by the same rule as the environment and a `.env`:
+  a JSON array or object, `true`/`false` in any case, `null`/`none` as no value (text on a
+  secret's key), a number only where it reads back as the same text (`1.50` and `0640` stay
+  text), and a quoted value as the text inside the quotes. It used to read the value as JSON,
+  so the two top layers could read one spelling two ways. `--set database.password=null` is
+  therefore the password `null` too; a password that arrives as no value (a `null` in a JSON or
+  YAML file in a `config.d` directory) is still refused, naming the ways out.
 
 ### Removed
 
