@@ -21,12 +21,14 @@ from soundtouch_zonemaster.domain.alarm import (
     dialled,
     due_on,
     limit_at,
+    missed,
     missed_firings,
     next_firing,
     pressed,
     ramp_volume,
     ringing,
     rung_again,
+    skipped,
     ticked,
     validated,
 )
@@ -298,6 +300,44 @@ def test_a_firing_rings_and_remembers_what_to_give_back() -> None:
         "11",
         (("AABBCC0000A1", 22),),
     )
+
+
+def test_skipped_marks_a_firing_skipped_with_nothing_to_give_back() -> None:
+    firing = Firing(alarm=_alarm(), day=date(2026, 10, 1), due=DUE)
+    day = skipped(firing)
+    assert (day.alarm, day.state, day.due, day.give_back, day.volumes_before) == (
+        "weekdays",
+        RingState.SKIPPED,
+        DUE,
+        None,
+        (),
+    )
+
+
+def test_missed_marks_a_firing_done_without_ever_ringing() -> None:
+    firing = Firing(alarm=_alarm(), day=date(2026, 10, 1), due=DUE)
+    day = missed(firing)
+    assert (day.alarm, day.state, day.due, day.give_back, day.volumes_before) == (
+        "weekdays",
+        RingState.DONE,
+        DUE,
+        None,
+        (),
+    )
+
+
+def test_the_snooze_is_counted_in_real_utc_seconds_across_the_autumn_change() -> None:
+    # 2026-10-25 02:55 Vienna, fold=0, is the FIRST 02:55 (CEST, UTC+2) - 00:55 UTC. A snooze
+    # computed in wall-clock minutes rather than real UTC seconds would land an hour later than
+    # the snooze length once the clock falls back an hour later that same morning.
+    due = datetime(2026, 10, 25, 2, 55, fold=0, tzinfo=VIENNA)
+    day = ringing(Firing(alarm=_alarm(), day=date(2026, 10, 25), due=due), give_back=None, volumes_before=())
+    step = pressed(day, _alarm(), AlarmPress.KEY, now=due)
+    assert step.action is RingAction.OFF
+    assert step.day.state is RingState.SNOOZED
+    assert step.day.snoozed_until is not None
+    real_elapsed_s = step.day.snoozed_until.timestamp() - due.timestamp()
+    assert real_elapsed_s == pytest.approx(540.0)  # the default snooze length, in REAL seconds
 
 
 def test_any_key_snoozes_and_the_snooze_silences_first() -> None:

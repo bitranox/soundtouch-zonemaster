@@ -404,6 +404,8 @@ class AlarmDay:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class RingStep:
+    """What one event decides: the day's new state, and the action it hands the service for the wire."""
+
     day: AlarmDay
     action: RingAction
 
@@ -426,6 +428,7 @@ def rung_again(day: AlarmDay, *, give_back: str | None) -> AlarmDay:
 
 
 def skipped(firing: Firing) -> AlarmDay:
+    """A firing the house let pass without ringing: no boxes taken in, nothing to give back."""
     return AlarmDay(alarm=firing.alarm.name, day=firing.day, state=RingState.SKIPPED, due=firing.due)
 
 
