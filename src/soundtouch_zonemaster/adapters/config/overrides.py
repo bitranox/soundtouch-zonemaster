@@ -1,7 +1,9 @@
 """A ``--set`` read, and merged over everything the files and the environment said.
 
-One override is one dotted path and one value, and the value is read as JSON where it is JSON, so
-that the command line can put a number, a boolean or a list into the merge and not only text.
+One override is one dotted path and one value, typed by the SAME rule lib_layered_config applies to
+an environment variable and a ``.env`` line, so the two top layers never read one spelling two ways:
+a number, a boolean, a list or a table where the library would type it, the text otherwise, and a
+quoted value is always the text inside the quotes.
 
 :func:`write_at` is public because the settings map writes with it too: both build a nested mapping
 from dotted paths, and one of the two would otherwise be importing the other's private name.
@@ -10,9 +12,12 @@ from dotted paths, and one of the two would otherwise be importing the other's p
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+import math
+import re
+from typing import TYPE_CHECKING, Any, Final, NamedTuple, cast
 
 from lib_layered_config import ConfigError as LayeredConfigError
+from lib_layered_config import is_sensitive
 
 from .errors import ConfigInputError
 
@@ -40,9 +45,10 @@ class Merged(NamedTuple):
 def parse_set_override(raw: str) -> tuple[tuple[str, ...], Any]:
     """``SECTION.KEY[.SUBKEY...]=VALUE`` into the path to write and the value to write there.
 
-    The value is read as JSON when it parses as JSON, so ``=1.2`` is a number, ``=true`` is a
-    boolean and ``=["A","B"]`` is a list; anything else stays the text that was typed, which is
-    what makes ``--set service.bind_ip=203.0.113.190`` do the obvious thing.
+    ``=1.2`` is a number, ``=true`` a boolean and ``=["A","B"]`` a list; ``=1.50`` and ``=0640``
+    stay text because a number is taken only where it reads back as the same text; anything else
+    stays the text that was typed, which is what makes ``--set zone.bind_ip=203.0.113.190`` do the
+    obvious thing. ``=null`` is no value, except on a secret's key, where it is the text it spells.
     """
     if "=" not in raw:
         message = f"refused: --set {raw!r} must be SECTION.KEY=VALUE"
@@ -52,17 +58,53 @@ def parse_set_override(raw: str) -> tuple[tuple[str, ...], Any]:
     if len(parts) < 2 or not all(parts):  # noqa: PLR2004 - a section and at least one key
         message = f"refused: --set {raw!r} needs a section and a key, as SECTION.KEY=VALUE"
         raise ConfigInputError(message)
-    return parts, _coerce(value_text)
+    return parts, _coerce(parts[-1], value_text)
 
 
-def _coerce(text: str) -> Any:
-    """A typed value where the text is JSON, and the text itself where it is not."""
-    if text == "":
-        return ""
+_QUOTES: Final = ('"', "'")
+_NO_VALUE: Final = frozenset({"null", "none"})
+_INT_TEXT: Final = re.compile(r"0|-?[1-9][0-9]{0,18}")
+"""Exactly the texts ``str(int(v))`` gives back unchanged: no leading zero, no sign but minus."""
+_MAX_FLOAT_TEXT: Final = 32
+
+
+def _coerce(key: str, text: str) -> Any:
+    """The value lib_layered_config's ``.env`` layer would make of this text on this key.
+
+    Mirrored rather than imported, because the library keeps the rule in a private module; what
+    keeps the copy honest is tests/test_config.py, which feeds every spelling through the
+    library's own dotenv layer and requires the same value back. Quoting is the dotenv layer's way
+    to keep text (the environment layer has no quotes to strip), and a command line needs it for
+    the same reason: ``--set database.password='"8675309"'`` is a password, not a number.
+    """
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in _QUOTES:  # noqa: PLR2004 - two quotes
+        return text[1:-1]
+    if text.startswith(("[", "{")):
+        try:
+            return json.loads(text)
+        except ValueError:
+            pass
+    lowered = text.lower()
+    if lowered in {"true", "false"}:
+        return lowered == "true"
+    if lowered in _NO_VALUE:
+        # A secret spelled null is that secret: None would read as "no credential", and a login
+        # would then proceed without one instead of failing on the wrong one.
+        return text if is_sensitive(key.lower()) else None
+    return _number(text)
+
+
+def _number(text: str) -> Any:
+    """An int or a float only where it reads back as the same text, else the text unchanged."""
+    if _INT_TEXT.fullmatch(text):
+        return int(text)
+    if len(text) > _MAX_FLOAT_TEXT or not text.isascii():
+        return text
     try:
-        return json.loads(text)
+        number = float(text)
     except ValueError:
         return text
+    return number if math.isfinite(number) and str(number) == text else text
 
 
 def apply_set_overrides(config: Config, raw_overrides: Sequence[str]) -> Merged:

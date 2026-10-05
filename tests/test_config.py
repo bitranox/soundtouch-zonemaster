@@ -34,7 +34,12 @@ import pytest
 from soundtouch_zonemaster import __init__conf__
 from soundtouch_zonemaster.adapters.cli.prototype import PrototypeSettings
 from soundtouch_zonemaster.adapters.config.errors import ConfigInputError
-from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, default_config_path, get_config
+from soundtouch_zonemaster.adapters.config.loader import (
+    ENV_PREFIX,
+    clear_config_cache,
+    default_config_path,
+    get_config,
+)
 from soundtouch_zonemaster.adapters.config.overrides import apply_set_overrides, parse_set_override
 from soundtouch_zonemaster.adapters.config.settings_map import (
     PROTOTYPE_SECTIONS,
@@ -270,10 +275,92 @@ def test_the_three_identifiers_that_decide_where_the_config_lives_are_the_deploy
         ("zone.note=a=b", ("zone", "note"), "a=b"),
     ],
 )
-def test_a_set_override_is_read_as_json_where_it_is_json_and_as_text_where_it_is_not(
+def test_a_set_override_is_typed_where_the_library_types_it_and_text_where_it_does_not(
     raw: str, path: tuple[str, ...], value: object
 ) -> None:
     assert parse_set_override(raw) == (path, value)
+
+
+SPELLINGS = [
+    "null",
+    "None",
+    "NULL",
+    "true",
+    "False",
+    "10",
+    "-7",
+    "0",
+    "007",
+    "0640",
+    "1.50",
+    "3.5",
+    "1e3",
+    "+5",
+    "1_000",
+    "nan",
+    "inf",
+    '["a", 1]',
+    '{"a": 1}',
+    "[not json",
+    "plain text",
+    "a=b",
+    '"8675309"',
+    "'true'",
+    '"null"',
+]
+"""Every shape the two library layers read differently from plain JSON, plus the quoted forms that
+are the way to keep a value as text."""
+
+
+def _through_the_library(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, key: str, spelling: str) -> object:
+    """What the library's own dotenv layer makes of ``SECTION__KEY=<spelling>``: the rule ``--set``
+    is held to. Read through the loader, so it is the library's code and not a copy of it."""
+    section, name = key.split(".")
+    dotenv = tmp_path / "rule.env"
+    dotenv.write_text(f"{section.upper()}__{name.upper()}={spelling}\n", encoding="utf-8")
+    monkeypatch.delenv(f"{ENV_PREFIX}{section.upper()}__{name.upper()}", raising=False)
+    clear_config_cache()
+    try:
+        return get_config(dotenv_path=str(dotenv))[section][name]
+    finally:
+        clear_config_cache()
+
+
+def _through_the_environment(monkeypatch: pytest.MonkeyPatch, key: str, spelling: str) -> object:
+    section, name = key.split(".")
+    monkeypatch.setenv(f"{ENV_PREFIX}{section.upper()}__{name.upper()}", spelling)
+    clear_config_cache()
+    try:
+        return get_config()[section][name]
+    finally:
+        clear_config_cache()
+        monkeypatch.delenv(f"{ENV_PREFIX}{section.upper()}__{name.upper()}")
+
+
+@pytest.mark.usefixtures("isolated_config_layers")
+@pytest.mark.parametrize("key", ["zone.note", "database.password"], ids=["plain-key", "sensitive-key"])
+@pytest.mark.parametrize("spelling", SPELLINGS)
+def test_a_set_override_reads_every_spelling_as_the_library_s_own_layers_do(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, key: str, spelling: str
+) -> None:
+    """One rule for the two top layers (OPEN-WORK 231): ``--set`` and a ``.env`` line read the same
+    text as the same value, on an ordinary key and on a sensitive one, where ``null`` stays text."""
+    expected = _through_the_library(monkeypatch, tmp_path, key, spelling)
+    got = parse_set_override(f"{key}={spelling}")[1]
+    assert (got, type(got)) == (expected, type(expected))
+
+
+@pytest.mark.usefixtures("isolated_config_layers")
+@pytest.mark.parametrize("spelling", [s for s in SPELLINGS if s[:1] not in "\"'"])
+def test_the_environment_and_a_dotenv_agree_on_every_unquoted_spelling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, spelling: str
+) -> None:
+    """The control that makes the rule above one rule: the library's environment layer reads every
+    unquoted spelling exactly as its dotenv layer does, so following one follows both."""
+    for key in ("zone.note", "database.password"):
+        assert _through_the_environment(monkeypatch, key, spelling) == _through_the_library(
+            monkeypatch, tmp_path, key, spelling
+        )
 
 
 @pytest.mark.parametrize("raw", ["nonsense", "zone=1", ".key=1", "zone.=1", "=1"])

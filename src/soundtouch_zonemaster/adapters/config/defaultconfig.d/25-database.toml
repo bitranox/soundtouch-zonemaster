@@ -49,10 +49,11 @@
 # carries it.
 # Write it as a quoted string. The environment layer reads a value of digits as a number and true
 # or false as a boolean, but keeps null and none as text for this setting, so PASSWORD=null is the
-# password "null"; a password that arrives as anything but text is refused rather than changed, so
-# give such a password in a file, or with --set database.password='"8675309"'. The one way to hand
-# it no value, --set database.password=null, refuses the start too, rather than quietly meaning no
-# password: for no password leave the variable unset or empty. In a .env, quote a password containing " #":
+# password "null" (and so is --set database.password=null); a password that arrives as anything but
+# text is refused rather than changed, so give such a password in a file, or quoted with
+# --set database.password='"8675309"'. A null in a JSON or YAML file in a config.d directory is no
+# value, and refuses the start rather than quietly meaning no password: for no password leave the
+# setting out, or the variable unset or empty. In a .env, quote a password containing " #":
 # unquoted, the value ends where that inline comment begins.
 #   env: SOUNDTOUCH_ZONEMASTER___DATABASE__PASSWORD
 # password = "..."

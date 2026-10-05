@@ -262,8 +262,8 @@ def test_a_refused_password_type_is_reported_without_its_value(
 
 
 NULL_SPELLINGS = ["null", "NULL", "Null", "none", "None", "NONE"]
-"""The spellings the environment layer reads as no value for an ordinary key. For the password, a
-sensitive key, lib_layered_config 7.0 keeps every one of them as the text that was written."""
+"""The spellings the environment layer and ``--set`` read as no value for an ordinary key. For the
+password, a sensitive key, both keep every one of them as the text that was written."""
 
 
 def _refused_start(
@@ -282,10 +282,17 @@ def _refuses_a_password_that_arrived_as_no_value(envelope: dict[str, object]) ->
     assert envelope["ok"] is False
     assert "database.password" in message
     assert "no value" in message
-    assert "drop the --set for no password, or give the password as a JSON string" in message, (
+    assert "leave the setting out for no password, or write the password as text" in message, (
         "the two ways out, as alternatives"
     )
-    assert "null" not in message, "what was typed is not echoed"
+    assert "null" not in message, "what was written is not echoed"
+
+
+def _a_json_null_password(root: Path) -> None:
+    """The one place left that hands the password no value: a null in a JSON file in config.d."""
+    directory = root / "xdg" / "soundtouch-zonemaster" / "config.d"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "50-password.json").write_text('{"database": {"password": null}}', encoding="utf-8")
 
 
 @pytest.mark.parametrize("spelling", NULL_SPELLINGS)
@@ -298,44 +305,48 @@ def test_a_password_spelled_null_in_the_environment_is_that_text(
     assert _run_with(monkeypatch, tmp_path).database_password == Secret(spelling)
 
 
-def test_a_password_set_to_json_null_refuses_the_start(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+@pytest.mark.parametrize("spelling", NULL_SPELLINGS)
+def test_a_password_set_to_null_on_the_command_line_is_that_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, spelling: str
 ) -> None:
-    """``--set database.password=null`` is the one way left to hand the password no value, and
-    somebody who typed it plainly wrote a setting: it must not quietly mean "no password"."""
-    envelope = _refused_start(
-        monkeypatch,
-        capsys,
-        "--set",
-        "database.password=null",
-        "--bind-ip",
-        "10.0.0.1",
-        "--database",
-        str(tmp_path / "z.sqlite"),
-    )
+    """``--set`` reads a value the way the environment layer does, secret keys included."""
+    options = _run_with(monkeypatch, tmp_path, "--set", f"database.password={spelling}")
+    assert options.database_password == Secret(spelling)
+
+
+def test_a_quoted_password_on_the_command_line_is_the_text_inside_the_quotes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The way to hand ``--set`` text that would otherwise be typed: quote it, as in a ``.env``."""
+    options = _run_with(monkeypatch, tmp_path, "--set", 'database.password="8675309"')
+    assert options.database_password == Secret("8675309")
+
+
+def test_a_json_null_password_in_a_config_file_refuses_the_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path, tmp_path: Path
+) -> None:
+    """Somebody who wrote the setting plainly meant one: a null must not quietly mean "no password"."""
+    _a_json_null_password(isolated_config_layers)
+    envelope = _refused_start(monkeypatch, capsys, "--bind-ip", "10.0.0.1", "--database", str(tmp_path / "z.sqlite"))
     _refuses_a_password_that_arrived_as_no_value(envelope)
 
 
-def test_a_password_set_to_a_json_string_null_is_that_text(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """The way out the refusal names: a JSON string is text, whatever it spells."""
-    options = _run_with(monkeypatch, tmp_path, "--set", 'database.password="null"')
-    assert options.database_password == Secret("null")
-
-
 @pytest.mark.parametrize("verb", [["switch"], ["channels", "export", "--output", "{out}"]], ids=["switch", "export"])
-def test_a_password_set_to_json_null_refuses_the_store_verbs(
+def test_a_json_null_password_in_a_config_file_refuses_the_store_verbs(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    isolated_config_layers: Path,
     tmp_path: Path,
     *,
     verb: list[str],
 ) -> None:
     """The store verbs read the password through the same boundary as the run, so they refuse it
     the same way, and open nothing."""
+    _a_json_null_password(isolated_config_layers)
     database = tmp_path / "z.sqlite"
     monkeypatch.setenv(f"{ENV_PREFIX}DATABASE__URL", str(database))
     argv = [part.format(out=tmp_path / "out.json") for part in verb]
-    envelope = _refused_start(monkeypatch, capsys, "--set", "database.password=null", *argv)
+    envelope = _refused_start(monkeypatch, capsys, *argv)
     _refuses_a_password_that_arrived_as_no_value(envelope)
     assert not database.exists(), "nothing was opened"
 

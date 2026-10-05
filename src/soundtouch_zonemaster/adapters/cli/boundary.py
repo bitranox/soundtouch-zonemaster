@@ -343,7 +343,7 @@ def database_text_or_refuse(value: object) -> str | None:
         return value
     message = (
         f"refused: {config_path_of(_DATABASE_FIELD)} arrived as {type(value).__name__}, not as text; "
-        "quote it in a config file, or use --set with a JSON string"
+        "quote it, in a config file or in --set"
     )
     raise OptionsError(message, exit_code=ExitCode.ERROR)
 
@@ -367,7 +367,7 @@ def password_text_or_refuse(value: object) -> str | None:
         return value
     message = (
         f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as {type(value).__name__}, not as text; "
-        "quote it in a config file, or use --set with a JSON string"
+        "quote it, in a config file or in --set"
     )
     raise OptionsError(message, exit_code=ExitCode.ERROR)
 
@@ -375,10 +375,11 @@ def password_text_or_refuse(value: object) -> str | None:
 def _refuse_a_malformed_password(configured: Mapping[str, Any]) -> None:
     """Refuse (exit 2) a password setting that is present but is not a password: no value, or not text.
 
-    ``--set`` reads the JSON ``null`` as no value. Passed on, that would mean "no password" while
-    somebody plainly wrote one, and ``config`` would still list the setting as coming from the
-    command line. The environment layer no longer produces it for this setting: it keeps ``null``
-    and ``none`` as text for a sensitive key, so a password spelled that way is that password.
+    A ``null`` in a JSON or YAML file in a ``config.d`` directory is no value. Passed on, that
+    would mean "no password" while somebody plainly wrote one, and ``config`` would still list the
+    setting as coming from that file. Nothing else produces it for this setting: the environment,
+    a ``.env`` and ``--set`` all keep ``null`` and ``none`` as text for a sensitive key, so a
+    password spelled that way there is that password.
     A setting that is absent, or empty text, stays "no password": only the mapping can tell
     absent from present-but-nothing, which is why this reads the mapping rather than the value.
     Anything else that is not text is refused by :func:`password_text_or_refuse`, the one rule for
@@ -393,7 +394,7 @@ def _refuse_a_malformed_password(configured: Mapping[str, Any]) -> None:
     if configured[_CREDENTIAL_FIELD] is None:
         message = (
             f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as no value, which is not the same as no password; "
-            "drop the --set for no password, or give the password as a JSON string"
+            "leave the setting out for no password, or write the password as text"
         )
         raise OptionsError(message, exit_code=ExitCode.ERROR)
     password_text_or_refuse(configured[_CREDENTIAL_FIELD])
@@ -523,7 +524,7 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     merged = merge_service_settings(
         configured=scoped_to_the_configured_database(configured, typed=database), given=given
     )
-    # The environment layer reads `null` and `none` as no value, and `--set` the JSON null. Left as
+    # The environment layer and `--set` read `null` and `none` as no value (text, for a secret). Left as
     # it arrived, pydantic would refuse a required field as not a string, naming the record field
     # rather than the setting. A null the layers wrote arrives here as a GivenAsNull and is refused
     # by where it was written; a bare None (a mapping not read through configured_settings) is
