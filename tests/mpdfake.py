@@ -67,6 +67,12 @@ class FakeMpd:
         self.playlists: dict[str, list[str]] = {} if playlists is None else dict(playlists)
         """Stored playlist to the files in it. ``load`` of one not in here adds nothing and still
         answers OK, which is what every test written before playlists had paths relies on."""
+        self.held: dict[str, asyncio.Event] = {}
+        """Command line to the event its answer waits for, which is MPD slow to answer one command.
+
+        The line is in :attr:`seen` before the wait, and nothing more is read from that connection
+        until the answer goes out - which is what a real daemon does with a command it is still
+        working on. Two callers sharing one connection is the case this exists to stage."""
         self.port = 0
         self.connections = 0
         """How many callers have connected, ever. A client that had to open a SECOND one is
@@ -142,6 +148,9 @@ class FakeMpd:
             if in_list:
                 self._keep_the_queue(line)
                 continue
+            release = self.held.get(line)
+            if release is not None:
+                await release.wait()
             writer.write(self._answer(line))
             await writer.drain()
 

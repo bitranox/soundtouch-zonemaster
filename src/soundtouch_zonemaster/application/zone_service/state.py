@@ -238,6 +238,21 @@ class ServiceState:
         from two independently scheduled tasks - the registry poll and the pass."""
         self._wanted = asyncio.Event()
         """Set by anything that changes the answer, cleared by the pass that acts on it."""
+        self._no_channel_starting_yet()
+
+    def _no_channel_starting_yet(self) -> None:
+        """The channel starts in flight, and what orders them: nothing has been started yet."""
+        self._starts_asked = 0
+        """How many channel starts have begun; each start keeps the count it began at as its token.
+
+        A start that finds the count moved on has been overtaken by a later one, and gives up
+        rather than load MPD or take the zone after it (``ZoneReconcile._start_the_channel``)."""
+        self._mpd_starts = asyncio.Lock()
+        """Held across the MPD half of a channel start, so two starts never talk to MPD at once.
+
+        There is one control connection, and every MPD channel names the one ``httpd`` url: two
+        loads interleaved on it, or landing in the wrong order, leave the zone carrying one
+        channel's playlist under another's name."""
         self._starting: set[asyncio.Task[None]] = set()
         """Channel starts running on their own, so a gesture never waits behind one.
 

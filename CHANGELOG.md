@@ -50,6 +50,13 @@ All notable changes to this project are documented here. The format follows
   fresh one as it always did after an idle timeout.
 - A connection to MPD that is given up while waiting for MPD's greeting (the service's deadline
   on every MPD exchange, or a channel start cancelled at stop) is closed instead of dropped open.
+- Numbers dialled in quick succession end on the last of them, in MPD and on the zone alike. A
+  channel start talks to MPD before the zone takes its station, so a number dialled while MPD
+  was still answering the one before could reach the zone first: the earlier press then played
+  while the house recorded the later one, and two starts sharing MPD's one control connection
+  could fail or load their playlists in the wrong order behind the one `httpd` stream. Starts
+  now talk to MPD one at a time, and a start that a later one has overtaken gives up without
+  loading MPD or switching the zone.
 
 ## [0.6.1] 2026-10-01 18:27:58
 

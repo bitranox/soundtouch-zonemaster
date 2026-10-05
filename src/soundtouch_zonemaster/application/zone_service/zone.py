@@ -483,14 +483,31 @@ class ZoneReconcile(VolumeGuard):
         silent: the feature works when a box is switched on and not when somebody presses the
         number, which is the half a person uses. Here, a third caller cannot forget what it does
         not have to remember.
+
+        **Only the latest start may finish.** Starts run concurrently (a dialled one is a task of
+        its own), and this one awaits MPD before ``play`` takes its generation, so without an order
+        a second number dialled while MPD answered the first could reach ``play`` first and the
+        EARLIER press would win the zone while ``_channel`` named the later one. So each start takes
+        a token before its first suspension, holds ``_mpd_starts`` across the MPD half, and gives up
+        on finding a later token - on entering the lock (it never touches MPD) or after MPD has
+        answered (the later start loads MPD after it). A radio channel goes through the same token,
+        because it overtakes an MPD channel and is overtaken by one alike.
         """
-        await self._remember_where_mpd_is()
-        if channel.kind is ChannelKind.MPD:
-            await self._put_mpd_on(channel)
-        # The fetch completes the channel's own url itself, waiting for the registry and forgetting
-        # a base that failed. The item every slave is shown takes the speaker's form, which never
-        # waits: nothing may suspend between here and play() taking its generation, or a number
-        # dialled later that got there first would lose to this one (starts run concurrently).
+        self._starts_asked += 1
+        mine = self._starts_asked
+        async with self._mpd_starts:
+            if mine != self._starts_asked:
+                return
+            await self._remember_where_mpd_is()
+            if channel.kind is ChannelKind.MPD:
+                await self._put_mpd_on(channel)
+            if mine != self._starts_asked:
+                return
+        # From the lock's release to play() taking its generation nothing may suspend: releasing
+        # it does not, and the item every slave is shown takes the speaker's form, which never
+        # waits (the fetch completes the channel's own url itself, waiting for the registry). A
+        # start let into the lock by this release therefore reaches play() after this one does,
+        # and its later generation wins there as its later token won here.
         location = self.locations.for_a_speaker(channel.url)
         station = await master.play(
             StationRequest(

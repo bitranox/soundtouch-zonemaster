@@ -62,7 +62,7 @@ from soundtouch_zonemaster.adapters.soundtouch.orion import ORION_FALLBACK_PATH,
 from soundtouch_zonemaster.adapters.soundtouch.pb import audio
 from soundtouch_zonemaster.adapters.soundtouch.reports import SlaveState
 from soundtouch_zonemaster.adapters.soundtouch.speaker_http import SPEAKER_HTTP_TIMEOUT_S, http_get
-from soundtouch_zonemaster.adapters.soundtouch.zone_master import ZoneMaster
+from soundtouch_zonemaster.adapters.soundtouch.zone_master import FIRST_BYTES_TIMEOUT_S, ZoneMaster
 from soundtouch_zonemaster.application.errors import StoreError
 from soundtouch_zonemaster.application.options import ChannelPolicy, ServiceOptions
 from soundtouch_zonemaster.application.zone_service.constants import (
@@ -95,11 +95,13 @@ if TYPE_CHECKING:
         HouseStore,
         ServiceStore,
         SpeakerWatch,
+        ZoneMasterPort,
         ZoneServicePorts,
     )
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.preferences import PreferenceRow, PreferenceValue
     from soundtouch_zonemaster.domain.secret import Secret
+    from soundtouch_zonemaster.domain.station import Station, StationRequest
 
 MASTER = "127.0.0.10"
 """An address of the master's own, which nothing else in this file binds or connects from.
@@ -4263,6 +4265,99 @@ async def test_dialling_a_second_mpd_channel_moves_the_house_although_both_name_
             assert not any("already playing it" in line for line in logs), (
                 "two channels that share an url are still two channels"
             )
+
+
+class _CountsItsStarts(ZoneService):
+    """The service, saying which channel starts it has begun and how many still run on their own."""
+
+    def __init__(self, options: ServiceOptions, *, log: LogFn, ports: ZoneServicePorts) -> None:
+        super().__init__(options, log=log, ports=ports)
+        self.begun: list[str] = []
+        """The channel number of every start, appended in the step the start itself begins in."""
+
+    async def _start_the_channel(self, master: ZoneMasterPort, channel: Channel) -> None:
+        self.begun.append(channel.number)
+        await super()._start_the_channel(master, channel)
+
+    def starts_in_flight(self) -> int:
+        return len(self._starting)
+
+
+async def test_numbers_dialled_while_mpd_loads_the_first_end_on_the_last_in_mpd_and_on_the_zone(
+    world: World, tmp_path: Path
+) -> None:
+    """MPD channels dialled close together end on the LAST of them, in MPD and on the zone.
+
+    A dialled start awaits MPD before the master takes its generation, so a number dialled while
+    MPD is still answering the one before can overtake it: the earlier press then won the zone
+    while the house recorded the later one. And every start talks to MPD on its one control
+    connection, so their loads could reach MPD in either order - every MPD channel names the same
+    ``httpd`` url, so the zone would carry one playlist under another channel's name.
+
+    MPD's answer to the first ``load`` is held until two more starts are in flight, so the middle
+    one is overtaken while it still waits to talk to MPD and must not load anything at all. The
+    end state is asserted on both sides, because either alone could be right while the other is
+    wrong; single-digit numbers keep the hold well inside MPD's own timeout.
+    """
+    async with _mpd() as fake:
+        options = _with_mpd(_options(world, tmp_path, seed=True, dial_window_s=0.5), fake)
+        one_output = f"{world.station_url}?c=mpd"
+        _save_channels(
+            options,
+            ChannelList(
+                channels=(
+                    Channel(number="1", name="One", kind=ChannelKind.RADIO, url=f"{world.station_url}?c=1"),
+                    Channel(number="2", name="Hoerbuecher", kind=ChannelKind.MPD, url=one_output, mpd_entry="books"),
+                    Channel(number="3", name="Kindermusik", kind=ChannelKind.MPD, url=one_output, mpd_entry="kids"),
+                    Channel(number="4", name="Krimis", kind=ChannelKind.MPD, url=one_output, mpd_entry="crime"),
+                )
+            ),
+        )
+        first_load = 'load "books"'
+        released = asyncio.Event()
+        fake.held[first_load] = released
+        plays: list[str] = []
+
+        class _RecordsItsPlays(ZoneMaster):
+            """The real master, writing down the name of every station a start asked it to play."""
+
+            async def play(
+                self, request: StationRequest, *, first_bytes_timeout_s: float = FIRST_BYTES_TIMEOUT_S
+            ) -> Station | None:
+                plays.append(request.name)
+                return await super().play(request, first_bytes_timeout_s=first_bytes_timeout_s)
+
+        ports = replace(build_production().zone_ports, open_zone_master=_RecordsItsPlays)
+        logs: list[str] = []
+        service = _CountsItsStarts(options, log=recording_into(logs), ports=ports)
+        task = asyncio.create_task(service.run())
+        try:
+            await _both_wake(world)
+            assert _station_name(service) == "One", "the control: the house starts on the radio channel"
+
+            await _press_preset(world.studio, STUDIO_ID, 2)
+            await eventually(lambda: first_load in fake.seen, "mpd was asked for the first book")
+            for number in ("3", "4"):
+                await _press_preset(world.studio, STUDIO_ID, int(number))
+                await eventually(lambda n=number: n in service.begun, f"the start of {number} began behind it")
+            assert not released.is_set(), "the control: mpd had not answered the first load yet"
+            released.set()
+
+            await eventually(lambda: service.starts_in_flight() == 0, "every start is over")
+            loads = [line for line in fake.seen if line.startswith("load ")]
+            assert loads == ['load "books"', 'load "crime"'], f"mpd was not left on the last channel alone: {loads}"
+            assert fake.seen[-1] == "play 0", fake.seen
+            assert _station_name(service) == "Krimis", "an earlier press won the zone"
+            # An overtaken start gives up before play() as well: one that played anyway would switch
+            # every room onto the earlier book for as long as the later start took, then re-buffer.
+            assert plays == ["One", "Krimis"], f"an overtaken start still asked for its station: {plays}"
+            assert _state_of(options).channel == "4"
+            assert not any("starting a channel" in line for line in logs), logs
+        finally:
+            released.set()
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 async def test_an_mpd_that_cannot_be_reached_at_all_is_said_by_name_and_costs_no_zone(
