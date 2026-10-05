@@ -62,6 +62,17 @@ All notable changes to this project are documented here. The format follows
   context happened on the loop the first time a client was built or used, a stall of tens of
   milliseconds at the registry warm-up of every start; they now happen when the program starts.
   Every client shares that one SSL context rather than building its own for each speaker call.
+- A speaker switched off while the service starts is no longer taken into the zone. The start
+  asks every speaker what it is playing, and a speaker still on the service's stream from a run
+  that ended without dissolving the zone used to be taken in on that answer even when it had
+  switched itself off before the answer arrived: the frame saying so was read only after the
+  start. Frames are now read while the start asks, so an answer the speaker has contradicted
+  since is dropped, at start as in every later round.
+- A speaker switched on while it is being asked what it is playing is taken into the zone on that
+  one switch-on. Its answer, STANDBY, is dropped because the speaker named a source since, and
+  the speaker then read as simply playing its own radio and stayed out until it was switched on
+  a second time. A STANDBY answer followed by a frame naming internet radio now counts as the
+  wake it is, at start and when the registry lists a speaker for the first time.
 
 ## [0.6.1] 2026-10-01 18:27:58
 

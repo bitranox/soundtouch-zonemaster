@@ -51,15 +51,21 @@ class ZoneService(KeyReading):
         """
         workers: list[asyncio.Task[None]] = []
         try:
+            # The reader BEFORE the start-up, because the observers start inside it (at the
+            # registry read) and the start then asks every box what it is playing. A frame a box
+            # sends while that answer is on the wire is the newer word, and the answer is dropped
+            # only if the reader has counted that frame - so with the reader started afterwards, a
+            # box switched off during the start was taken in on its stale answer. Nothing it reads
+            # can arrive before the first observer exists, and everything it touches is set by then.
+            workers.append(asyncio.create_task(self._read_what_the_speakers_say()))
             # Inside the try, because starting up is where the zone is FIRST taken: a stop that
             # lands in here - systemd stopping a service it has just started, or the first read
             # of a slow registry - would otherwise leave speakers in a zone and the ports bound.
             await self._start_up()
-            workers = [
+            workers += [
                 asyncio.create_task(self._watch_the_switch()),
                 asyncio.create_task(self._watch_the_preferences()),
                 asyncio.create_task(self._poll_the_registry()),
-                asyncio.create_task(self._read_what_the_speakers_say()),
                 asyncio.create_task(self._reconcile_when_asked()),
                 asyncio.create_task(self._complete_dialled_numbers()),
             ]
@@ -79,7 +85,7 @@ class ZoneService(KeyReading):
             await self._stand_down()
 
     async def _start_up(self) -> None:
-        """Everything that has to be true before the first event is read."""
+        """Everything that has to be true before the first pass; the reader runs from the registry read on."""
         state = await self.store.load_state()
         self._channel = state.channel
         self._believed = state.members
@@ -110,6 +116,11 @@ class ZoneService(KeyReading):
         # first station of every run built that document before anything had asked. A registry
         # that is slow or gone costs nothing here - the read is bounded, and the stand-down ends it.
         self.locations.warm()
+        # Before the registry read starts the observers, because the reader is already running and
+        # a press it reads asks whether the house is switched off: left at its default until the
+        # end of the start, a press made at a box while the house is off would act. Read again
+        # below, right before the first pass, since the asks in between can take seconds.
+        self._on = await self.switch.is_on()
         await self._read_the_registry()
         # AFTER the registry, not before it: the saved state remembers a device id and a level, and
         # the address to send that level to is what the registry answers. Called any earlier it

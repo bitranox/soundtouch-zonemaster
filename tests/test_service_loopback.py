@@ -6039,6 +6039,124 @@ async def test_an_answer_the_box_contradicted_on_the_way_is_dropped_and_leaves_i
         await eventually(lambda: HALLWAY_IP in _slaves(service), "the control: a real wake takes it in", timeout=5.0)
 
 
+async def test_a_box_switched_off_while_the_start_asks_it_is_not_taken_in_on_its_answer(
+    world: World, tmp_path: Path
+) -> None:
+    """The start's own round reads the frames sent during it, so a stale answer cannot take a box in.
+
+    A previous run died without dissolving the zone: the studio is remembered as a member and is
+    still on our stream. The start asks it what it plays, the box takes its answer as the question
+    arrives, and the body is held on the wire while somebody switches the box off and it says
+    STANDBY. The reader used to start only once the start-up was over, so that frame sat in the
+    queue unread, the stale "our stream" was taken, and the start's first pass took into the zone a
+    box a person had just switched off. The frame is read while the round is out now, so the answer
+    is dropped exactly as it is in any later round.
+
+    The last step is the liveness pair: the same box, really switched on afterwards, IS taken in.
+    """
+    options = _options(world, tmp_path)
+    _save_state(options, ZoneState(channel="1", members=(STUDIO_ID,)))
+    world.studio.now_playing = now_playing_document(device_id=STUDIO_ID, source=RADIO, owner=MASTER_ID)
+    released = asyncio.Event()
+    world.studio.held["/now_playing"] = released
+    logs: list[str] = []
+    frames = _Frames()
+
+    async with _running(options, logs, ports=_relaying(frames)) as service:
+        try:
+            await eventually(lambda: "/now_playing" in world.studio.paths(), "the start asked the studio what it plays")
+            await world.studio.notify(now_playing_frame(device_id=STUDIO_ID, source=SourceName.STANDBY))
+            await eventually(
+                lambda: any(
+                    event.device_id == STUDIO_ID and event.source == SourceName.STANDBY for event in frames.put
+                ),
+                "the studio's STANDBY reached the reader's queue while its answer was on the wire",
+            )
+        finally:
+            released.set()
+        await eventually(lambda: _answered(logs, "Bose Studio", RADIO), "the held answer arrived")
+        # Both arms reach this: a start that took the answer joins the studio in its first pass and
+        # lets it go once the queued frame is read afterwards, so the join is already on the wire.
+        await eventually(lambda: believed(options) == (), "the switched-off box was written out of the zone")
+        assert joins(world.studio) == [], "the start took in a box somebody switched off while it was asked"
+        assert service.policy.is_asleep(STUDIO_ID), "the frame, not the stale answer, placed the box"
+
+        await world.studio.notify(now_playing_frame(device_id=STUDIO_ID, source=RADIO))
+        await eventually(lambda: STUDIO_IP in _slaves(service), "the control: a real wake takes it in", timeout=5.0)
+
+
+def _source_read_to_the_end(service: ZoneService, frames: _Frames, device_id: str, source: str) -> bool:
+    """Whether the reader has taken a frame naming ``source`` from ``device_id`` and done with it."""
+    put = any(event.device_id == device_id and event.source == source for event in frames.put)
+    return put and service.events.empty()
+
+
+async def _switched_on_while_its_standby_answer_is_held(
+    world: World, service: ZoneService, frames: _Frames, logs: list[str], released: asyncio.Event
+) -> None:
+    """The hallway is asked, switched on while its STANDBY answer is held, and the answer released.
+
+    Released only once the reader has read the RADIO frame to the end, so the answer arrives
+    after a frame of the box's own and is dropped - the path under test, said in the log.
+    """
+    try:
+        await eventually(lambda: "/now_playing" in world.hallway.paths(), "the hallway was asked what it plays")
+        await world.hallway.notify(now_playing_frame(device_id=HALLWAY_ID, source=RADIO))
+        await eventually(
+            lambda: _source_read_to_the_end(service, frames, HALLWAY_ID, RADIO),
+            "the reader read the hallway switching on while its answer was on the wire",
+        )
+    finally:
+        released.set()
+    await eventually(lambda: _answered(logs, "Bose Hallway", SourceName.STANDBY), "the held answer arrived")
+    assert not _said(logs, f"probe: Bose Hallway: {SourceName.STANDBY}"), "the stale answer was taken, not dropped"
+
+
+async def test_a_box_switched_on_while_the_start_asks_it_is_taken_in_on_that_one_wake(
+    world: World, tmp_path: Path
+) -> None:
+    """An answer is the box's state when it answered: STANDBY then a source read since is a wake.
+
+    The start asks the hallway what it plays; it answers STANDBY as the question arrives, and the
+    body is held on the wire while somebody switches it on and it names its own station. That
+    frame is newer, so the answer is dropped - and dropped alone, the frame arrived with nothing
+    before it, read as a box simply playing its own radio, and the box stayed out until it was
+    switched on a SECOND time. The two together are the standby-to-radio transition a wake is.
+    """
+    released = asyncio.Event()
+    world.hallway.held["/now_playing"] = released
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    frames = _Frames()
+
+    async with _running(options, logs, ports=_relaying(frames)) as service:
+        await _switched_on_while_its_standby_answer_is_held(world, service, frames, logs, released)
+        await eventually(lambda: HALLWAY_IP in _slaves(service), "the one wake took the hallway in", timeout=5.0)
+
+
+async def test_a_box_listed_later_and_switched_on_while_it_is_asked_is_taken_in_on_that_one_wake(
+    world: World, tmp_path: Path
+) -> None:
+    """The same wake read across a dropped answer, in a round the registry poll opens mid-run.
+
+    The hallway is listed only after the start, so its round runs with the reader already going:
+    this gap did not need the start-up's ordering to open, and closing it at start alone would
+    leave it here.
+    """
+    entries = _listed_mid_run(world, HALLWAY_ID)
+    released = asyncio.Event()
+    world.hallway.held["/now_playing"] = released
+    options = _options(world, tmp_path)
+    logs: list[str] = []
+    frames = _Frames()
+
+    async with _running(options, logs, ports=_relaying(frames)) as service:
+        await eventually(lambda: _said(logs, f"({STUDIO_ID}) at {STUDIO_IP}"), "the start read the registry")
+        world.registry.body = json.dumps(entries)
+        await _switched_on_while_its_standby_answer_is_held(world, service, frames, logs, released)
+        await eventually(lambda: HALLWAY_IP in _slaves(service), "the one wake took the hallway in", timeout=5.0)
+
+
 async def test_a_frame_that_names_no_source_leaves_an_answer_on_the_way_standing(world: World, tmp_path: Path) -> None:
     """A touch says nothing about what a box plays, so the answer read after it is still news.
 

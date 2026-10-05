@@ -186,8 +186,8 @@ class Membership:
         ``nowPlayingUpdated`` in which it says it has left standby (four wakes, 2026-09-07).
 
         A box nobody has heard a source from is NOT asleep. The service asks every box what it is
-        playing when the registry first lists it - at start before any frame is read, later right
-        after the read that listed it - so the unknown case is the gap between a box being listed
+        playing when the registry first lists it - at start and later alike, right after the read
+        that listed it - so the unknown case is the gap between a box being listed
         and its answer arriving, or a box that never answered. Treating that as awake costs at most
         one channel change the person asked for.
         """

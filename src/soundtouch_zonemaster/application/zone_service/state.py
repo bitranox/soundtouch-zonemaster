@@ -310,6 +310,12 @@ class ServiceState:
         ``received_at``, because the order the reader took things in cannot be undone by a wall
         clock set back between the question and the frame. Not ``Membership``'s ``last_seen``: that
         one also moves on a state report that says nothing about the source."""
+        self._last_source_frame: dict[str, SpeakerEvent] = {}
+        """The newest frame in which each box named its source, kept beside the count above.
+
+        What a dropped STANDBY answer is read against: when that frame names something else, the
+        box was switched on after it answered, and the two together are the wake neither one is
+        alone (``SpeakerBook._ask_what_it_is_playing``)."""
         self._registry_wanted = asyncio.Event()
         """Set when the registry must be read before the next poll: a console has just been allowed.
 

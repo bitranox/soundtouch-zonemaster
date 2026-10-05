@@ -17,6 +17,7 @@ import time
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from ...domain.enums import SourceName
 from ...domain.logfn import ERROR_KIND
 from ..errors import RegistryError
 from .channels import ChannelBook
@@ -259,6 +260,7 @@ class SpeakerBook(ChannelBook):
                 f"{speaker.name} answered {event.source}, but it has named a source itself since it was "
                 "asked; what it said last stands",
             )
+            self._switched_on_after_it_answered(speaker, event)
             return
         self.log("probe", f"{speaker.name}: {event.source}")
         if self._noted_switched_on(event, at=together.slot_for(speaker.device_id)):
@@ -268,10 +270,34 @@ class SpeakerBook(ChannelBook):
         # box in the zone (it plays the house's stream), and the pass is what acts on that.
         self._wanted.set()
 
+    def _switched_on_after_it_answered(self, speaker: Speaker, answer: SpeakerEvent) -> None:
+        """A dropped STANDBY answer followed by a frame naming a source: the wake the two make together.
+
+        An answer is the box's state at the moment it answered, so STANDBY there and a source in a
+        frame read since is a box switched on AFTER it answered - the standby-to-something
+        transition a wake is, observed across the two. Dropping the answer alone loses it: the
+        frame then arrives with nothing before it, reads as a box simply playing its own radio, and
+        the box stays out until somebody switches it on a second time.
+
+        Read through ``Membership.observe`` in the order the box said them, the answer and then the
+        newest frame again, so that the membership rule alone decides what the transition means -
+        internet radio begins a wake, anything else (AUX above all) does not. The other way round
+        needs nothing: an answer naming a source followed by a STANDBY frame is a box switched off
+        after it answered, and dropping the answer is already the whole of it.
+        """
+        newest = self._last_source_frame.get(speaker.device_id)
+        if answer.source != SourceName.STANDBY or newest is None or newest.source == SourceName.STANDBY:
+            return
+        self.log("probe", f"{speaker.name} was switched on after it answered STANDBY; read as the wake it is")
+        self.policy.observe(answer)
+        self.policy.observe(newest)
+        self._wanted.set()
+
     def _a_frame_named_a_source(self, event: SpeakerEvent) -> None:
         """Count a frame in which a box said what it is playing: newer than any answer asked for before it."""
         if event.device_id and event.source is not None:
             self._source_frames[event.device_id] = self._source_frames.get(event.device_id, 0) + 1
+            self._last_source_frame[event.device_id] = event
 
     def _named(self, event: SpeakerEvent) -> SpeakerEvent:
         """A forwarded key press names its speaker by ADDRESS; the registry turns that into an id.
