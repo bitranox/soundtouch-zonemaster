@@ -135,17 +135,18 @@ def test_a_database_url_in_a_directory_that_does_not_exist_is_not_refused_at_the
     assert database == "sqlite:////nonexistent-directory/zonemaster.sqlite"
 
 
-def test_the_old_files_are_no_longer_required(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    seen: list[ServiceOptions] = []
+@pytest.mark.parametrize("flag", ["--channel-file", "--switch-file", "--state-file"])
+def test_the_old_file_options_are_not_options_any_more(
+    flag: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The three files from before the house database are gone with their one-time import. A unit
+    still passing one must FAIL rather than start with it ignored, for the reason
+    ``--seed-from`` gives below: a silently accepted option would hide that the unit was never
+    updated."""
+    monkeypatch.setattr("sys.argv", _argv(tmp_path, flag, str(tmp_path / "old")))
 
-    async def remember(options: ServiceOptions) -> int:
-        seen.append(options)
-        return 0
-
-    monkeypatch.setattr("sys.argv", _argv(tmp_path))
-    assert main(run_service=remember) == 0
-    assert seen[0].database == str(tmp_path / "zonemaster.sqlite")
-    assert (seen[0].state_file, seen[0].channel_file, seen[0].switch_file) == (None, None, None)
+    assert main(run_service=_refuse_to_run) == 2
+    assert flag.removeprefix("--") in capsys.readouterr().err
 
 
 def test_a_device_id_that_is_not_twelve_hex_digits_is_refused(
@@ -169,47 +170,6 @@ def test_naming_a_speaker_to_seed_from_is_not_an_option_any_more(
     assert "seed-from" in capsys.readouterr().err
 
 
-def test_a_state_file_in_a_directory_that_does_not_exist_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
-) -> None:
-    """Refused now rather than hours later, when the first speaker joins and nothing can be saved."""
-    monkeypatch.setattr("sys.argv", _argv(tmp_path, "--state-file", str(tmp_path / "nope" / "state.json")))
-
-    assert main(run_service=_refuse_to_run) == 1
-    assert "nope" in capsys.readouterr().err
-
-
-def test_a_channel_file_in_a_directory_that_does_not_exist_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
-) -> None:
-    """The same refusal as the state file, for the same reason and one worse consequence.
-
-    A typo here is ACCEPTED at startup: no file in a directory that is not there reads exactly
-    like a first run, so the list is seeded in memory, the house plays, and the crash arrives on
-    the first save - hours later, with nothing on screen connecting it to what was typed. Then it
-    happens again at every restart.
-    """
-    monkeypatch.setattr("sys.argv", _argv(tmp_path, "--channel-file", str(tmp_path / "nope" / "channels.json")))
-
-    assert main(run_service=_refuse_to_run) == 1
-    assert "nope" in capsys.readouterr().err
-
-
-def test_a_switch_file_in_a_directory_that_does_not_exist_is_refused(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
-) -> None:
-    """A typo here cannot be turned off, which is the one direction the switch must never fail in.
-
-    The file itself is allowed to be missing - that is what nobody having turned anything off
-    looks like - but its directory is not, because the operator then writes "off" into the path
-    they meant and the service goes on reading the path they typed, for ever, saying on.
-    """
-    monkeypatch.setattr("sys.argv", _argv(tmp_path, "--switch-file", str(tmp_path / "nope" / "zone.switch")))
-
-    assert main(run_service=_refuse_to_run) == 1
-    assert "nope" in capsys.readouterr().err
-
-
 def test_what_was_typed_is_what_the_service_is_handed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     seen: list[ServiceOptions] = []
 
@@ -227,21 +187,15 @@ def test_what_was_typed_is_what_the_service_is_handed(monkeypatch: pytest.Monkey
             "60",
             "--registry-url",
             "http://127.0.0.1:9000",
-            "--channel-file",
-            str(tmp_path / "channels.json"),
-            "--state-file",
-            str(tmp_path / "zone-state.json"),
         ),
     )
 
     assert main(run_service=capture) == 0
     options = seen[0]
     assert options.bind_ip == "203.0.113.190"
-    assert options.channel_file == tmp_path / "channels.json"
     assert options.consoles_allowed == ("AABBCC000012",)
     assert options.unreachable_timeout_s == 60
     assert options.registry_url == "http://127.0.0.1:9000"
-    assert options.state_file == tmp_path / "zone-state.json"
 
 
 def test_machine_mode_puts_one_envelope_on_stdout_and_the_narration_on_stderr(
@@ -350,39 +304,6 @@ def test_a_refusal_carries_no_traceback(
     assert "Traceback" not in err, "a refusal is an answer, not a crash"
 
 
-def test_an_old_channel_file_the_import_cannot_read_refuses_the_start_by_name(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
-) -> None:
-    """The real run, stopped by the house database before a port is bound or a speaker touched.
-
-    The list is the only copy of something a person built, so an old file that cannot be read is
-    not imported as nothing: the start is refused naming the file, which is a refusal and an
-    answer rather than a crash, so it carries no traceback. Nothing is renamed either, so the file
-    is still there for the person who has to repair it.
-    """
-    broken = tmp_path / "channels.json"
-    broken.write_text("{not json", encoding="utf-8")
-    monkeypatch.setattr("sys.argv", _argv(tmp_path, "--json-bare", "--channel-file", str(broken)))
-
-    bound = _Bound()
-    rc = main(run_service=_hold_the_zone_bounded(bound))
-    assert not bound.timed_out, _BOUND_FIRED_MESSAGE
-    assert rc == 2
-
-    captured = capsys.readouterr()
-    envelope = json.loads(captured.out)
-    assert envelope["ok"] is False
-    assert envelope["error"] == "StoreError"
-    assert "channels.json" in envelope["message"]
-    assert "Traceback" not in captured.err, "a refused start is an answer, not a crash"
-    assert broken.exists(), "and the file is left where the person who has to fix it will look"
-    # The flock is released too (OPEN-WORK rank 205): import_legacy raises inside the run's own
-    # try/finally around store.close(), so a refused start must not leave the database held.
-    recovery = SqlHouseStore(str(tmp_path / "zonemaster.sqlite"), log=log)
-    recovery.open(exclusive=True)
-    recovery.close()
-
-
 def test_a_database_another_service_holds_refuses_the_start_as_busy(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
@@ -449,9 +370,6 @@ def test_a_database_url_carrying_a_password_is_refused_without_repeating_it(data
         parse_service_options(
             bind_ip="127.0.0.1",
             device_id=None,
-            channel_file=None,
-            switch_file=None,
-            state_file=None,
             database=database,
             registry_url=None,
             allow_console=(),

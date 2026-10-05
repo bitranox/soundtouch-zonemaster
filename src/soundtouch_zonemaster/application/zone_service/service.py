@@ -33,13 +33,11 @@ class ZoneService(KeyReading):
 
         The store is opened OUTSIDE the stand-down's ``try``: a database another service holds, or
         one that cannot be read, refuses the start before a port is bound or a speaker is touched,
-        so there is nothing to stand down. The old files are imported before the first read of it,
-        and an old file that cannot be read refuses the start the same way. It is closed LAST,
-        because the stand-down still writes where MPD was.
+        so there is nothing to stand down. It is closed LAST, because the stand-down still writes
+        where MPD was.
         """
         await self.store.open(exclusive=True)
         try:
-            await self.store.import_legacy(self.options.legacy)
             await self._hold()
         finally:
             await self.store.close()

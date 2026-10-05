@@ -1,8 +1,8 @@
 """What survives a restart, as rows: one table per field of :class:`ZoneState` that is a collection.
 
 The channel sits in the one-row ``zone`` table. That row is also what tells a database that
-has never held a state from one holding an EMPTY state: the legacy importer (``legacy_import``)
-may fill the first and must not overwrite the second.
+has never held a state from one holding an EMPTY state, which :func:`read_state` answers as
+``None`` and as an empty record respectively.
 
 Every write REPLACES the whole state inside the caller's transaction, which is what the service
 has always done with the file: the record is small, the writer is one, and a partial update

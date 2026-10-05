@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, insert, select
 
 from ...application.errors import StoreError
 from .channel_file import ChannelDocument, ChannelListDocument
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from ...domain.channellist import Channel, ChannelList
 
-__all__ = ["channel_count", "read_channels", "write_channels"]
+__all__ = ["read_channels", "write_channels"]
 
 _COLUMNS = (
     CHANNEL.c.number,
@@ -37,11 +37,6 @@ _COLUMNS = (
     CHANNEL.c.in_rotation,
     CHANNEL.c.at_end,
 )
-
-
-def channel_count(connection: Connection) -> int:
-    """How many channels the database holds; zero is the part the importer may fill."""
-    return int(connection.scalar(select(func.count()).select_from(CHANNEL)) or 0)
 
 
 def read_channels(connection: Connection, *, where: str) -> ChannelList:
@@ -59,9 +54,9 @@ def read_channels(connection: Connection, *, where: str) -> ChannelList:
 def write_channels(connection: Connection, channels: ChannelList, *, where: str) -> None:
     """Replace the whole list, keeping its order. The caller holds the transaction.
 
-    Nothing in the domain refuses two channels sharing a number, and a hand-edited legacy
-    ``channels.json`` can hold one. It is refused HERE, by name and before anything is written,
-    rather than left to the UNIQUE index: the index's error differs per backend and names
+    Nothing in the domain refuses two channels sharing a number, and a hand-edited ``channels.json``
+    handed to ``channels import`` can hold one. It is refused HERE, by name and before anything is
+    written, rather than left to the UNIQUE index: the index's error differs per backend and names
     whichever duplicate it met first, and on PostgreSQL it would also abort the transaction under
     the caller's feet. The index stays, for a row written past this function.
     """

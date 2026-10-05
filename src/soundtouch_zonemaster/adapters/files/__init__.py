@@ -1,4 +1,4 @@
-"""The files this service owns: the switch it is steered by, the state and the channel list."""
+"""The house database (state, channel list, switch, preferences) and the channel-list file it exports to."""
 
 from __future__ import annotations
 

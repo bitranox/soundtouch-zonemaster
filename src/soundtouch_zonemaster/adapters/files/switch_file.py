@@ -1,8 +1,9 @@
-"""The old switch file, read once as a one-time import source.
+"""The old switch file ``zone.switch``, from before the house database.
 
 The service reads the switch from its row in the house database (``house_switch.py``), never from
-this file. ``legacy_import.py`` reads the file once, when the database has no switch row yet,
-and writes what it said into that row.
+this file. Its one reader is the installer's ``tools/service_venv.py seed-switch``, which takes
+the word of an old file beside a database it has just CREATED as that database's first switch row,
+because it is what the operator last said.
 
 **Off only when the file says so.** Missing, empty, unreadable, or holding something nobody
 recognises all mean ON - the rule the row follows too, for the same reason: a lost switch cannot
@@ -34,7 +35,7 @@ __all__ = ["Switch"]
 
 
 class Switch:
-    """The old switch file: read once by the legacy import, or watched by polling it."""
+    """The old switch file: read once by the installer's switch seed, or watched by polling it."""
 
     def __init__(self, path: Path, *, log: LogFn, poll_s: float = POLL_S) -> None:
         self.path = path

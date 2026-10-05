@@ -11,7 +11,7 @@ thing it meant to exercise was never written.
 
 Nothing the database library raises leaves this class: every error becomes a ``StoreError``
 naming the database, which is the one type the service and the CLI are written to refuse on. The
-switch is the exception by design - a read that fails is ON, as it was for the switch file.
+switch is the exception by design - a read that fails is ON (``house_switch.py`` says why).
 """
 
 from __future__ import annotations
@@ -33,13 +33,11 @@ from .house_db import HouseDatabase, reason_for
 from .house_preferences import delete_preference, read_preferences, write_preference
 from .house_state import read_state, write_state
 from .house_switch import read_switch, write_switch
-from .legacy_import import import_legacy
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping
     from pathlib import Path
 
-    from ...application.options import LegacyFiles
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
     from ...domain.preferences import PreferenceName, PreferenceRow, PreferenceSource, PreferenceValue
@@ -97,11 +95,6 @@ class SqlHouseStore:
         finally:
             self._house = None
             self._exclusive = False
-
-    def import_legacy(self, files: LegacyFiles) -> None:
-        self._require_exclusive(what="importing the old files")
-        with self._guarded():
-            import_legacy(self._db, files, log=self.log)
 
     def load_state(self) -> ZoneState:
         with self._guarded(), self._db.reading() as connection:

@@ -59,10 +59,7 @@ class ServiceReport(BaseModel):
     bind_ip: str
     device_id: str
     database: str
-    channel_file: str | None
     registry_url: str
-    switch_file: str | None
-    state_file: str | None
     exit_code: int
 
 
@@ -111,22 +108,7 @@ def service_options(func: Callable[..., Any]) -> Callable[..., Any]:
         option("--mpd-port", default=None, type=int, help="the control port MPD answers on"),
         option("--mpd-host", default=None, help="where MPD answers, for channels whose sound it holds"),
         option("--database", default=None, help="the house database: state, channel list and switch"),
-        option(
-            "--state-file",
-            default=None,
-            help="the state as a file, from before the database: imported once, then renamed <name>.imported",
-        ),
-        option(
-            "--switch-file",
-            default=None,
-            help="the switch as a file, from before the database: imported once, then renamed <name>.imported",
-        ),
         option("--dial-window-s", default=None, type=float, help="how long digits are collected into one number"),
-        option(
-            "--channel-file",
-            default=None,
-            help="the channel list as a file, from before the database: imported once, then renamed <name>.imported",
-        ),
         option("--device-id", default=None, help="twelve hex digits; a MAC, as a speaker has"),
         option("--bind-ip", default=None, help="address the master serves on; the speakers must reach it"),
     ):
@@ -142,9 +124,6 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
     *,
     bind_ip: str | None,
     device_id: str | None,
-    channel_file: str | None,
-    switch_file: str | None,
-    state_file: str | None,
     database: str | None,
     registry_url: str | None,
     allow_console: tuple[str, ...],
@@ -184,9 +163,6 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
         options = parse_service_options(
             bind_ip=bind_ip,
             device_id=device_id,
-            channel_file=channel_file,
-            switch_file=switch_file,
-            state_file=state_file,
             database=database,
             registry_url=registry_url,
             allow_console=allow_console,
@@ -218,16 +194,15 @@ def cli(  # noqa: PLR0913 - a click callback's signature IS the option list; sho
         report_failure(exc, command=service_command, mode=shared.mode)
         ctx.exit(ExitCode.REFUSED)
     except StoreError as exc:
-        # The database, or an old file it was to import, cannot be used, and the message names it:
-        # an answer rather than a crash, because a stack under it would bury the one line a person
-        # has to act on. This branch wraps the WHOLE run, not only its start. Most StoreErrors come
-        # from open() and import_legacy(), before a port is bound or a speaker touched, and are a
-        # refused start. Not all: a save the service awaits later in its life - a pass writing down
-        # who the zone belongs to, a join writing a level down before it mutes - raises the same
-        # error out of the run once the database stops taking writes. That one arrives here only
-        # after the service's finally has dissolved the zone and closed the store, and is reported
-        # the same way, as ERROR with the database's message: a run that could not go on, which is
-        # true of it, though it is not a refused start.
+        # The database cannot be used, and the message names it: an answer rather than a crash,
+        # because a stack under it would bury the one line a person has to act on. This branch wraps
+        # the WHOLE run, not only its start. Most StoreErrors come from open(), before a port is
+        # bound or a speaker touched, and are a refused start. Not all: a save the service awaits
+        # later in its life - a pass writing down who the zone belongs to, a join writing a level
+        # down before it mutes - raises the same error out of the run once the database stops taking
+        # writes. That one arrives here only after the service's finally has dissolved the zone and
+        # closed the store, and is reported the same way, as ERROR with the database's message: a
+        # run that could not go on, which is true of it, though it is not a refused start.
         report_failure(exc, command=service_command, mode=shared.mode)
         ctx.exit(ExitCode.ERROR)
     except Exception as exc:  # noqa: BLE001 - CLI edge
@@ -255,10 +230,7 @@ def _report(options: ServiceOptions, rc: int, *, mode: OutputMode) -> None:
         bind_ip=options.bind_ip,
         device_id=options.device_id,
         database=options.database,
-        channel_file=str(options.channel_file) if options.channel_file is not None else None,
         registry_url=options.registry_url,
-        switch_file=str(options.switch_file) if options.switch_file is not None else None,
-        state_file=str(options.state_file) if options.state_file is not None else None,
         exit_code=rc,
     )
     write_envelope(Envelope[ServiceReport](ok=rc == ExitCode.OK, command=service_command, data=report), mode=mode)

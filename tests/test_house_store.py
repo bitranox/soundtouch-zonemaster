@@ -1,4 +1,4 @@
-"""The house store end to end on a real database: opening, the import of the old files, the lock."""
+"""The house store end to end on a real database: opening, the channel export and import, the lock."""
 
 from __future__ import annotations
 
@@ -14,9 +14,7 @@ from switch_race import InThread, a_person_writing, wait_until_a_writer_waits
 from soundtouch_zonemaster.adapters.files.channel_file import save_channels
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
 from soundtouch_zonemaster.adapters.files.house_switch import write_switch
-from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
 from soundtouch_zonemaster.application.errors import StoreBusyError, StoreError
-from soundtouch_zonemaster.application.options import LegacyFiles
 from soundtouch_zonemaster.domain.channellist import Channel, ChannelList
 from soundtouch_zonemaster.domain.enums import ChannelKind
 from soundtouch_zonemaster.domain.state import ZoneState
@@ -35,226 +33,6 @@ def _quiet(_kind: str, _text: str) -> None:
 def _store(database: str, lines: list[str] | None = None) -> SqlHouseStore:
     said = lines if lines is not None else []
     return SqlHouseStore(database, log=lambda kind, text: said.append(f"{kind}: {text}"))
-
-
-def _legacy(tmp_path: Path) -> LegacyFiles:
-    return LegacyFiles(
-        state_file=tmp_path / "zone-state.json",
-        channel_file=tmp_path / "channels.json",
-        switch_file=tmp_path / "zone.switch",
-    )
-
-
-def _require(path: Path | None) -> Path:
-    """Narrow ``LegacyFiles``'s optional fields for a test that just built them itself.
-
-    ``LegacyFiles`` declares each field ``Path | None`` because the store may be asked to import
-    fewer than three files; a test that constructs one with every path filled in knows better than
-    the type does, and this is the one place that says so instead of every call site guessing.
-    """
-    assert path is not None
-    return path
-
-
-def test_a_first_start_imports_all_three_files_and_sets_them_aside(house_database: str, tmp_path: Path) -> None:
-    legacy = _legacy(tmp_path)
-    save_state(_require(legacy.state_file), LegacyState(state=STATE, dial_window_s=0.7))
-    save_channels(_require(legacy.channel_file), LIST)
-    _require(legacy.switch_file).write_text("off\n", encoding="utf-8")
-    store = _store(house_database)
-    store.open(exclusive=True)
-    store.import_legacy(legacy)
-    assert (store.load_state(), store.load_channels(), store.is_on()) == (STATE, LIST, False)
-    assert [(row.name, row.text) for row in store.load_preferences()] == [("dialling.window_s", "0.7")]
-    store.close()
-    for path in (legacy.state_file, legacy.channel_file, legacy.switch_file):
-        real = _require(path)
-        assert not real.exists()
-        assert real.with_name(real.name + ".imported").exists()
-
-
-def test_a_part_already_held_is_not_overwritten_and_its_file_is_named(house_database: str, tmp_path: Path) -> None:
-    lines: list[str] = []
-    store = _store(house_database, lines)
-    store.open(exclusive=True)
-    store.set_switch(on=True)
-    legacy = LegacyFiles(switch_file=tmp_path / "zone.switch")
-    switch_file = _require(legacy.switch_file)
-    switch_file.write_text("off\n", encoding="utf-8")
-    store.import_legacy(legacy)
-    assert store.is_on() is True
-    assert switch_file.exists()
-    assert any("not imported" in line and "zone.switch" in line for line in lines), lines
-    store.close()
-
-
-def test_an_unusable_channel_file_refuses_the_start_and_imports_nothing(house_database: str, tmp_path: Path) -> None:
-    legacy = _legacy(tmp_path)
-    state_file = _require(legacy.state_file)
-    save_state(state_file, LegacyState(state=STATE))
-    channel_file = _require(legacy.channel_file)
-    channel_file.write_text('{"channels": [{"number": "x"}]}', encoding="utf-8")
-    store = _store(house_database)
-    store.open(exclusive=True)
-    with pytest.raises(StoreError, match=r"channels\.json"):
-        store.import_legacy(legacy)
-    assert store.load_state() == ZoneState()
-    assert state_file.exists()
-    assert channel_file.exists()
-    store.close()
-
-
-def test_an_unusable_state_file_refuses_the_start_and_imports_nothing(house_database: str, tmp_path: Path) -> None:
-    """A bad zone-state.json must refuse the WHOLE import, even with a good channel file and a
-    good switch file sitting right beside it - proving the transaction rolls back rather than
-    importing the two good parts and only refusing the bad one."""
-    legacy = _legacy(tmp_path)
-    state_file = _require(legacy.state_file)
-    state_file.write_text('{"dial_window_s": "nope"}', encoding="utf-8")
-    channel_file = _require(legacy.channel_file)
-    save_channels(channel_file, LIST)
-    switch_file = _require(legacy.switch_file)
-    switch_file.write_text("off\n", encoding="utf-8")
-    store = _store(house_database)
-    store.open(exclusive=True)
-    with pytest.raises(StoreError, match=r"zone-state\.json"):
-        store.import_legacy(legacy)
-    assert store.load_state() == ZoneState()
-    assert store.load_channels() == ChannelList()
-    assert store.is_on() is True
-    for path in (state_file, channel_file, switch_file):
-        assert path.exists()
-        assert not path.with_name(path.name + ".imported").exists()
-    store.close()
-
-
-def test_an_unreadable_state_file_refuses_the_start_and_imports_nothing(house_database: str, tmp_path: Path) -> None:
-    """A directory at the state file's path cannot be read as text on any platform, unlike a
-    permission bit, which a root session ignores - so this is the portable way to force an
-    unreadable file."""
-    legacy = _legacy(tmp_path)
-    state_file = _require(legacy.state_file)
-    state_file.mkdir()
-    store = _store(house_database)
-    store.open(exclusive=True)
-    with pytest.raises(StoreError, match=r"zone-state\.json"):
-        store.import_legacy(legacy)
-    assert store.load_state() == ZoneState()
-    assert state_file.exists()
-    store.close()
-
-
-def test_an_unusable_state_file_already_held_is_not_even_read(house_database: str, tmp_path: Path) -> None:
-    """The state part is checked BEFORE the file is parsed: a garbage zone-state.json must not stop
-    a start that was never going to read it anyway."""
-    lines: list[str] = []
-    store = _store(house_database, lines)
-    store.open(exclusive=True)
-    held = ZoneState(channel="2")
-    store.save_state(held)
-    legacy = LegacyFiles(state_file=tmp_path / "zone-state.json")
-    state_file = _require(legacy.state_file)
-    state_file.write_text('{"dial_window_s": "nope"}', encoding="utf-8")
-    store.import_legacy(legacy)
-    assert store.load_state() == held
-    assert state_file.exists()
-    assert any("not imported" in line and "zone-state.json" in line for line in lines), lines
-    store.close()
-
-
-def test_a_duplicate_channel_number_in_the_legacy_file_refuses_and_imports_nothing(tmp_path: Path) -> None:
-    """A hand-edited legacy channels.json can hold a duplicate number; the import refuses like any
-    other unusable channel file (house_channels.write_channels), naming the database and nothing
-    imported - not even the state that WOULD have gone in, because the whole import is one
-    transaction.
-
-    Fixed to a SQLite file rather than the ``house_database`` fixture: the refusal names the
-    database, and the assertion below pins that name to ``zonemaster.sqlite``, which a PostgreSQL
-    URL would never match.
-    """
-    legacy = _legacy(tmp_path)
-    state_file = _require(legacy.state_file)
-    save_state(state_file, LegacyState(state=STATE))
-    channel_file = _require(legacy.channel_file)
-    channel_file.write_text(
-        '{"channels": ['
-        '{"number": "1", "name": "One", "kind": "radio", "url": "http://radio.example/1"},'
-        '{"number": "1", "name": "One again", "kind": "radio", "url": "http://radio.example/1b"}'
-        "]}",
-        encoding="utf-8",
-    )
-    store = _store(str(tmp_path / "zonemaster.sqlite"))
-    store.open(exclusive=True)
-    with pytest.raises(StoreError, match=r"zonemaster\.sqlite.*duplicate number"):
-        store.import_legacy(legacy)
-    assert store.load_state() == ZoneState()
-    assert store.load_channels() == ChannelList()
-    assert state_file.exists()
-    assert channel_file.exists()
-    store.close()
-
-
-def test_an_unusable_channel_file_is_not_even_read_when_the_part_is_already_held(
-    house_database: str, tmp_path: Path
-) -> None:
-    """The channel part is checked BEFORE the file is parsed: a garbage channels.json must not stop
-    a start that was never going to read it anyway."""
-    lines: list[str] = []
-    store = _store(house_database, lines)
-    store.open(exclusive=True)
-    store.save_channels(LIST)
-    legacy = LegacyFiles(channel_file=tmp_path / "channels.json")
-    channel_file = _require(legacy.channel_file)
-    channel_file.write_text('{"channels": [{"number": "x"}]}', encoding="utf-8")
-    store.import_legacy(legacy)
-    assert store.load_channels() == LIST
-    assert channel_file.exists()
-    assert any("not imported" in line and "channels.json" in line for line in lines), lines
-    store.close()
-
-
-def test_a_channel_list_already_held_is_not_overwritten_and_its_file_is_named(
-    house_database: str, tmp_path: Path
-) -> None:
-    lines: list[str] = []
-    store = _store(house_database, lines)
-    store.open(exclusive=True)
-    store.save_channels(LIST)
-    legacy = LegacyFiles(channel_file=tmp_path / "channels.json")
-    channel_file = _require(legacy.channel_file)
-    other = ChannelList(
-        channels=(Channel(number="2", name="Other", kind=ChannelKind.RADIO, url="http://radio.example/2"),)
-    )
-    save_channels(channel_file, other)
-    store.import_legacy(legacy)
-    assert store.load_channels() == LIST
-    assert channel_file.exists()
-    assert any("not imported" in line and "channels.json" in line for line in lines), lines
-    store.close()
-
-
-def test_a_state_already_held_is_not_overwritten_and_its_file_is_named(house_database: str, tmp_path: Path) -> None:
-    lines: list[str] = []
-    store = _store(house_database, lines)
-    store.open(exclusive=True)
-    held = ZoneState(channel="2")
-    store.save_state(held)
-    legacy = LegacyFiles(state_file=tmp_path / "zone-state.json")
-    state_file = _require(legacy.state_file)
-    save_state(state_file, LegacyState(state=STATE))
-    store.import_legacy(legacy)
-    assert store.load_state() == held
-    assert state_file.exists()
-    assert any("not imported" in line and "zone-state.json" in line for line in lines), lines
-    store.close()
-
-
-def test_missing_old_files_are_nothing_to_import(house_database: str, tmp_path: Path) -> None:
-    store = _store(house_database)
-    store.open(exclusive=True)
-    store.import_legacy(_legacy(tmp_path))
-    assert (store.load_state(), store.load_channels(), store.is_on()) == (ZoneState(), ChannelList(), True)
-    store.close()
 
 
 def test_state_and_channels_survive_a_reopen(house_database: str) -> None:
@@ -374,14 +152,6 @@ def test_opening_an_already_open_store_refuses_without_leaking_the_connection(tm
     store.save_state(STATE)
     assert store.load_state() == STATE
     store.close()
-
-
-def test_import_legacy_needs_the_writer_lock(house_database: str) -> None:
-    reader = _store(house_database)
-    reader.open(exclusive=False)
-    with pytest.raises(StoreError, match="exclusive"):
-        reader.import_legacy(LegacyFiles())
-    reader.close()
 
 
 def test_a_driver_error_leaves_the_store_as_a_store_error(tmp_path: Path) -> None:

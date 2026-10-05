@@ -1,10 +1,9 @@
 """Reading and writing the house's channel list, in a file a person can read and repair.
 
-This is the one place the channel file behaves deliberately unlike the state file, which starts
-empty when it cannot be read. The two are not the same kind of file. The state can be re-derived
-by asking the speakers, so an empty start costs one reconcile. The channel list is the only copy
-of something a person built, and starting empty would let the very next save overwrite it with
-nothing.
+This is the document ``channels export`` writes and ``channels import`` reads, and its models are
+the ones ``house_channels`` checks every stored row with. An unusable document REFUSES rather than
+reading as an empty list: the channel list is the only copy of something a person built, and
+reading it as empty would let the very next save overwrite it with nothing.
 
 A service that will not start is a service somebody fixes. One that silently empties the house's
 channels is one nobody notices until a room goes quiet.
@@ -127,14 +126,11 @@ class ChannelFileError(RuntimeError):
 def load_channels(path: Path, *, log: LogFn) -> ChannelList:
     """Read the channel list, or REFUSE. A missing file is an empty list, not a refusal.
 
-    This is the one place the channel file behaves deliberately unlike the state file, which
-    starts empty when it cannot be read. The two are not the same kind of file. The state can be
-    re-derived by asking the speakers, so an empty start costs one reconcile. The channel list is
-    the only copy of something a person built, and starting empty would let the very next save
-    overwrite it with nothing.
+    The channel list is the only copy of something a person built, and reading an unusable one as
+    empty would let the very next save overwrite it with nothing.
 
-    A service that will not start is a service somebody fixes. One that silently empties the
-    house's channels is one nobody notices until a room goes quiet.
+    An import that refuses is one somebody fixes. One that silently empties the house's channels
+    is one nobody notices until a room goes quiet.
 
     The bytes are decoded as ``utf-8-sig`` rather than ``utf-8``, which is the same codec plus one
     rule: a leading byte order mark belongs to the encoding and not to the document. Windows writes

@@ -7,17 +7,16 @@ this milestone's share of them is a corpus generated from the OLD code at
 ``887934c7c05d80ea48180c72986584271873cf4c`` (``research``-side generator in the rebuild's baseline
 directory), replayed here against the new code.
 
-Eight corpora are here, each landing with the code it holds to account. Seeding and the dialler
-came with M2, because their boundary is in ``domain``; the state file and the channel file with M3,
-where the two file adapters and their pydantic boundary models are; the registry, the observer and
-the HTTP face with M4, which is where the speakers are actually spoken to. Options came with M6,
-and it is the only one that covers TWO boundaries plus the six configuration layers under one of
-them, because that is what an option set is made of.
+Seven corpora are here, each landing with the code it holds to account. Seeding and the dialler
+came with M2, because their boundary is in ``domain``; the channel file with M3, where its file
+adapter and pydantic boundary model are; the registry, the observer and the HTTP face with M4,
+which is where the speakers are actually spoken to. Options came with M6, and it is the only one
+that covers TWO boundaries plus the six configuration layers under one of them, because that is
+what an option set is made of.
 
-The file corpora are what says the boundary models are faithful, and they are the reason those
-models exist: they pin the bytes written, the coercions a hand-edited file relies on (a volume
-written ``"17"`` is 17, a window written ``true`` is 1.0), the ``N problem(s)`` COUNT in each
-refusal, and which documents refuse rather than start empty.
+The channel-file corpus is what says its boundary model is faithful, and it is the reason that
+model exists: it pins the bytes written, the coercions a hand-edited file relies on, the
+``N problem(s)`` COUNT in each refusal, and which documents refuse.
 
 The observer corpus is 475 real frames off four real speakers across two live runs, plus its edge
 cases. They are replayed one per test rather than in a loop: a loop stops at the first
@@ -25,10 +24,11 @@ disagreement, and what this corpus is for is knowing WHICH frames a change moved
 
 **Where old and new differ, this file states the difference rather than hiding it.** Each delta is
 named in the test that meets it, with what the old code did and why the new answer is the same
-decision reached a different way. There are fifteen. Deltas 6 to 9 are the options corpus's and
-are written out where that corpus is replayed; deltas 10 to 14 are a different species from all the
-others and the comment at each one says so - every delta from 1 to 9, and 15, is the SAME behaviour
-reached another way, while 10 to 14 are deliberate REPAIRS that supersede what the old code did. The
+decision reached a different way. There are thirteen, numbered to fifteen: 10 and 12 were the
+state-file corpus's and left with it. Deltas 6 to 9 are the options corpus's and are written out
+where that corpus is replayed; deltas 11, 13 and 14 are a different species from all the others and
+the comment at each one says so - every delta from 1 to 9, and 15, is the SAME behaviour reached
+another way, while 11, 13 and 14 are deliberate REPAIRS that supersede what the old code did. The
 recorded case keeps the old answer, because that is what a corpus is for; the assertion beside it
 is what the code does now, and why:
 
@@ -49,21 +49,14 @@ is what the code does now, and why:
    speaker, now that the domain has a ``Speaker`` of its own. One word of one diagnostic; the
    field, the type, the input value and the documentation URL are byte-identical, and the test
    substitutes only the name so the rest stays under test.
-10. A REPAIR, not an equivalence: a state file whose bytes are not UTF-8 raised ``UnicodeDecodeError``
-   out of ``load_state``, whose own docstring says it never raises, and stopped the service at
-   startup on a traceback. It now starts empty and names the path, which is what every other
-   unreadable state file already did.
-11. The same repair on the channel file, in that file's own direction: the bytes still REFUSE,
-   because the list is the only copy of something a person built, but as a ``ChannelFileError``
-   naming the path rather than a raw ``UnicodeDecodeError`` naming nothing.
-12. A REPAIR of the same species: a state file that Windows saved as "UTF-8 with BOM" was read with
-   the mark as part of the document, so a file a person can read and repair reported itself
-   unusable and the channel it remembered was lost on the very next restart. The bytes are decoded
-   as ``utf-8-sig`` now - the same codec plus the rule that a leading mark belongs to the encoding
-   and not to the document - so the document loads and nothing is said about it.
-13. The same repair on the channel file, in that file's own direction: it refused outright rather
-   than starting empty, and it is the file most likely to have been hand-edited from a Windows box,
-   because it is the only copy of something a person built.
+11. A REPAIR, not an equivalence: a channel file whose bytes are not UTF-8 raised a raw
+   ``UnicodeDecodeError`` naming nothing. The bytes still REFUSE, because the list is the only copy
+   of something a person built, but as a ``ChannelFileError`` naming the path.
+13. A REPAIR of the same species: a channel file that Windows saved as "UTF-8 with BOM" was read
+   with the mark as part of the document and refused. The bytes are decoded as ``utf-8-sig`` now -
+   the same codec plus the rule that a leading mark belongs to the encoding and not to the
+   document - so the document loads. It is the file most likely to have been hand-edited from a
+   Windows box, because it is the only copy of something a person built.
 14. A REPAIR, not an equivalence: a lower-case ``--device-id`` / ``zone.device_id`` was refused as
    "not 12 hex digits" although the archive's own device ids were case-insensitive everywhere else.
    It is accepted and folded to upper case now, the same rule ``membership.consoles_allowed``
@@ -103,7 +96,6 @@ from soundtouch_zonemaster.adapters.config.loader import ENV_PREFIX, clear_confi
 from soundtouch_zonemaster.adapters.config.overrides import apply_set_overrides
 from soundtouch_zonemaster.adapters.config.settings_map import service_settings, unknown_settings
 from soundtouch_zonemaster.adapters.files.channel_file import ChannelFileError, load_channels, save_channels
-from soundtouch_zonemaster.adapters.files.state_file import LegacyState, load_state, save_state
 from soundtouch_zonemaster.adapters.files.store_worker import StoreWorker
 from soundtouch_zonemaster.adapters.soundtouch.http_api import HttpApi, Request, key_press, parse_request
 from soundtouch_zonemaster.adapters.soundtouch.observer import parse_frame, parse_now_playing
@@ -142,7 +134,7 @@ from soundtouch_zonemaster.domain.station import StationRequest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 
-    from soundtouch_zonemaster.application.options import ChannelPolicy, LegacyFiles
+    from soundtouch_zonemaster.application.options import ChannelPolicy
     from soundtouch_zonemaster.application.ports import AddressOf, LocationResolver, MpdControlPort
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.mpd import MpdStatus
@@ -159,12 +151,11 @@ taken from some other tree cannot quietly become the contract."""
 CASE_COUNTS = {
     "seeding": 8,
     "dialler": 10,
-    "state_file": 31,
     "channel_file": 56,
     "registry": 18,
     "observer": 479,
     "slavemsg": 46,
-    "options": 58,
+    "options": 54,
 }
 """How many cases each corpus holds. A truncated fixture would otherwise pass every assertion
 below by containing nothing to disagree with."""
@@ -335,31 +326,6 @@ def said(work: Path, recorded: list[list[str]]) -> list[tuple[str, str]]:
     return [(kind, text.replace("<WORK>", str(work))) for kind, text in recorded]
 
 
-def state_of(fields: dict[str, Any]) -> LegacyState:
-    """An old state, and the calibration beside it, from the corpus's recorded field values."""
-    return LegacyState(
-        state=ZoneState(
-            channel=cast("str | None", fields["channel"]),
-            members=tuple(cast("list[str]", fields["members"])),
-            muted=dict(cast("dict[str, int]", fields["muted"])),
-            out_of_multiroom=tuple(cast("list[str]", fields["out_of_multiroom"])),
-        ),
-        dial_window_s=cast("float | None", fields["dial_window_s"]),
-        hold_threshold_s=cast("float | None", fields.get("hold_threshold_s")),
-    )
-
-
-def canonical_legacy(legacy: LegacyState) -> object:
-    """A loaded old state in the shape the corpus recorded it: one ZoneState carrying both calibrated numbers."""
-    recorded = cast("dict[str, Any]", canonical(legacy.state))
-    fields = {
-        **cast("dict[str, Any]", recorded["fields"]),
-        "dial_window_s": legacy.dial_window_s,
-        "hold_threshold_s": legacy.hold_threshold_s,
-    }
-    return {"type": "ZoneState", "fields": fields}
-
-
 def channel_of(fields: dict[str, Any]) -> Channel:
     """A ``Channel`` from the corpus's recorded field values, defaults included.
 
@@ -375,59 +341,6 @@ def channel_of(fields: dict[str, Any]) -> Channel:
         url=cast("str", fields["url"]),
         in_rotation=cast("bool", fields.get("in_rotation", True)),
     )
-
-
-@pytest.mark.parametrize("case", corpus("state_file")["cases"], ids=lambda c: c["name"])
-def test_the_state_file_behaves_as_the_old_one_did(case: dict[str, Any], tmp_path: Path) -> None:
-    """Every recorded save and load, byte for byte and line for line.
-
-    The bytes matter as much as the values: a file written by the deployed service is read by this
-    code and the other way round, so a changed indent or a changed key order would be a migration
-    nobody asked for.
-    """
-    given, expect = case["input"], case["expect"]
-    lines: list[tuple[str, str]] = []
-
-    if given["op"] == "save":
-        path = tmp_path / "state.json"
-        save_state(path, state_of(cast("dict[str, Any]", given["state"])))
-        assert path.read_text(encoding="utf-8") == expect["text"]
-        assert sorted(p.name for p in tmp_path.iterdir()) == expect["files_after"]
-        return
-
-    path = placed(tmp_path, cast("dict[str, Any]", given))
-    if "raises" in expect:
-        # DELTA 10, a REPAIR rather than an equivalence. The old code let UnicodeDecodeError out of
-        # a function whose docstring says it never raises, and the bare gather that runs the
-        # service took the whole thing down with it at startup. Bytes that are not UTF-8 are now
-        # one of the ways this file can be unreadable, like the permission error beside it: start
-        # empty, name the path. The recorded message is kept here so the case still proves WHICH
-        # document is meant - it is the old answer, and this asserts it is no longer given.
-        assert expect["raises"]["type"] == "UnicodeDecodeError"
-        loaded = load_state(path, log=logged(lines))
-        assert loaded == LegacyState()
-        assert lines == [("state", f"{path}: could not be read (UnicodeDecodeError); starting empty")]
-        return
-
-    if case["name"] == "load: a UTF-8 byte order mark":
-        # DELTA 12, a REPAIR rather than an equivalence, and the same species as 10 and 11. The old
-        # code read the mark as part of the document, so a state file a person can read and repair
-        # called itself unusable and the channel it remembered was lost on the very next restart.
-        # The bytes are decoded as utf-8-sig now, which is the same codec plus the rule that a
-        # leading mark belongs to the encoding. The recorded empty start is asserted first, so the
-        # case still proves WHICH document is meant; what follows is that it is no longer given.
-        assert expect["value"] == canonical_legacy(LegacyState())
-        assert said(tmp_path, cast("list[list[str]]", expect["logs"])) == [
-            ("state", f"{path}: unusable, starting empty (1 problem(s))")
-        ]
-        loaded = load_state(path, log=logged(lines))
-        assert loaded == LegacyState(state=ZoneState(channel="1"))
-        assert lines == []
-        return
-
-    loaded = load_state(path, log=logged(lines))
-    assert canonical_legacy(loaded) == expect["value"]
-    assert lines == said(tmp_path, cast("list[list[str]]", expect["logs"]))
 
 
 def replay_edit(given: dict[str, Any], expect: dict[str, Any], path: Path) -> None:
@@ -520,12 +433,12 @@ def test_the_channel_file_behaves_as_the_old_one_did(case: dict[str, Any], tmp_p
 
     path = placed(tmp_path, cast("dict[str, Any]", given))
     if case["name"] == "load: a UTF-8 byte order mark":
-        # DELTA 13, the same REPAIR as delta 12 in this file's own direction. Refusing is what this
-        # file does with a document it cannot read, and that was never the problem: the mark was
-        # read as part of the document, so a list that is in fact perfectly good was refused - and
-        # this is the file most likely to have been hand-edited from a Windows box, because it is
-        # the only copy of something a person built. The recorded refusal is asserted first, so the
-        # case still proves WHICH document is meant; what follows is that it is no longer given.
+        # DELTA 13, a REPAIR rather than an equivalence. Refusing is what this file does with a
+        # document it cannot read, and that was never the problem: the mark was read as part of the
+        # document, so a list that is in fact perfectly good was refused - and this is the file most
+        # likely to have been hand-edited from a Windows box, because it is the only copy of
+        # something a person built. The recorded refusal is asserted first, so the case still proves
+        # WHICH document is meant; what follows is that it is no longer given.
         recorded = cast("dict[str, Any]", expect["raises"])
         assert recorded["message"].replace("<WORK>", str(tmp_path)) == f"{path}: unusable (1 problem(s))"
         loaded = load_channels(path, log=logged(lines))
@@ -536,11 +449,11 @@ def test_the_channel_file_behaves_as_the_old_one_did(case: dict[str, Any], tmp_p
         with pytest.raises(ChannelFileError) as caught:
             load_channels(path, log=logged(lines))
         if recorded["type"] == "UnicodeDecodeError":
-            # DELTA 11, the same REPAIR as delta 10 and the same species: deliberate, not an
-            # equivalence. Refusing was always right here - the list is the only copy of something
-            # a person built - but the old code refused as a raw UnicodeDecodeError, so the one
-            # person who has to repair it got a traceback naming no file. It is now the module's
-            # own refusal, worded exactly as the other unreadable-file cases are.
+            # DELTA 11, a REPAIR: deliberate, not an equivalence. Refusing was always right here -
+            # the list is the only copy of something a person built - but the old code refused as a
+            # raw UnicodeDecodeError, so the one person who has to repair it got a traceback naming
+            # no file. It is now the module's own refusal, worded exactly as the other
+            # unreadable-file cases are.
             assert str(caught.value) == f"{path}: could not be read (UnicodeDecodeError)"
         else:
             assert str(caught.value) == recorded["message"].replace("<WORK>", str(tmp_path))
@@ -970,8 +883,6 @@ class FakeStore:
 
     def close(self) -> None: ...
 
-    def import_legacy(self, files: LegacyFiles) -> None: ...
-
     def load_state(self) -> ZoneState:
         return ZoneState()
 
@@ -994,7 +905,7 @@ class FakeStore:
     def set_switch(self, *, on: bool) -> bool:
         return False
 
-    def switch(self, *, poll_s: float, ignored_file: Path | None) -> FakeSwitch:
+    def switch(self, *, poll_s: float) -> FakeSwitch:
         return FakeSwitch()
 
     def load_preferences(self) -> tuple[PreferenceRow, ...]:
@@ -1079,9 +990,6 @@ def wired_service(
         bind_ip="127.0.0.1",
         device_id=MASTER_ID,
         database=str(tmp_path / "zonemaster.sqlite"),
-        switch_file=tmp_path / "switch",
-        state_file=tmp_path / "state.json",
-        channel_file=tmp_path / "channels.json",
     )
     ports = ZoneServicePorts(
         open_store=open_store,
@@ -1417,9 +1325,6 @@ def envelopes_match(caught: Exception, recorded: dict[str, Any], command: str, w
 NOTHING_TYPED: dict[str, Any] = {
     "bind_ip": None,
     "device_id": None,
-    "channel_file": None,
-    "switch_file": None,
-    "state_file": None,
     "database": None,
     "registry_url": None,
     "allow_console": [],
@@ -1433,15 +1338,15 @@ def with_cli_values(given: dict[str, Any], *, configured: dict[str, Any]) -> Ser
     """The boundary called with the recorded CLI values, each named with the type it must have.
 
     Spelled out rather than splatted: everything the corpus holds is ``Any``, and a ``**`` of it
-    would hand nine parameters a type the checker cannot see through - so a recorded value of the
+    would hand every parameter a type the checker cannot see through - so a recorded value of the
     wrong SHAPE would reach the boundary looking exactly like a correct one.
     """
     return parse_service_options(
         bind_ip=cast("str | None", given["bind_ip"]),
         device_id=cast("str | None", given["device_id"]),
-        channel_file=cast("str | None", given["channel_file"]),
-        switch_file=cast("str | None", given["switch_file"]),
-        state_file=cast("str | None", given["state_file"]),
+        # A recorded "given" still names the archive's channel_file, switch_file and state_file.
+        # They are not passed: the options are gone with the one-time import of those files
+        # (OPEN-WORK rank 198), and the divergence note on each case whose record that moved says so.
         # Not in the corpus: the archive had no database. Every REPLAY gives one, as a CLI value,
         # where the archive's own files lived - replay_service_options adds it to its own "given"
         # before here() runs, and replay_layers does the same to a copy of NOTHING_TYPED - so what
@@ -1461,28 +1366,7 @@ def with_cli_values(given: dict[str, Any], *, configured: dict[str, Any]) -> Ser
     )
 
 
-def rooted_where_its_relative_paths_exist(given: dict[str, Any], work: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Replay a case that names RELATIVE paths inside this run's scratch directory, dirs made.
-
-    One recorded case does, and it is there to prove a relative path is KEPT as typed rather than
-    resolved - an assertion about the strings, which the working directory cannot move. What the
-    working directory does decide is whether those directories EXIST, and the boundary now refuses
-    a directory it cannot write the file in (OPEN-WORK rank 107, where a channel file in a
-    directory that is not there was accepted at startup and crashed hours later on the first save).
-    So the case is given a place where they do exist. Preparing the case's SURROUNDINGS keeps the
-    assertion it was written for; changing its expectation to a refusal would have thrown that away
-    to test something the case is not about.
-    """
-    relative = [Path(cast("str", value)) for key, value in given.items() if key.endswith("_file") and value]
-    if not any(not path.is_absolute() for path in relative):
-        return
-    monkeypatch.chdir(work)
-    for path in relative:
-        if not path.is_absolute():
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-
-def replay_service_options(case: dict[str, Any], work: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def replay_service_options(case: dict[str, Any], work: Path) -> None:
     """One ``parse_service_options`` case: what argv and the files between them said.
 
     The archive had no database, so the recorded ``given`` never carries one; a default is put in
@@ -1493,13 +1377,12 @@ def replay_service_options(case: dict[str, Any], work: Path, monkeypatch: pytest
     given = here(raw_given, work)
     configured = here(cast("dict[str, Any]", case["input"]["configured"]), work)
     expect = cast("dict[str, Any]", case["expect"])
-    rooted_where_its_relative_paths_exist(given, work, monkeypatch)
 
     def call() -> ServiceOptions:
         return with_cli_values(given, configured=configured)
 
     if case["name"] == "service: a lowercase hex device id":
-        # DELTA 14, a REPAIR rather than an equivalence, and the same species as 10 to 13. The
+        # DELTA 14, a REPAIR rather than an equivalence, and the same species as 11 and 13. The
         # recorded refusal is the archive's own answer, asserted first so the case still proves
         # WHICH input is meant; what follows is that it is no longer given. A lower-case
         # --device-id / zone.device_id is accepted and folded to upper case now, the same rule
@@ -1623,7 +1506,7 @@ def test_the_option_boundaries_answer_what_the_archive_answered(
     """Every recorded case of both boundaries and the six layers, replayed against the rebuild."""
     op = case["input"]["op"]
     if op == "parse_service_options":
-        replay_service_options(case, tmp_path, monkeypatch)
+        replay_service_options(case, tmp_path)
         return
     if op == "parse_options":
         replay_prototype_options(case, tmp_path)

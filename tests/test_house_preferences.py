@@ -1,4 +1,4 @@
-"""The preference rows on a real database: set, replace, unset, and the old calibration carried over."""
+"""The preference rows on a real database: set, replace and unset."""
 
 from __future__ import annotations
 
@@ -10,15 +10,11 @@ from sqlalchemy import create_engine, text
 
 from soundtouch_zonemaster.adapters.files.house_db import database_url
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
-from soundtouch_zonemaster.adapters.files.state_file import LegacyState, save_state
 from soundtouch_zonemaster.application.errors import StoreError
-from soundtouch_zonemaster.application.options import LegacyFiles
-from soundtouch_zonemaster.domain.preferences import PreferenceName, PreferenceRow, PreferenceSource
-from soundtouch_zonemaster.domain.state import ZoneState
+from soundtouch_zonemaster.domain.preferences import PreferenceName, PreferenceSource
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-    from pathlib import Path
 
 
 def _store(database: str, *, exclusive: bool = False) -> SqlHouseStore:
@@ -77,37 +73,6 @@ def test_a_preference_can_be_set_while_the_service_holds_the_writer_lock(house_d
         assert [row.text for row in service.load_preferences()] == ["5.0"]
     finally:
         service.close()
-
-
-def test_an_old_state_files_calibration_becomes_calibration_rows_with_no_time(
-    house_database: str, tmp_path: Path
-) -> None:
-    state_file = tmp_path / "zone-state.json"
-    save_state(state_file, LegacyState(state=ZoneState(channel="3"), dial_window_s=0.6, hold_threshold_s=1.4))
-    store = _store(house_database, exclusive=True)
-    try:
-        store.import_legacy(LegacyFiles(state_file=state_file))
-        assert store.load_state().channel == "3"
-        assert store.load_preferences() == (
-            PreferenceRow(name="dialling.hold_threshold_s", text="1.4", source="calibration", changed_at=""),
-            PreferenceRow(name="dialling.window_s", text="0.6", source="calibration", changed_at=""),
-        )
-    finally:
-        store.close()
-
-
-def test_an_imported_calibration_never_replaces_a_value_somebody_already_set(
-    house_database: str, tmp_path: Path
-) -> None:
-    state_file = tmp_path / "zone-state.json"
-    save_state(state_file, LegacyState(state=ZoneState(), dial_window_s=0.6))
-    store = _store(house_database, exclusive=True)
-    try:
-        store.set_preference(PreferenceName.WINDOW, 1.1, source=PreferenceSource.CLI)
-        store.import_legacy(LegacyFiles(state_file=state_file))
-        assert [(row.text, row.source) for row in store.load_preferences()] == [("1.1", "cli")]
-    finally:
-        store.close()
 
 
 def test_several_preferences_are_stored_together_under_one_time(house_database: str) -> None:

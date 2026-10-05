@@ -13,7 +13,7 @@ id and never mentions the address. That is what the archive did, and the golden 
 records it case by case.
 
 Two checks that look like invariants are here rather than on the record, because they are
-questions about the MACHINE rather than about the option set: whether the state file's directory
+questions about the MACHINE rather than about the option set: whether the database's directory
 exists, and - for the other program - whether an address is one this house never touches.
 """
 
@@ -123,12 +123,6 @@ class ServiceOptionsInput(BaseModel):
     database_password: SecretStr | None = None
     """The PostgreSQL password. pydantic's ``SecretStr`` while it is parsed here, so a validation
     error or a repr of this model cannot show it; the record receives the domain's ``Secret``."""
-    switch_file: Path | None = None
-    """The switch as a file, from before the database: imported once, then not read."""
-    state_file: Path | None = None
-    """The state as a file, from before the database: imported once, then set aside."""
-    channel_file: Path | None = None
-    """The channel list as a file, from before the database: imported once, then set aside."""
     registry_url: str = DEFAULT_BASE_URL
     consoles_allowed: tuple[str, ...] = ()
     """Device ids of consoles that may be taken into the zone anyway.
@@ -239,22 +233,12 @@ class ServiceOptionsInput(BaseModel):
         return preference_or_refuse(PreferenceName.CONSOLES, value)
 
     @model_validator(mode="after")
-    def _somewhere_for_every_file_it_names(self) -> ServiceOptionsInput:
-        """Refused now rather than hours later, when the first speaker joins and nothing can save.
-
-        The database's directory, and the directory of every old file that is still named, because
-        the import renames an old file where it lies. The state file is checked first so that an
-        argv with two bad directories refuses with the same message it always did.
-        """
-        for path, what in (
-            (self.state_file, "write the state file in"),
-            (self.channel_file, "write the channel file in"),
-            (self.switch_file, "read the switch file from"),
-            (_database_file(self.database), "keep the house database in"),
-        ):
-            if path is not None and not path.parent.is_dir():
-                message = f"refused: {path.parent} is not a directory to {what}"
-                raise OptionsError(message, exit_code=ExitCode.REFUSED)
+    def _somewhere_for_the_database(self) -> ServiceOptionsInput:
+        """Refused now rather than hours later, when the first speaker joins and nothing can save."""
+        path = _database_file(self.database)
+        if path is not None and not path.parent.is_dir():
+            message = f"refused: {path.parent} is not a directory to keep the house database in"
+            raise OptionsError(message, exit_code=ExitCode.REFUSED)
         return self
 
     def record(self) -> ServiceOptions:
@@ -269,9 +253,6 @@ class ServiceOptionsInput(BaseModel):
             device_id=self.device_id,
             database=self.database,
             database_password=_secret_of(self.database_password),
-            switch_file=self.switch_file,
-            state_file=self.state_file,
-            channel_file=self.channel_file,
             registry_url=self.registry_url,
             consoles_allowed=self.consoles_allowed,
             dial_window_s=self.dial_window_s,
@@ -512,9 +493,6 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     *,
     bind_ip: str | None,
     device_id: str | None,
-    channel_file: str | None,
-    switch_file: str | None,
-    state_file: str | None,
     database: str | None,
     registry_url: str | None,
     allow_console: Sequence[str],
@@ -533,9 +511,6 @@ def parse_service_options(  # noqa: PLR0913 - one keyword per field; collapsing 
     given = {
         "bind_ip": bind_ip,
         "device_id": device_id,
-        "channel_file": channel_file,
-        "switch_file": switch_file,
-        "state_file": state_file,
         "database": database,
         "consoles_allowed": tuple(allow_console),
         "registry_url": registry_url,

@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import insert
 
 from soundtouch_zonemaster.adapters.files.channel_file import channels_json, save_channels
-from soundtouch_zonemaster.adapters.files.house_channels import channel_count, read_channels, write_channels
+from soundtouch_zonemaster.adapters.files.house_channels import read_channels, write_channels
 from soundtouch_zonemaster.adapters.files.house_db import HouseDatabase
 from soundtouch_zonemaster.adapters.files.house_schema import CHANNEL
 from soundtouch_zonemaster.application.errors import StoreError
@@ -62,13 +62,11 @@ def test_the_list_comes_back_in_the_order_it_was_written(house_database: str, da
         write_channels(connection, HOUSE, where=house_database)
     with database.reading() as connection:
         assert read_channels(connection, where=house_database) == HOUSE
-        assert channel_count(connection) == 3
 
 
 def test_an_empty_database_holds_an_empty_list(house_database: str, database: HouseDatabase) -> None:
     with database.reading() as connection:
         assert read_channels(connection, where=house_database) == ChannelList()
-        assert channel_count(connection) == 0
 
 
 def test_a_row_the_channel_rules_refuse_is_refused_with_its_count(house_database: str, database: HouseDatabase) -> None:
@@ -118,7 +116,6 @@ def test_a_duplicate_channel_number_is_a_named_refusal(house_database: str, data
     # The failed write must not have overwritten the list that was there before it.
     with database.reading() as connection:
         assert read_channels(connection, where=house_database) == HOUSE
-        assert channel_count(connection) == 3
 
 
 def test_the_list_order_is_kept_even_when_the_numbers_sort_otherwise(

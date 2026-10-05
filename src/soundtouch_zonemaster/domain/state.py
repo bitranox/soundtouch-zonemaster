@@ -4,14 +4,11 @@ The current channel and the membership, and later the position of every file cha
 on purpose: everything else is asked again at start, from the registry and from the speakers
 themselves, because a fact that can be re-derived is a fact that cannot go stale here.
 
-The record only. Reading and writing it - including the rule that a document this cannot make
-sense of starts the service EMPTY rather than raising - is ``adapters/files/state_file.py``, which
-keeps a pydantic model over these fields so the bytes on disk and the problem counts in the log do
-not change.
+The record only. Reading and writing it is the house database's (``adapters/files/house_state.py``),
+one table per field that is a collection.
 
 What a calibration measured is not here: it is a house preference (``preferences.py``), kept in
-the house database's preference table, which is also where an old state file's two calibrated
-numbers are carried when it is imported.
+the house database's preference table.
 """
 
 from __future__ import annotations

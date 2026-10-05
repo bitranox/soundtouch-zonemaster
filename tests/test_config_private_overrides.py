@@ -108,7 +108,6 @@ def test_an_example_file_in_the_defaults_directory_is_not_merged(tmp_path: Path)
 def test_there_is_a_tracked_example_for_each_scope_that_carries_machine_values() -> None:
     assert [path.name for path in _examples()] == [
         "91-zone-rnhome.toml.example",
-        "92-files-rnhome.toml.example",
         "93-database-rnhome.toml.example",
         "98-prototype-rnhome.toml.example",
     ]

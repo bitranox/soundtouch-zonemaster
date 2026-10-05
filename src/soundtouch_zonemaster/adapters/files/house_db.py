@@ -6,12 +6,12 @@ won. The setting names it as a URL, or as a plain path meaning a SQLite file, so
 never runs a database server writes a path and nothing else.
 
 **SQLite** is opened in WAL mode with ``synchronous = FULL``: the service is read back after
-whatever ended the last run, including a power cut, and FULL is what makes a committed
-transaction survive one in WAL mode. A WRITE transaction begins ``BEGIN IMMEDIATE``, so a writer
-waits at the start rather than half-way and the legacy import's check-then-write cannot
-interleave with another writer; a READ transaction begins plain ``BEGIN``, so a reader never
-blocks the service. The driver's own transaction handling is switched off for that, because it
-would emit its own BEGIN at a moment of its choosing.
+whatever ended the last run, including a power cut, and FULL is what makes a committed transaction
+survive one in WAL mode. A WRITE transaction begins ``BEGIN IMMEDIATE``, so a writer waits at the
+start rather than half-way and a check-then-write cannot interleave with another writer; a READ
+transaction begins plain ``BEGIN``, so a reader never blocks the service. The driver's own
+transaction handling is switched off for that, because it would emit its own BEGIN at a moment of
+its choosing.
 
 **PostgreSQL** gets bounded connect and statement timeouts, and TCP keepalives with a
 ``tcp_user_timeout``: a server that stopped answering, or whose host vanished without a word, must

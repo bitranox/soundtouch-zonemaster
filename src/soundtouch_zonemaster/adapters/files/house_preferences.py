@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from ...domain.preferences import PreferenceName, PreferenceSource, PreferenceValue
 
-__all__ = ["delete_preference", "preference_is_set", "read_preferences", "write_preference"]
+__all__ = ["delete_preference", "read_preferences", "write_preference"]
 
 _COLUMNS = (PREFERENCE.c.name, PREFERENCE.c.value, PREFERENCE.c.source, PREFERENCE.c.changed_at)
 
@@ -33,11 +33,6 @@ _COLUMNS = (PREFERENCE.c.name, PREFERENCE.c.value, PREFERENCE.c.source, PREFEREN
 def read_preferences(connection: Connection) -> tuple[PreferenceRow, ...]:
     """Every stored row, by name, exactly as held."""
     return tuple(_as_row(found) for found in connection.execute(select(*_COLUMNS).order_by(PREFERENCE.c.name)))
-
-
-def preference_is_set(connection: Connection, name: PreferenceName) -> bool:
-    """Whether somebody set this preference, whatever the value they set."""
-    return _row(connection, name) is not None
 
 
 def write_preference(

@@ -51,9 +51,9 @@ followed by a close of whatever half of it happened, so a refused start holds no
 no thread once that close has run. It is waited for within the same bound, for the same reason,
 and a clean-up that gives up leaves the lock to the database as a close that gives up does.
 
-The store's own log lines - a legacy import, the channel count - are written from the worker
-thread. Each is written while the service awaits that very call, and one call is one line to the
-stream, so no line of the service's own can land inside one.
+The store's own log line - the channel count - is written from the worker thread. It is written
+while the service awaits that very call, and one call is one line to the stream, so no line of the
+service's own can land inside one.
 """
 
 from __future__ import annotations
@@ -72,9 +72,7 @@ from .house_switch import DbSwitch
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
-    from pathlib import Path
 
-    from ...application.options import LegacyFiles
     from ...application.ports import HouseStore
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
@@ -233,9 +231,6 @@ class StoreWorker:
             return "it is"
         return f"{count} {'write' if count == 1 else 'writes'} not written yet, and it, are"
 
-    async def import_legacy(self, files: LegacyFiles) -> None:
-        await self._run(functools.partial(self._store.import_legacy, files))
-
     async def load_state(self) -> ZoneState:
         return await self._run(self._store.load_state)
 
@@ -263,9 +258,9 @@ class StoreWorker:
     async def is_on(self) -> bool:
         return await self._run(self._store.is_on)
 
-    def switch(self, *, poll_s: float, ignored_file: Path | None) -> DbSwitch:
+    def switch(self, *, poll_s: float) -> DbSwitch:
         """The switch, read through this worker like everything else, each poll on the thread."""
-        return DbSwitch(self.is_on, where=self.where, log=self.log, poll_s=poll_s, ignored_file=ignored_file)
+        return DbSwitch(self.is_on, where=self.where, log=self.log, poll_s=poll_s)
 
     def _run[T](self, call: Callable[[], T]) -> asyncio.Future[T]:
         """Queue one call on the thread now, and answer what it answers, or raise what it raises."""

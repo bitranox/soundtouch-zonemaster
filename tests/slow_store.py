@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
-    from soundtouch_zonemaster.application.options import ChannelsExport, LegacyFiles
+    from soundtouch_zonemaster.application.options import ChannelsExport
     from soundtouch_zonemaster.application.ports import HouseStore
     from soundtouch_zonemaster.domain.channellist import ChannelList
     from soundtouch_zonemaster.domain.preferences import (
@@ -94,10 +94,6 @@ class SlowStore:
     def close(self) -> None:
         self._called("close")
         self._real.close()
-
-    def import_legacy(self, files: LegacyFiles) -> None:
-        self._called("import_legacy")
-        self._real.import_legacy(files)
 
     def load_state(self) -> ZoneState:
         self._called("load_state")

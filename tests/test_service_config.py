@@ -45,22 +45,10 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.domain.preferences import PreferenceValue
     from soundtouch_zonemaster.domain.secret import Secret
 
-DEPLOYED_ARGV = (
-    "--bind-ip",
-    "203.0.113.190",
-    "--channel-file",
-    "/var/lib/zonemaster/channels.json",
-    "--switch-file",
-    "/var/lib/zonemaster/zone.switch",
-    "--state-file",
-    "/var/lib/zonemaster/zone-state.json",
-)
-"""The options the deployed unit passes. The unit's ``ExecStart`` still names the three file paths,
-which are now one-time import sources. The database it needs comes from the host layer,
+DEPLOYED_ARGV = ("--bind-ip", "203.0.113.190")
+"""The options the deployed unit passes. The database it needs comes from the host layer,
 ``database.url`` in the deployment host's own configuration file, which is what a test using this
-argv must add through ``_user_config`` or an equivalent isolated layer. Only the paths are rewritten
-below, because ``/var/lib/zonemaster`` does not exist on a development host and each file's directory
-is checked at startup."""
+argv must add through ``_user_config`` or an equivalent isolated layer."""
 
 
 def _capture() -> tuple[list[ServiceOptions], RunService]:
@@ -86,16 +74,11 @@ def _house(tmp_path: Path, *, bind_ip: str = "10.0.0.1", zone: str = "", extra: 
     """A config body holding the settings that have no default, so a run can get past them.
 
     The sections are the scopes the shipped files use: ``zone`` is what the master is on the
-    network and ``files`` is what this deployment owns. ``zone`` adds a key inside that first
+    network and ``database`` is where the house database is. ``zone`` adds a key inside that first
     section and ``extra`` adds whole sections after both, because TOML forbids reopening a table
     and a key appended to the wrong one is silently somebody else's setting.
     """
-    return (
-        f'[zone]\nbind_ip = "{bind_ip}"\n{zone}'
-        f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n'
-        f'[files]\nchannel_file = "{tmp_path}/ch.json"\n'
-        f'switch_file = "{tmp_path}/sw"\nstate_file = "{tmp_path}/st.json"\n' + extra
-    )
+    return f'[zone]\nbind_ip = "{bind_ip}"\n{zone}[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n' + extra
 
 
 def test_the_deployed_units_argv_still_wins_over_a_config_file_that_disagrees(
@@ -105,19 +88,15 @@ def test_the_deployed_units_argv_still_wins_over_a_config_file_that_disagrees(
     unit having to change on the same day. A file that contradicts the unit must lose."""
     _user_config(
         isolated_config_layers,
-        f'[zone]\nbind_ip = "10.9.9.9"\n'
-        f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n'
-        f'[files]\nchannel_file = "/tmp/other.json"\n'
-        f"[dialling]\nwindow_s = 1.4\n",
+        f'[zone]\nbind_ip = "10.9.9.9"\n[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n[dialling]\nwindow_s = 1.4\n',
     )
-    argv = [part.replace("/var/lib/zonemaster", str(tmp_path)) for part in DEPLOYED_ARGV]
+    argv = list(DEPLOYED_ARGV)
     seen, run = _capture()
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv])
 
     assert main(run_service=run) == 0
     options = seen[0]
     assert options.bind_ip == "203.0.113.190", "the unit's address, not the file's"
-    assert options.channel_file == tmp_path / "channels.json", "the unit's own value, not the file's"
     assert options.dial_window_s == 1.4, "and a setting the unit says nothing about still comes from the file"
 
 
@@ -133,8 +112,8 @@ def test_a_run_with_no_options_at_all_is_configured_entirely_by_file(
     assert main(run_service=run) == 0
     options = seen[0]
     assert options.bind_ip == "10.9.9.9"
-    assert options.state_file == tmp_path / "st.json"
-    assert options.device_id == "AABBCC001122", "device_id sits in [zone] beside bind_ip, not in [files]"
+    assert options.database == f"{tmp_path}/zonemaster.sqlite"
+    assert options.device_id == "AABBCC001122", "device_id sits in [zone] beside bind_ip, not in [database]"
 
 
 def test_a_setting_missing_from_every_layer_is_refused_by_name(
@@ -174,9 +153,7 @@ def test_a_set_override_reaches_the_service_and_still_loses_to_a_typed_option(
 ) -> None:
     _user_config(
         isolated_config_layers,
-        f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n'
-        f'[files]\nchannel_file = "{tmp_path}/ch.json"\n'
-        f'switch_file = "{tmp_path}/sw"\nstate_file = "{tmp_path}/st.json"\n',
+        f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n',
     )
     seen, run = _capture()
     monkeypatch.setattr(
@@ -251,7 +228,7 @@ def test_a_lower_case_device_id_option_is_accepted_and_used_upper_case(
     person typing it lower-case must not be refused where a config file spelling it the same way
     is not."""
     _user_config(isolated_config_layers, _house(tmp_path))
-    argv = [part.replace("/var/lib/zonemaster", str(tmp_path)) for part in DEPLOYED_ARGV]
+    argv = list(DEPLOYED_ARGV)
     seen, run = _capture()
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv, "--device-id", "aabbcc001122"])
 
@@ -561,9 +538,9 @@ def test_a_section_this_program_owns_answers_empty_rather_than_refusing(
 def test_the_other_deployment_scoped_section_answers_the_same_way(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], isolated_config_layers: Path
 ) -> None:
-    """``files`` ships commented out for the same reason ``zone`` does, and an operator reaches
+    """``database`` ships commented out for the same reason ``zone`` does, and an operator reaches
     for it in the same breath. Named rather than parametrised because these are the only two."""
-    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json-bare", "config", "--section", "files"])
+    monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", "--json-bare", "config", "--section", "database"])
 
     assert main() == 0
     assert json.loads(capsys.readouterr().out)["data"]["config"] == {}
@@ -670,7 +647,7 @@ def test_config_deploy_writes_the_file_once_and_then_says_it_did_not(
     assert written.exists()
     assert first["data"]["written"][0] == str(written), "the base file first"
     assert sorted(first["data"]["written"][1:]) == sorted(str(path) for path in scopes.iterdir()), (
-        "and every scope file beside it, or a deploy writes eight files and reports one"
+        "and every scope file beside it, or a deploy writes them all and reports one"
     )
 
     assert main() == 0
@@ -689,14 +666,6 @@ def test_a_deployed_file_is_a_file_the_service_then_reads(
     scopes = isolated_config_layers / "xdg" / "soundtouch-zonemaster" / "config.d"
     for name, settings in (
         ("10-zone.toml", (("bind_ip", "10.0.0.1"),)),
-        (
-            "20-files.toml",
-            (
-                ("channel_file", f"{tmp_path}/ch.json"),
-                ("switch_file", f"{tmp_path}/sw"),
-                ("state_file", f"{tmp_path}/st.json"),
-            ),
-        ),
         ("25-database.toml", (("url", f"{tmp_path}/zonemaster.sqlite"),)),
     ):
         path = scopes / name
@@ -710,7 +679,7 @@ def test_a_deployed_file_is_a_file_the_service_then_reads(
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service"])
     assert main(run_service=run) == 0
     assert seen[0].bind_ip == "10.0.0.1"
-    assert seen[0].state_file == tmp_path / "st.json"
+    assert seen[0].database == f"{tmp_path}/zonemaster.sqlite"
 
 
 def test_the_human_view_prints_every_value_with_the_file_it_came_from(
@@ -967,7 +936,7 @@ def test_an_mpd_port_no_caller_could_dial_is_refused_by_name(
     # The unit's argv names no database; the deployment host's layer file supplies one, so we add
     # it here through the isolated user layer.
     _user_config(isolated_config_layers, f'[database]\nurl = "{tmp_path}/zonemaster.sqlite"\n')
-    argv = [part.replace("/var/lib/zonemaster", str(tmp_path)) for part in DEPLOYED_ARGV]
+    argv = list(DEPLOYED_ARGV)
     monkeypatch.setattr("sys.argv", ["soundtouch-zonemaster-service", *argv, "--mpd-port", "0"])
 
     assert main() == 1, "it ran and the answer is no, which is not the same as could not run"

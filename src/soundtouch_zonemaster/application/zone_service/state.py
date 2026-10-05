@@ -172,7 +172,7 @@ class ServiceState:
         Built here and not opened, so constructing a service touches no disk and starts no thread;
         the switch below is handed out now because it reads through the store only when it is
         asked. Every call into it runs off this loop, which also times the zone."""
-        self.switch = self.store.switch(poll_s=options.switch_poll_s, ignored_file=options.switch_file)
+        self.switch = self.store.switch(poll_s=options.switch_poll_s)
         self.policy = Membership(
             master_device_id=options.device_id,
             now=time.time,

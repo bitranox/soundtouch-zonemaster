@@ -36,7 +36,7 @@ Complete (v0.2.0+, the template rebuild)
 ### Application Layer
 - `src/soundtouch_zonemaster/application/outcome.py`  -  ExitCode (OK/REFUSED/ERROR), OptionsError, device_id_or_refuse (checks and folds to upper case), tcp_port_or_refuse, preference_or_refuse
 - `src/soundtouch_zonemaster/application/errors.py`  -  PortsBusyError, RegistryError, MpdError (MpdRefusalError, NotInMpdError), StoreError (StoreBusyError, StoreMissingError)
-- `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy, LegacyFiles; every default lives on a field, and both records hold a device id in upper case however they were built
+- `src/soundtouch_zonemaster/application/options.py`  -  Options, ServiceOptions, ChannelPolicy, ChannelsExport; every default lives on a field, and both records hold a device id in upper case however they were built
 - `src/soundtouch_zonemaster/application/ports.py`  -  The Protocols the service and the prototype reach the world through: HouseStore (the state, the channel list, the switch and the house preferences in one database - a SQLite file, or PostgreSQL) and OpenHouseStore (its opener); ServiceStore, the same store as the SERVICE calls it (every call awaited, writes queued in call order when called) and StoreOffTheLoop, which turns one into the other; LocationResolver and OpenLocationResolver (the relative Orion location, completed for the master's fetch and for a speaker apart); the speaker, MPD and master ports. Bundled as ZoneServicePorts (whose `off_the_loop` and `open_locations` fields carry the two newer openers), PrototypePorts and ServiceCommands
 - `src/soundtouch_zonemaster/application/prototype.py`  -  The prototype's run: options in, the run loop it drives
 - `src/soundtouch_zonemaster/application/zone_service/`  -  The service loop as a chain of nine classes, one file each:
@@ -52,11 +52,10 @@ Complete (v0.2.0+, the template rebuild)
   - `service.py`  -  ZoneService (the pass itself: poll, observe, reconcile, guard the switch)
 
 ### Adapters Layer
-- `src/soundtouch_zonemaster/adapters/files/`  -  The file and database boundaries the service reaches its state through:
-  - `atomicfile.py`  -  The one temp-file-plus-fsync-and-rename writer state and channel files share
-  - `state_file.py`  -  The state file, from before the database (read/write ZoneState)
-  - `channel_file.py`  -  The channel file, from before the database, refuses to start empty rather than overwrite the list
-  - `switch_file.py`  -  The switch file, from before the database, watched rather than read once
+- `src/soundtouch_zonemaster/adapters/files/`  -  The database the service reaches its state through, and the files around it:
+  - `atomicfile.py`  -  The one temp-file-plus-fsync-and-rename writer a channel-list file is written with
+  - `channel_file.py`  -  The channel-list document `channels export` writes and `channels import` reads; refuses an unusable one rather than reading it as empty
+  - `switch_file.py`  -  The old `zone.switch` file's word, read only by the installer's `service_venv.py seed-switch`
   - `house_db.py`  -  Where the database is (a path or a URL), its engine, the writer lock per backend (`flock` on SQLite, a session advisory lock on PostgreSQL), the schema brought to Alembic's head while that lock is held
   - `house_schema.py`  -  The tables, as one SQLAlchemy `MetaData` the migrations are held to
   - `migrations/`  -  Alembic: `env.py` and `versions/` (written by hand; `tests/test_house_db.py` holds them to `house_schema.py`; `0002_house_preferences.py` moves the calibrated window and hold out of the `zone` row and into the `preference` table)
@@ -64,7 +63,6 @@ Complete (v0.2.0+, the template rebuild)
   - `house_switch.py`  -  The switch, as one row; off only when the row says so; every write locks it before reading it (`hold_the_switch`); DbSwitch is the service's watch
   - `house_channels.py`  -  The channel list, as rows ordered by `position` (never `rowid`), checked by the same rules the channel file is
   - `house_preferences.py`  -  The preferences, as rows: one per preference somebody set, an UPSERT never a delete-then-insert
-  - `legacy_import.py`  -  The one-time import of the three old files into an empty part of the database
   - `house_store.py`  -  SqlHouseStore: the state, the channel list, the switch and the house preferences, in one database; `set_preferences` writes several preferences in one transaction (a calibration is stored whole or not at all)
   - `store_worker.py`  -  StoreWorker, the ServiceStore the service calls: the house store off the event loop on one daemon thread of its own, every call run in the order asked; writes queued when called and kept when their awaiter is cancelled; a close that waits at most `STOP_BOUND_S` (10 s) and says what it left behind
 - `src/soundtouch_zonemaster/adapters/http_client.py`  -  Every httpx client, built with no timeout of its own: each call's deadline is asyncio's, because an anyio deadline can swallow a stop
@@ -121,7 +119,6 @@ Complete (v0.2.0+, the template rebuild)
 
 ### Configuration Defaults
 - `adapters/config/defaultconfig.d/10-zone.toml`  -  Zone behaviour (take-in waits, member book-keeping)
-- `adapters/config/defaultconfig.d/20-files.toml`  -  The three file paths (state, channel, switch) the house database imports once
 - `adapters/config/defaultconfig.d/25-database.toml`  -  The house database (`database.url`), SQLite or PostgreSQL, and its password (`database.password`)
 - `adapters/config/defaultconfig.d/30-registry.toml`  -  AfterTouch registry URL
 - `adapters/config/defaultconfig.d/40-membership.toml`  -  Membership windows (wakes, stand-down)
@@ -158,18 +155,18 @@ Complete (v0.2.0+, the template rebuild)
 
 ### Layer Assignments
 
-| Directory/Module            | Layer       | Responsibility                                                            |
-|-----------------------------|-------------|---------------------------------------------------------------------------|
-| `domain/`                   | Domain      | Pure rules as frozen dataclasses; no I/O, no framework                    |
-| `application/`              | Application | Ports, option records, both run loops                                     |
-| `application/zone_service/` | Application | The service loop's class chain                                            |
-| `adapters/files/`           | Adapters    | The house database, plus the three legacy file boundaries it imports once |
-| `adapters/aftertouch/`      | Adapters    | Speaker registry                                                          |
-| `adapters/soundtouch/`      | Adapters    | The zone protocol over the wire, incl. generated pb                       |
-| `adapters/config/`          | Adapters    | Six-layer configuration                                                   |
-| `adapters/logging/`         | Adapters    | The narration adapter                                                     |
-| `adapters/cli/`             | Adapters    | rich-click commands, envelopes, safe console                              |
-| `composition/`              | Composition | build_production(): one adapter per port                                  |
+| Directory/Module            | Layer       | Responsibility                                                               |
+|-----------------------------|-------------|------------------------------------------------------------------------------|
+| `domain/`                   | Domain      | Pure rules as frozen dataclasses; no I/O, no framework                       |
+| `application/`              | Application | Ports, option records, both run loops                                        |
+| `application/zone_service/` | Application | The service loop's class chain                                               |
+| `adapters/files/`           | Adapters    | The house database, and the channel-list file it exports to and imports from |
+| `adapters/aftertouch/`      | Adapters    | Speaker registry                                                             |
+| `adapters/soundtouch/`      | Adapters    | The zone protocol over the wire, incl. generated pb                          |
+| `adapters/config/`          | Adapters    | Six-layer configuration                                                      |
+| `adapters/logging/`         | Adapters    | The narration adapter                                                        |
+| `adapters/cli/`             | Adapters    | rich-click commands, envelopes, safe console                                 |
+| `composition/`              | Composition | build_production(): one adapter per port                                     |
 
 ### Import Enforcement
 
@@ -195,7 +192,6 @@ pre-rebuild code before the rebuild and replayed one case per test by
 
 | Corpus       | Fixture             | Holds                                                          |
 |--------------|---------------------|----------------------------------------------------------------|
-| state file   | `state_file.json`   | bytes written for representative ZoneStates; load refusals     |
 | channel file | `channel_file.json` | bytes for seeded/edited lists; bad numbers, non-http URLs      |
 | seeding      | `seeding.json`      | preset maps with gaps -> list + ordered log lines              |
 | dialler      | `dialler.json`      | digit sequences incl. undialable -> outcomes + log lines       |
@@ -254,9 +250,6 @@ ships empty; a house names its own boxes in its host layer
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `--bind-ip IP`                          | Address on the speakers' LAN                                                                                                                                                             |
 | `--database PATH or URL`                | The house database: state, channel list and switch, one database (a plain path is SQLite; `postgresql+psycopg://user@host/db` is PostgreSQL; password in `database.password`, not a URL) |
-| `--channel-file PATH`                   | The channel list as a file, from before the database: imported once into an empty database, then renamed `<name>.imported`                                                               |
-| `--switch-file PATH`                    | The switch as a file, from before the database: imported once, then not read                                                                                                             |
-| `--state-file PATH`                     | The state as a file, from before the database: imported once, then set aside                                                                                                             |
 | `--station-url ...` / `--seed-from ...` | REMOVED; seeding comes from presets of the first box switched on                                                                                                                         |
 | `--profile NAME`                        | Configuration profile                                                                                                                                                                    |
 | `--set SECTION.KEY=VAL`                 | Override one setting for this run (repeatable)                                                                                                                                           |
@@ -270,9 +263,7 @@ a connect argument; when it is empty, libpq's own `~/.pgpass`, `PGPASSFILE` or `
 A password given for a SQLite database is refused. The configured password goes only with the
 configured database: a typed `--database` other than exactly `database.url` is opened without it,
 with one line saying so (`boundary.scoped_to_the_configured_database`, shared by the run and the
-store verbs). A database that cannot be opened
-refuses the start; an old file that exists but cannot be parsed refuses the start too, naming the
-file, at the one-time import.
+store verbs). A database that cannot be opened refuses the start, naming it.
 
 **config**: every value, and the file it came from (`--section`, `--json`, `--redact`).
 `database.password` is always shown masked, with or without `--redact`, and so is every other key

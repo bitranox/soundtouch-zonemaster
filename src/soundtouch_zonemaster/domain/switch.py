@@ -5,8 +5,8 @@ not I/O: the service reads them to decide, and a test states them without touchi
 The switch lives in one row of the house database; reading that row, watching it for a change,
 and every way that read can fail are the adapter's (``adapters/files/house_switch.py``), and the
 prose explaining why a lost switch means ON lives there with the code that implements it. The
-old switch file is read by the same word only once, as a one-time import source
-(``adapters/files/switch_file.py``, called from ``legacy_import.py``).
+old switch file is read by the same word (``adapters/files/switch_file.py``), and only by the
+installer's switch seed.
 """
 
 from __future__ import annotations

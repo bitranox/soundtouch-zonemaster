@@ -126,8 +126,6 @@ one file:
 ```
 config.toml                  the header: which layers exist and in what order
 config.d/10-zone.toml        [zone]        what this master is on the network
-config.d/20-files.toml       [files]       the one-time import sources for the channel list,
-                                           the switch and the state (see below)
 config.d/25-database.toml    [database]    where the house database is, and its password
 config.d/30-registry.toml    [registry]    where the speaker list comes from
 config.d/40-membership.toml  [membership]  who may join, and when a box stops counting
@@ -151,7 +149,7 @@ soundtouch-zonemaster-service --json config --redact        # the same, parseabl
 ```
 
 `--json` and `--json-bare` belong to the group and go BEFORE the subcommand; `--section` and
-`--redact` are `config`'s own and go after it. A scope that no layer has set - `zone` and `files`
+`--redact` are `config`'s own and go after it. A scope that no layer has set - `zone` and `database`
 on a machine nobody has configured yet - is reported as empty rather than refused; only a name
 this program does not read at all is an error.
 
@@ -221,10 +219,7 @@ background as it starts, so the base is normally known before the first box is s
 The absolute form (that base URL plus `/station?data=...`), the older `/custom/v1/playback/...`
 URLs and any other `http://` or `https://` URL still work; any other bare path is refused.
 
-The three files under `[files]` (the channel list, the switch and the state) are one-time import
-sources only: on the first start after an upgrade, each is read once into whichever part of the
-database is still empty and then renamed `<name>.imported`. Once the database holds them, the
-service does not read those files again, and all three may be absent. The switch itself is then
+The state, the channel list and the switch all live in the house database. The switch is
 `soundtouch-zonemaster-service switch on|off` (and `switch` alone reports it), and the channel
 list is `soundtouch-zonemaster-service channels export|import`.
 

@@ -37,9 +37,6 @@ SETTINGS: Mapping[str, str] = {
     # where in a config file it is written  ->  which ServiceOptions field it fills
     "zone.bind_ip": "bind_ip",
     "zone.device_id": "device_id",
-    "files.channel_file": "channel_file",
-    "files.switch_file": "switch_file",
-    "files.state_file": "state_file",
     "database.url": "database",
     "database.password": "database_password",
     "registry.url": "registry_url",
@@ -169,7 +166,7 @@ answers for with nothing else edited.
 
 It exists to tell two questions apart that look identical in the merged configuration. A scope
 whose settings all describe ONE machine ships with every line commented out, so ``zone`` and
-``files`` hold nothing until somebody writes a value - and "nothing set it" is an ANSWER, while a
+``database`` hold nothing until somebody writes a value - and "nothing set it" is an ANSWER, while a
 name nobody ever declared is a typo. Both are absent from the merge; only one of them is news.
 """
 

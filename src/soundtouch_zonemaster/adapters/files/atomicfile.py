@@ -1,17 +1,15 @@
 """Writing a file so that nothing can ever read half of it.
 
-Both files this service owns are read after whatever ended the last run, which includes a power cut
-in the middle of a write. So neither may be written in place: the document goes to a temporary file
+A channel-list file is read after whatever ended the run that wrote it, which includes a power cut
+in the middle of a write. So it may not be written in place: the document goes to a temporary file
 beside the real one, is flushed to the disk, and is then renamed over it. A rename is atomic, so a
 reader sees the old document or the new one and never half of either.
 
-It lives in its own module because two files need exactly this and the rule has a part that is easy
-to leave out. Writing and fsyncing the temporary file makes its CONTENT durable; the rename that
-publishes it is a change to the DIRECTORY, and a power cut can lose that separately. One of the two
-callers having the directory fsync and the other not would be invisible until the day it mattered.
-
-The switch file deliberately does NOT go through here. It is one word, rewritten by a person, and
-giving it a durable write would say something about it that is not true.
+It lives in its own module because two callers need exactly this (``channel_file.save_channels``
+and the store's ``channels export``) and the rule has a part that is easy to leave out. Writing and
+fsyncing the temporary file makes its CONTENT durable; the rename that publishes it is a change to
+the DIRECTORY, and a power cut can lose that separately. One of the two callers having the
+directory fsync and the other not would be invisible until the day it mattered.
 """
 
 from __future__ import annotations

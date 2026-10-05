@@ -8,7 +8,7 @@ unchecked however strict the type checker is set.
 **The invariants that are pure live here; the ones that need the world do not.** A device id that
 is not twelve hex digits is not a device id, and a dialling window outside the measured bounds is
 not a window, so both are refused in ``__post_init__`` with the message and exit code they always
-had. Whether the state file's directory EXISTS, and whether a named address is a speaker this
+had. Whether the database's directory EXISTS, and whether a named address is a speaker this
 house never touches, are questions about the machine rather than about the option set; they are
 refused at the CLI boundary, with the same message and the same code.
 """
@@ -27,8 +27,6 @@ from ..domain.switch import POLL_S
 from .outcome import device_id_or_refuse, preference_or_refuse, tcp_port_or_refuse
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from ..domain.enums import Encryption, JoinMode
     from ..domain.secret import Secret
 
@@ -41,7 +39,6 @@ __all__ = [
     "REGISTRY_POLL_S",
     "WS_PORT",
     "ChannelPolicy",
-    "LegacyFiles",
     "Options",
     "ServiceOptions",
     "default_device_id",
@@ -173,21 +170,6 @@ class ChannelsExport:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class LegacyFiles:
-    """The three files the service kept before the house database, read once each and set aside.
-
-    Each is imported only into a part of the database that is still EMPTY, and renamed to
-    ``<name>.imported`` afterwards. A file whose part already has something in it is left where it
-    is and named at every start, because nothing reads it any more and a person may still be
-    writing it.
-    """
-
-    state_file: Path | None = None
-    channel_file: Path | None = None
-    switch_file: Path | None = None
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class ServiceOptions:
     """One validated service: where it binds, what it plays, and the database it owns."""
 
@@ -200,12 +182,6 @@ class ServiceOptions:
 
     ``None`` passes nothing, so libpq's own ``~/.pgpass``, ``PGPASSFILE`` and ``PGPASSWORD`` still
     apply. A SQLite database has no password, and the store refuses one given for it."""
-    switch_file: Path | None = None
-    """The switch as a file, from before the database: imported once, then not read."""
-    state_file: Path | None = None
-    """The state as a file, from before the database: imported once, then set aside."""
-    channel_file: Path | None = None
-    """The channel list as a file, from before the database: imported once, then set aside."""
     registry_url: str = DEFAULT_BASE_URL
     consoles_allowed: tuple[str, ...] = ()
     """Device ids of consoles that may be taken into the zone anyway.
@@ -249,11 +225,6 @@ class ServiceOptions:
     """How long a joining box's volume climbs from zero back to its own level (``domain/preferences.py``).
 
     A preference: a value set in the house database overrides this one while it is set."""
-
-    @property
-    def legacy(self) -> LegacyFiles:
-        """The old files, as the one record the store imports them from."""
-        return LegacyFiles(state_file=self.state_file, channel_file=self.channel_file, switch_file=self.switch_file)
 
     def __post_init__(self) -> None:
         """Refuse a device id that is not one, then every preference outside its bounds.

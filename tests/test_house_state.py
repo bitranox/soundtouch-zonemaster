@@ -14,7 +14,6 @@ from soundtouch_zonemaster.domain.state import Place, ZoneState
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 EVERY_FIELD = ZoneState(
     channel="11",
@@ -88,10 +87,9 @@ def test_switching_on_a_switch_never_set_is_no_change(database: HouseDatabase) -
         assert write_switch(connection, on=True) is False
 
 
-def test_the_watch_reports_a_change_once_and_names_a_file_nobody_reads(tmp_path: Path) -> None:
+def test_the_watch_reports_each_change_once() -> None:
     state = {"on": True}
     lines: list[str] = []
-    old_file = tmp_path / "zone.switch"
 
     async def is_on() -> bool:
         return state["on"]
@@ -101,7 +99,6 @@ def test_the_watch_reports_a_change_once_and_names_a_file_nobody_reads(tmp_path:
         where="house.sqlite",
         log=lambda kind, text: lines.append(f"{kind}: {text}"),
         poll_s=0.01,
-        ignored_file=old_file,
     )
 
     async def three_values() -> list[bool]:
@@ -109,7 +106,6 @@ def test_the_watch_reports_a_change_once_and_names_a_file_nobody_reads(tmp_path:
         async for value in switch.watch():
             seen.append(value)
             if len(seen) == 1:
-                old_file.write_text("off\n", encoding="utf-8")
                 state["on"] = False
             elif len(seen) == 2:
                 state["on"] = True
@@ -118,6 +114,6 @@ def test_the_watch_reports_a_change_once_and_names_a_file_nobody_reads(tmp_path:
         return seen
 
     assert asyncio.run(asyncio.wait_for(three_values(), timeout=5.0)) == [True, False, True]
-    notices = [line for line in lines if "is not read" in line]
-    assert len(notices) == 1, lines
-    assert str(old_file) in notices[0]
+    # One line per change and none per poll: the watch polls every 10 ms, so a line per read would
+    # be dozens here.
+    assert lines == ["switch: house.sqlite: on", "switch: house.sqlite: off", "switch: house.sqlite: on"]

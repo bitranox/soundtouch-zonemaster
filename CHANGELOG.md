@@ -22,6 +22,20 @@ All notable changes to this project are documented here. The format follows
   to hand the password no value, `--set database.password=null`, is still refused; its message
   now names the two ways out that remain (drop the `--set`, or give a JSON string).
 
+### Removed
+
+- The one-time import of the three files the service kept before the house database (the
+  channel list, the switch and the state), and with it the service's `--channel-file`,
+  `--switch-file` and `--state-file` options, their `[files]` settings (`files.channel_file`,
+  `files.switch_file`, `files.state_file` and their `SOUNDTOUCH_ZONEMASTER___FILES__*`
+  variables) and the shipped `20-files.toml`. The service's `--json` envelope no longer carries
+  `channel_file`, `switch_file` or `state_file`. **A deployed unit must stop passing the three
+  options BEFORE this version is installed**: an `ExecStart` that still names one is refused as
+  an unknown option (exit 2), so the service does not start. A `[files]` section left in a config
+  file is not read and does no harm. A house that still keeps its list, switch and state in
+  those files must start a 0.6 release once first, which imports them; `channels export|import`
+  remains the way to move a channel list in and out as a file.
+
 ### Fixed
 
 - A speaker that connects to the master in the very moment the master stops is now handed to

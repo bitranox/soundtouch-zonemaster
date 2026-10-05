@@ -1,27 +1,20 @@
-"""The two files the service is steered by and remembers itself in.
+"""The old switch file's word, and a remembered place as the house comes back to it.
 
-The switch is WATCHED, not read once, so the tests here write it while a watcher runs. The case
-that matters is not the obvious one: most editors do not modify a file in place, they write a new
-one and rename it over the old, so anything holding on to what it opened at start never sees the
-change and reports the old value forever.
-
-The state file is read back after a restart, which means it is read after whatever ended the last
-run - including a power cut in the middle of a write. A half-written document must start the
-service empty and say so, never raise, and a save must never be able to produce one.
+The switch file is read by the installer's switch seed and can be WATCHED, so the tests here also
+write it while a watcher runs. The case that matters is not the obvious one: most editors do not
+modify a file in place, they write a new one and rename it over the old, so anything holding on to
+what it opened at start never sees the change and reports the old value forever.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import TYPE_CHECKING
 
 import pytest
 
-from soundtouch_zonemaster.adapters.files.state_file import LegacyState, load_state, save_state
 from soundtouch_zonemaster.adapters.files.switch_file import Switch
-from soundtouch_zonemaster.domain.preferences import PreferenceName
-from soundtouch_zonemaster.domain.state import Place, ZoneState
+from soundtouch_zonemaster.domain.state import Place
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -159,188 +152,6 @@ async def test_the_watcher_says_nothing_while_nothing_changes(tmp_path: Path) ->
     await watcher.aclose()
 
 
-def test_the_state_file_round_trips(tmp_path: Path) -> None:
-    path = tmp_path / "state.json"
-    state = ZoneState(channel="3", members=("AABBCC000010", "AABBCC000011"))
-
-    save_state(path, LegacyState(state=state))
-
-    assert load_state(path, log=_quiet).state == state
-
-
-def test_the_calibration_beside_the_state_round_trips_and_parts_from_it_as_preferences(tmp_path: Path) -> None:
-    """The old file kept the two calibrated numbers beside the state; the import hands them on as
-    preferences, so the one reader of the format is where they part - a missing one is skipped."""
-    path = tmp_path / "state.json"
-    legacy = LegacyState(state=ZoneState(channel="3"), dial_window_s=0.6, hold_threshold_s=1.4)
-
-    save_state(path, legacy)
-
-    assert load_state(path, log=_quiet) == legacy
-    assert legacy.calibration() == ((PreferenceName.WINDOW, 0.6), (PreferenceName.HOLD, 1.4))
-    assert LegacyState(hold_threshold_s=1.4).calibration() == ((PreferenceName.HOLD, 1.4),)
-    assert LegacyState().calibration() == ()
-
-
-def test_the_position_of_each_mpd_channel_round_trips(tmp_path: Path) -> None:
-    """The one thing this file keeps that is not about speakers: where in a book the house got to.
-    A place is a track and an offset, the offset is a float and a channel number is a digit string,
-    so every part of the map has to survive JSON - a key written as a number would come back as one
-    and match no channel."""
-    path = tmp_path / "state.json"
-    state = ZoneState(channel="12", positions={"12": Place(track=2, seconds=61.5), "3": Place(track=0, seconds=0.0)})
-
-    save_state(path, LegacyState(state=state))
-
-    assert load_state(path, log=_quiet).state == state
-    assert load_state(path, log=_quiet).state.positions["3"].seconds == 0.0, "the very start is still a place"
-
-
-def test_the_volume_steps_a_box_missed_round_trip(tmp_path: Path) -> None:
-    """A box that was off when the house was turned up takes the step when it next joins, and a
-    restart in between must not lose it - a negative step included, which is the quieter house."""
-    path = tmp_path / "state.json"
-    state = ZoneState(owed_volume={"AABBCC0000A2": -5, "AABBCC0000A4": 5})
-
-    save_state(path, LegacyState(state=state))
-
-    assert load_state(path, log=_quiet).state == state
-
-
-def test_a_state_file_written_before_owed_volume_existed_loads_owing_nothing(tmp_path: Path) -> None:
-    path = tmp_path / "state.json"
-    path.write_text('{"channel": "3", "members": ["AABBCC000010"], "muted": {}}', encoding="utf-8")
-
-    assert load_state(path, log=_quiet).state.owed_volume == {}
-
-
-def test_a_state_file_that_remembers_only_the_offset_loads_as_the_first_track(tmp_path: Path) -> None:
-    """The house has one of these on disk: written by the version that kept seconds and no track.
-
-    It loads as track zero, which is exactly what that version would have played - it always
-    resumed the first file - so a file from before the change means the same thing after it.
-    """
-    path = tmp_path / "state.json"
-    path.write_text('{"channel": "11", "positions": {"11": 1.539}}', encoding="utf-8")
-
-    state = load_state(path, log=_quiet).state
-
-    assert state.positions == {"11": Place(track=0, seconds=1.539)}
-
-
-def test_a_state_file_written_before_positions_existed_loads_with_none(tmp_path: Path) -> None:
-    """The house has one of these on disk right now. A new field must not make it unusable, and it
-    must not invent positions either: no key means no channel has ever been left."""
-    path = tmp_path / "state.json"
-    path.write_text('{"channel": "3", "members": ["AABBCC000010"], "muted": {}}', encoding="utf-8")
-
-    state = load_state(path, log=_quiet).state
-
-    assert state.channel == "3"
-    assert state.positions == {}
-
-
-def test_a_missing_state_file_starts_empty(tmp_path: Path) -> None:
-    assert load_state(tmp_path / "nothing.json", log=_quiet) == LegacyState()
-
-
-def test_a_half_written_state_file_starts_empty_and_says_so(tmp_path: Path) -> None:
-    """A power cut mid-write is exactly what a state file is read after."""
-    path = tmp_path / "state.json"
-    path.write_text('{"channel": "3", "mem', encoding="utf-8")
-    lines: list[str] = []
-
-    state = load_state(path, log=lambda _kind, text: lines.append(text)).state
-
-    assert state == ZoneState()
-    assert any(str(path) in line for line in lines)
-
-
-def test_a_state_file_that_is_not_utf_8_starts_empty_and_says_so(tmp_path: Path) -> None:
-    """ "Never raises" has to include the bytes, not only the JSON.
-
-    An atomic write makes this unlikely rather than impossible: a disk error, or one hand in an
-    editor set to the wrong encoding, and the service stopped on a traceback at startup instead of
-    starting empty from a file it named.
-    """
-    path = tmp_path / "state.json"
-    path.write_bytes(b'{"channel": "\xff"}')
-    lines: list[str] = []
-
-    state = load_state(path, log=lambda _kind, text: lines.append(text)).state
-
-    assert state == ZoneState()
-    assert any(str(path) in line for line in lines)
-
-
-def test_a_state_file_written_with_a_byte_order_mark_loads(tmp_path: Path) -> None:
-    """Windows writes "UTF-8 with BOM", and this file is edited over SMB from there.
-
-    The three bytes are invisible to whoever opened the file, so reading them as part of the
-    document makes a file a person can read and repair report itself unusable - and the channel
-    it remembers is then lost on the very next restart, which is the one thing this file is for.
-    """
-    path = tmp_path / "state.json"
-    path.write_bytes(b'\xef\xbb\xbf{"channel": "1"}')
-    lines: list[str] = []
-
-    state = load_state(path, log=lambda _kind, text: lines.append(text)).state
-
-    assert state == ZoneState(channel="1")
-    assert lines == []
-
-
-def test_a_state_file_holding_the_wrong_shape_starts_empty(tmp_path: Path) -> None:
-    path = tmp_path / "state.json"
-    path.write_text('{"channel": 3, "members": "not a list"}', encoding="utf-8")
-
-    assert load_state(path, log=_quiet) == LegacyState()
-
-
-def test_saving_replaces_the_file_rather_than_writing_through_it(tmp_path: Path) -> None:
-    """The reason a reader can never see half a document: the old file is never opened to write.
-
-    Asserted on the inode, because that is the difference an in-place truncate would not make.
-    """
-    path = tmp_path / "state.json"
-    save_state(path, LegacyState(state=ZoneState(channel="1")))
-    before = path.stat().st_ino
-
-    save_state(path, LegacyState(state=ZoneState(channel="2")))
-
-    assert path.stat().st_ino != before
-    assert load_state(path, log=_quiet).state.channel == "2"
-
-
-def test_saving_leaves_no_temporary_file_behind(tmp_path: Path) -> None:
-    path = tmp_path / "state.json"
-
-    save_state(path, LegacyState(state=ZoneState(channel="1")))
-
-    assert [p.name for p in tmp_path.iterdir()] == ["state.json"]
-
-
-def test_a_leftover_temporary_file_is_not_what_gets_loaded(tmp_path: Path) -> None:
-    """A save killed halfway leaves its temporary behind; the real file must still be read."""
-    path = tmp_path / "state.json"
-    save_state(path, LegacyState(state=ZoneState(channel="1")))
-    (tmp_path / "state.json.tmp").write_text("{ broken", encoding="utf-8")
-
-    assert load_state(path, log=_quiet).state.channel == "1"
-
-
-def test_the_saved_file_is_readable_by_a_person(tmp_path: Path) -> None:
-    """It is a file somebody may have to repair at two in the morning."""
-    path = tmp_path / "state.json"
-
-    save_state(path, LegacyState(state=ZoneState(channel="11", members=("AABBCC000010",))))
-
-    written = json.loads(path.read_text(encoding="utf-8"))
-    assert written["channel"] == "11"
-    assert written["members"] == ["AABBCC000010"]
-    assert path.read_text(encoding="utf-8").endswith("\n")
-
-
 def test_coming_back_to_a_place_starts_a_little_before_it() -> None:
     """The overlap an audiobook needs (user, 2026-09-20): you hear your way back in.
 
@@ -359,24 +170,6 @@ def test_an_offset_shorter_than_the_overlap_starts_that_same_file_again() -> Non
     """
     assert Place(track=4, seconds=12.5).resumed(rewind_s=20.0) == Place(track=4, seconds=0.0)
     assert Place(track=0, seconds=0.0).resumed(rewind_s=20.0) == Place(track=0, seconds=0.0)
-
-
-def test_a_place_remembers_the_file_by_name_and_round_trips(tmp_path: Path) -> None:
-    """A directory channel remembers WHICH file by its path (OPEN-WORK rank 11): the index moves
-    when somebody adds a file to the directory, and the name does not."""
-    path = tmp_path / "state.json"
-    state = ZoneState(positions={"21": Place(track=3, seconds=61.5, file="audiobooks/Buch/04.mp3")})
-
-    save_state(path, LegacyState(state=state))
-
-    assert load_state(path, log=_quiet).state == state
-
-
-def test_a_place_written_before_the_file_name_was_kept_loads_without_one(tmp_path: Path) -> None:
-    path = tmp_path / "state.json"
-    path.write_text('{"positions": {"12": {"track": 2, "seconds": 61.5}}}', encoding="utf-8")
-
-    assert load_state(path, log=_quiet).state.positions["12"] == Place(track=2, seconds=61.5)
 
 
 def test_coming_back_keeps_the_file_name() -> None:

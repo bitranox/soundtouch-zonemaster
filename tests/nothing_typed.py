@@ -13,9 +13,6 @@ __all__ = ["NOTHING_TYPED"]
 
 NOTHING_TYPED: dict[str, Any] = {
     "device_id": None,
-    "channel_file": None,
-    "switch_file": None,
-    "state_file": None,
     "registry_url": None,
     "allow_console": (),
     "unreachable_timeout_s": None,

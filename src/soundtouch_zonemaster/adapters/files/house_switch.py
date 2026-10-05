@@ -1,7 +1,6 @@
 """The switch, as one row: off only when the row says so.
 
-The rule is the one ``switch_file.py`` applies to the old file, for the same reason. A
-missing row, or a read that fails, means ON, so a lost database cannot silently stop the house
+A missing row, or a read that fails, means ON, so a lost database cannot silently stop the house
 working, and turning the service off stays a deliberate act. The word and the poll interval are
 still the domain's (``domain/switch.py``).
 
@@ -15,11 +14,6 @@ runs, which means two ``switch`` invocations really can land at the same moment.
 gives, whether the house changed, is what a deploy decides by whether to turn the house back on
 later, and under READ COMMITTED a person's ``switch off`` committing between a writer's read and
 its write would make that answer a change the writer never made.
-
-**The old file is watched too, for one reason.** Anybody who has operated this house writes
-``off`` into ``zone.switch``, and after the move nothing reads it any more, so the house keeps
-playing with no sign of why. The watch says so once each time that file appears, naming it and
-the command that replaced it.
 """
 
 from __future__ import annotations
@@ -36,7 +30,6 @@ from .house_schema import SWITCH
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
-    from pathlib import Path
 
     from sqlalchemy.engine import Connection
 
@@ -116,13 +109,11 @@ class DbSwitch:
         where: str,
         log: LogFn,
         poll_s: float,
-        ignored_file: Path | None,
     ) -> None:
         self._is_on = is_on
         self.where = where
         self.log = log
         self.poll_s = poll_s
-        self.ignored_file = ignored_file
 
     async def is_on(self) -> bool:
         return await self._is_on()
@@ -130,19 +121,10 @@ class DbSwitch:
     async def watch(self) -> AsyncGenerator[bool, None]:
         """Yield the value now, and again each time it changes. Never yields the same value twice."""
         last: bool | None = None
-        noticed = False
         while True:
             current = await self.is_on()
             if current != last:
                 self.log("switch", f"{self.where}: {'on' if current else 'off'}")
                 last = current
                 yield current
-            noticed = self._notice_the_old_file(noticed=noticed)
             await asyncio.sleep(self.poll_s)
-
-    def _notice_the_old_file(self, *, noticed: bool) -> bool:
-        """Say once, each time it appears, that the old switch file is not read any more."""
-        present = self.ignored_file is not None and self.ignored_file.exists()
-        if present and not noticed:
-            self.log("switch", f"{self.ignored_file}: is not read any more; use the service's 'switch' command")
-        return present

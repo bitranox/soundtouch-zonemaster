@@ -4,11 +4,12 @@
 # after this one in lexicographic order, and a config file may hold any number of those sections.
 #
 #   10-zone.toml         what this master IS on the network
-#   20-files.toml        the three files this deployment owns
+#   25-database.toml     the house database: state, channel list, switch and preferences
 #   30-registry.toml     where the speaker list comes from
 #   40-membership.toml   who is allowed into the zone, and when a box stops counting
 #   50-dialling.toml     how a channel number is typed on a speaker's preset keys
-#   60-switch.toml       how quickly the on/off file is noticed
+#   55-volume.toml       how a joining box's volume comes back
+#   60-switch.toml       how quickly a change of the switch is noticed
 #   70-observer.toml     each speaker's notification channel
 #   80-prototype.toml    which speakers the prototype never touches
 #   90-mpd.toml          where the Music Player Daemon answers
