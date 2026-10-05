@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `examples/systemd/soundtouch-zonemaster.service`, a sample unit for the service, and
+  `examples/systemd/mpd.service.d/no-io-uring.conf`, an MPD drop-in. MPD 0.24's pending
+  io_uring wait is counted as I/O wait, so a machine running it shows close to 100% I/O
+  pressure while the disk is idle; the drop-in makes MPD use ordinary reads. The README's new
+  section "Running the service under systemd" explains both.
+
 ### Changed
 
 - Requires lib_layered_config 7.0.1 or later. From 7.0 the environment layer keeps `null` and

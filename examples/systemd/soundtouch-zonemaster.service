@@ -1,0 +1,50 @@
+# soundtouch-zonemaster.service - a sample unit for the zone master service.
+#
+# Copy it to /etc/systemd/system/, change the three marked values, then:
+#   systemctl daemon-reload && systemctl enable --now soundtouch-zonemaster.service
+#
+# While it runs, the service can take real speakers into a zone and play on them. Whether it
+# does anything at all is decided by the switch in the house database, so
+# `soundtouch-zonemaster-service switch off` stands the house down without stopping the unit.
+
+[Unit]
+Description=SoundTouch zone master
+# The speaker list is read from the replacement service's registry ([registry] url). If that
+# service runs on this machine under systemd, name its unit here. Use Wants=, not Requires=:
+# with Requires=, restarting that service during an update would take the zone down with it.
+#Wants=<replacement-service>.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+# CHANGE: where the program is installed. This assumes a venv in /opt/soundtouch-zonemaster:
+#   uv venv /opt/soundtouch-zonemaster/.venv
+#   uv pip install --python /opt/soundtouch-zonemaster/.venv/bin/python soundtouch-zonemaster
+WorkingDirectory=/opt/soundtouch-zonemaster
+# CHANGE: --bind-ip is this machine's LAN address, which the speakers connect back to.
+# CHANGE: --database is the house database. A plain path means SQLite. A PostgreSQL URL
+# works as well, but give its password in the host config file, never here (see README).
+# Both values can be set in the config files instead; then drop them from this line.
+ExecStart=/opt/soundtouch-zonemaster/.venv/bin/soundtouch-zonemaster-service \
+    --bind-ip 192.168.1.10 \
+    --database /var/lib/soundtouch-zonemaster/house.sqlite
+
+# Keep this line. The service dissolves the zone when it is interrupted, and systemd's default
+# SIGTERM does not trigger that cleanup. A plain `systemctl stop` would leave the speakers in a
+# zone whose master has gone, and someone would have to reset each box by hand.
+KillSignal=SIGINT
+# Long enough for the dissolve to reach every speaker over HTTP, each with its own timeout.
+TimeoutStopSec=60
+
+# /var/lib/soundtouch-zonemaster is created and owned by systemd. The house database is written
+# on every membership change, so it must survive a restart and must not live in /tmp.
+StateDirectory=soundtouch-zonemaster
+
+# Restart after a crash, but slowly enough that a restart loop shows up in the journal rather
+# than hammering the speakers.
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

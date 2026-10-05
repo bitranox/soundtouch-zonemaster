@@ -28,6 +28,7 @@ plus a Python program that plays the master's part.
 - [Configuration](#configuration)
 - [Usage](#usage)
   - [Running the master](#running-the-master)
+  - [Running the service under systemd](#running-the-service-under-systemd)
   - [Running the tests](#running-the-tests)
   - [Key mappings](#key-mappings)
 - [The recovered schemas](#the-recovered-schemas)
@@ -287,6 +288,29 @@ Anything that makes a speaker play is audible in the room it stands in. Check th
 standby before a run, and note that the master refuses to target a Lifestyle console, whose input
 switches when it is sent a power command.
 
+### Running the service under systemd
+
+[`examples/systemd/soundtouch-zonemaster.service`](examples/systemd/soundtouch-zonemaster.service)
+is a sample unit for `soundtouch-zonemaster-service`. Copy it to `/etc/systemd/system/` and change
+the three values marked `CHANGE`: the install path, the address to bind, and the house database.
+Keep `KillSignal=SIGINT`. The service dissolves the zone only when it is interrupted, so with
+systemd's default SIGTERM a `systemctl stop` would leave the speakers grouped under a master that
+has gone.
+
+If your channels play from MPD, install
+[`examples/systemd/mpd.service.d/no-io-uring.conf`](examples/systemd/mpd.service.d/no-io-uring.conf)
+as a drop-in for `mpd.service` as well. MPD 0.24 keeps an io_uring request pending while it runs,
+and the kernel counts that wait as I/O wait. The machine, or the container MPD runs in, then shows
+close to 100% I/O pressure in its pressure-stall figures (Proxmox's I/O pressure graph included)
+while the disk is idle. The drop-in makes MPD fall back to ordinary reads, and nothing else
+changes.
+
+```bash
+sudo install -D -m 0644 examples/systemd/mpd.service.d/no-io-uring.conf \
+    /etc/systemd/system/mpd.service.d/no-io-uring.conf
+sudo systemctl daemon-reload && sudo systemctl restart mpd
+```
+
 ### Running the tests
 
 The tests need no hardware. Framing is proven against captured bytes, and a loopback end-to-end run
@@ -335,6 +359,8 @@ src/soundtouch_zonemaster/    the master, in the layered package: clock (UDP 400
                         placement, channels, source, clock, ipc, pb), the file boundaries, the speaker
                         registry, the six-layer config, the rich-click CLI
   composition/          the one module naming both sides: build_production() wires one adapter per port
+examples/systemd/       a sample unit for the service, and an MPD drop-in that keeps its io_uring
+                        wait from reading as I/O pressure
 tests/                  framing against captured bytes; a loopback run with a fake slave; the golden
                         corpus that pins every converted boundary to the old code's bytes
 tools/                  the deploy (the first three are shipped to the service's machine and run there)
