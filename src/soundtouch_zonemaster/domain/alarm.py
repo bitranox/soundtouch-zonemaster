@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from .device_id import normalized_device_id
@@ -37,12 +38,25 @@ __all__ = [
     "WEEKDAYS",
     "Alarm",
     "AlarmBox",
+    "AlarmDay",
+    "AlarmPress",
     "AlarmRefusedError",
     "Firing",
+    "RingAction",
+    "RingState",
+    "RingStep",
+    "dialled",
     "due_on",
     "limit_at",
+    "missed",
     "missed_firings",
     "next_firing",
+    "pressed",
+    "ramp_volume",
+    "ringing",
+    "rung_again",
+    "skipped",
+    "ticked",
     "validated",
 ]
 
@@ -339,3 +353,130 @@ def _exists(local: datetime) -> bool:
     """Whether this wall time happens at all: a time in a spring gap does not survive a round trip."""
     back = local.astimezone(UTC).astimezone(local.tzinfo)
     return back.replace(tzinfo=None) == local.replace(tzinfo=None)
+
+
+class RingState(StrEnum):
+    """Where one alarm stands on one day. The database refuses any other word (a CHECK constraint)."""
+
+    RINGING = "ringing"
+    SNOOZED = "snoozed"
+    DONE = "done"
+    SKIPPED = "skipped"
+
+
+class RingAction(StrEnum):
+    """What the service must do on the wire after a step."""
+
+    NONE = "none"
+    OFF = "off"
+    """Put each box's volume back while it is awake, release it, and give the zone its channel back."""
+    FIRE = "fire"
+    """Put the alarm's channel on the zone, take the boxes in and start their ramps."""
+
+
+class AlarmPress(StrEnum):
+    """What a person did while it rang, as far as the alarm cares."""
+
+    KEY = "key"
+    """Thumbs, next, previous, or a preset when no off-sequence is armed - on any box in the zone."""
+    STANDBY = "standby"
+    """One of the alarm's OWN boxes was switched off; a box elsewhere leaving the zone is not this."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AlarmDay:
+    """One alarm on one local day, kept in the database so a restart carries on from it.
+
+    ``volumes_before`` is captured once, at the first firing: a snooze already put the volumes back
+    before its refire, and a restart mid-ring finds the boxes at alarm levels. ``give_back`` is the
+    channel NUMBER the zone played (``None`` when it was empty); its MPD place is kept by the zone
+    state's positions like any other channel's.
+    """
+
+    alarm: str
+    day: date
+    state: RingState
+    due: datetime | None = None
+    snoozed_until: datetime | None = None
+    give_back: str | None = None
+    volumes_before: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RingStep:
+    day: AlarmDay
+    action: RingAction
+
+
+def ringing(firing: Firing, *, give_back: str | None, volumes_before: tuple[tuple[str, int], ...]) -> AlarmDay:
+    """The day a firing opens: ringing, with what to give back when it ends."""
+    return AlarmDay(
+        alarm=firing.alarm.name,
+        day=firing.day,
+        state=RingState.RINGING,
+        due=firing.due,
+        give_back=give_back,
+        volumes_before=volumes_before,
+    )
+
+
+def rung_again(day: AlarmDay, *, give_back: str | None) -> AlarmDay:
+    """Ringing again - after a snooze, or after a restart (which passes the day's own ``give_back``)."""
+    return replace(day, state=RingState.RINGING, snoozed_until=None, give_back=give_back)
+
+
+def skipped(firing: Firing) -> AlarmDay:
+    return AlarmDay(alarm=firing.alarm.name, day=firing.day, state=RingState.SKIPPED, due=firing.due)
+
+
+def missed(firing: Firing) -> AlarmDay:
+    """A firing whose whole ring limit passed while nothing could ring it: done, never rung."""
+    return AlarmDay(alarm=firing.alarm.name, day=firing.day, state=RingState.DONE, due=firing.due)
+
+
+def pressed(day: AlarmDay, alarm: Alarm, press: AlarmPress, *, now: datetime) -> RingStep:
+    """A key snoozes; standby on the alarm's own box ends it, unless an off-sequence is armed."""
+    if day.state is not RingState.RINGING:
+        return RingStep(day=day, action=RingAction.NONE)
+    if press is AlarmPress.STANDBY and not alarm.takes_digits:
+        return _off(day)
+    return _snoozed(day, alarm, now=now)
+
+
+def dialled(day: AlarmDay, alarm: Alarm, digits: str) -> RingStep:
+    """The full off-sequence ends it; anything else changes nothing, and snooze stays available."""
+    if day.state is not RingState.RINGING or digits != alarm.off_sequence:
+        return RingStep(day=day, action=RingAction.NONE)
+    return _off(day)
+
+
+def ticked(day: AlarmDay, alarm: Alarm, *, now: datetime) -> RingStep:
+    """What the clock does: a snooze that ran out refires, a ring limit that passed ends it."""
+    if day.state not in {RingState.RINGING, RingState.SNOOZED} or day.due is None:
+        return RingStep(day=day, action=RingAction.NONE)
+    now = now.astimezone(UTC)
+    if now >= limit_at(alarm, day.due):
+        action = RingAction.OFF if day.state is RingState.RINGING else RingAction.NONE
+        return RingStep(day=replace(day, state=RingState.DONE, snoozed_until=None), action=action)
+    if day.state is RingState.SNOOZED and day.snoozed_until is not None and now >= day.snoozed_until:
+        return RingStep(day=day, action=RingAction.FIRE)
+    return RingStep(day=day, action=RingAction.NONE)
+
+
+def ramp_volume(box: AlarmBox, *, ramp_s: float, elapsed_s: float) -> int:
+    """How loud ``box`` is ``elapsed_s`` into its ramp: a straight line from its start to its max."""
+    if ramp_s <= 0 or elapsed_s >= ramp_s:
+        return box.max_volume
+    share = max(elapsed_s, 0.0) / ramp_s
+    return box.start_volume + round((box.max_volume - box.start_volume) * share)
+
+
+def _off(day: AlarmDay) -> RingStep:
+    return RingStep(day=replace(day, state=RingState.DONE, snoozed_until=None), action=RingAction.OFF)
+
+
+def _snoozed(day: AlarmDay, alarm: Alarm, *, now: datetime) -> RingStep:
+    until = now.astimezone(UTC) + timedelta(seconds=alarm.snooze_s)
+    if day.due is not None and until >= limit_at(alarm, day.due):
+        return _off(day)
+    return RingStep(day=replace(day, state=RingState.SNOOZED, snoozed_until=until), action=RingAction.OFF)

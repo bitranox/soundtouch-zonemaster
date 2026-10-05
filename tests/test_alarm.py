@@ -12,12 +12,22 @@ import pytest
 from soundtouch_zonemaster.domain.alarm import (
     Alarm,
     AlarmBox,
+    AlarmDay,
+    AlarmPress,
     AlarmRefusedError,
     Firing,
+    RingAction,
+    RingState,
+    dialled,
     due_on,
     limit_at,
     missed_firings,
     next_firing,
+    pressed,
+    ramp_volume,
+    ringing,
+    rung_again,
+    ticked,
     validated,
 )
 
@@ -266,3 +276,110 @@ def test_missed_firings_of_several_alarms_are_in_time_order() -> None:
         ("y", date(2026, 10, 1)),
         ("x", date(2026, 10, 1)),
     ]
+
+
+DUE = _vienna(date(2026, 10, 1), 7)
+
+
+def _ringing_day(**changes: Any) -> AlarmDay:
+    day = ringing(
+        Firing(alarm=_alarm(), day=date(2026, 10, 1), due=DUE),
+        give_back="11",
+        volumes_before=(("AABBCC0000A1", 22),),
+    )
+    return replace(day, **changes)
+
+
+def test_a_firing_rings_and_remembers_what_to_give_back() -> None:
+    day = _ringing_day()
+    assert (day.state, day.due, day.give_back, day.volumes_before) == (
+        RingState.RINGING,
+        DUE,
+        "11",
+        (("AABBCC0000A1", 22),),
+    )
+
+
+def test_any_key_snoozes_and_the_snooze_silences_first() -> None:
+    now = DUE + timedelta(minutes=2)
+    step = pressed(_ringing_day(), _alarm(), AlarmPress.KEY, now=now)
+    assert step.action is RingAction.OFF
+    assert step.day.state is RingState.SNOOZED
+    assert step.day.snoozed_until == now + timedelta(seconds=540)
+
+
+def test_standby_turns_it_off_for_the_day_without_an_off_sequence() -> None:
+    step = pressed(_ringing_day(), _alarm(), AlarmPress.STANDBY, now=DUE)
+    assert (step.day.state, step.action) == (RingState.DONE, RingAction.OFF)
+
+
+def test_with_an_off_sequence_standby_is_only_a_snooze() -> None:
+    step = pressed(_ringing_day(), _alarm(off_sequence="1234"), AlarmPress.STANDBY, now=DUE)
+    assert (step.day.state, step.action) == (RingState.SNOOZED, RingAction.OFF)
+
+
+def test_the_right_sequence_turns_it_off_and_a_wrong_one_changes_nothing() -> None:
+    alarm = _alarm(off_sequence="1234")
+    assert dialled(_ringing_day(), alarm, "1243").action is RingAction.NONE
+    assert dialled(_ringing_day(), alarm, "1243").day == _ringing_day()
+    step = dialled(_ringing_day(), alarm, "1234")
+    assert (step.day.state, step.action) == (RingState.DONE, RingAction.OFF)
+
+
+def test_a_snooze_that_would_outlast_the_ring_limit_is_the_end() -> None:
+    now = DUE + timedelta(minutes=55)  # 55 + 9 passes the 60-minute limit
+    step = pressed(_ringing_day(), _alarm(), AlarmPress.KEY, now=now)
+    assert (step.day.state, step.action) == (RingState.DONE, RingAction.OFF)
+
+
+def test_the_clock_refires_a_snooze_and_ends_a_ring_at_its_limit() -> None:
+    snoozed = pressed(_ringing_day(), _alarm(), AlarmPress.KEY, now=DUE).day
+    assert ticked(snoozed, _alarm(), now=DUE + timedelta(minutes=8)).action is RingAction.NONE
+    assert ticked(snoozed, _alarm(), now=DUE + timedelta(minutes=9)).action is RingAction.FIRE
+    end = ticked(_ringing_day(), _alarm(), now=DUE + timedelta(minutes=60))
+    assert (end.day.state, end.action) == (RingState.DONE, RingAction.OFF)
+
+
+def test_a_refire_after_a_snooze_keeps_the_volumes_and_takes_the_new_channel() -> None:
+    snoozed = pressed(_ringing_day(), _alarm(), AlarmPress.KEY, now=DUE).day
+    again = rung_again(snoozed, give_back="7")
+    assert (again.state, again.snoozed_until, again.give_back, again.volumes_before) == (
+        RingState.RINGING,
+        None,
+        "7",
+        (("AABBCC0000A1", 22),),
+    )
+
+
+@pytest.mark.parametrize("state", [RingState.DONE, RingState.SKIPPED])
+def test_a_finished_or_skipped_day_ignores_keys_and_the_clock(state: RingState) -> None:
+    day = _ringing_day(state=state)
+    assert pressed(day, _alarm(), AlarmPress.KEY, now=DUE).action is RingAction.NONE
+    assert dialled(day, _alarm(off_sequence="1"), "1").action is RingAction.NONE
+    assert ticked(day, _alarm(), now=DUE + timedelta(hours=5)).action is RingAction.NONE
+
+
+def test_a_snooze_does_not_answer_keys_while_it_waits() -> None:
+    snoozed = pressed(_ringing_day(), _alarm(), AlarmPress.KEY, now=DUE).day
+    assert pressed(snoozed, _alarm(), AlarmPress.KEY, now=DUE + timedelta(minutes=1)).action is RingAction.NONE
+
+
+@pytest.mark.parametrize(
+    ("elapsed_s", "volume"),
+    [(-5.0, 10), (0.0, 10), (150.0, 22), (299.0, 35), (300.0, 35), (900.0, 35)],
+)
+def test_the_ramp_climbs_in_a_straight_line_from_start_to_max(elapsed_s: float, volume: int) -> None:
+    box = AlarmBox(device_id="AABBCC0000A1", start_volume=10, max_volume=35)
+    assert ramp_volume(box, ramp_s=300.0, elapsed_s=elapsed_s) == volume
+
+
+def test_no_ramp_is_the_max_at_once() -> None:
+    box = AlarmBox(device_id="AABBCC0000A1", start_volume=10, max_volume=35)
+    assert ramp_volume(box, ramp_s=0.0, elapsed_s=0.0) == 35
+
+
+def test_the_limit_ending_an_already_snoozed_day_does_nothing_more() -> None:
+    # Already silenced by the snooze's own OFF; nothing is ringing to turn off a second time.
+    day = _ringing_day(state=RingState.SNOOZED, snoozed_until=DUE + timedelta(minutes=70))
+    end = ticked(day, _alarm(), now=DUE + timedelta(minutes=60))  # the 60-minute default limit
+    assert (end.day.state, end.action) == (RingState.DONE, RingAction.NONE)
