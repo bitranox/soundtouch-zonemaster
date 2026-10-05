@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-__all__ = ["directory_jump", "play_order"]
+__all__ = ["directory_jump", "play_order", "run_starts"]
 
 _DIGITS = re.compile(r"(\d+)")
 
@@ -76,7 +76,7 @@ def play_order(files: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(files, key=_path_key))
 
 
-def _run_starts(queue: Sequence[str]) -> tuple[int, ...]:
+def run_starts(queue: Sequence[str]) -> tuple[int, ...]:
     """Where each unbroken stretch of one parent directory begins.
 
     Stretches rather than directories, because a stored playlist can come back to a directory it
@@ -100,7 +100,7 @@ def directory_jump(queue: Sequence[str], *, current: int | None, steps: int) -> 
     named the entry, next starts at the first directory and previous at the last, as
     ``entry_after`` does for files. An empty queue has nowhere to go.
     """
-    starts = _run_starts(queue)
+    starts = run_starts(queue)
     if not starts:
         return None
     if current is None or not 0 <= current < len(queue):
