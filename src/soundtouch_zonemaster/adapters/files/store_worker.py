@@ -72,8 +72,10 @@ from .house_switch import DbSwitch
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+    from datetime import date
 
     from ...application.ports import HouseStore
+    from ...domain.alarm import AlarmBook, AlarmDay
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
     from ...domain.preferences import PreferenceName, PreferenceRow, PreferenceSource, PreferenceValue
@@ -254,6 +256,12 @@ class StoreWorker:
         return self._write(
             functools.partial(self._store.set_preferences, dict(values), source=source), what="set_preferences"
         )
+
+    async def load_alarm_book(self, *, since: date) -> AlarmBook:
+        return await self._run(functools.partial(self._store.load_alarm_book, since=since))
+
+    def save_alarm_day(self, day: AlarmDay) -> asyncio.Future[None]:
+        return self._write(functools.partial(self._store.save_alarm_day, day), what="save_alarm_day")
 
     async def is_on(self) -> bool:
         return await self._run(self._store.is_on)

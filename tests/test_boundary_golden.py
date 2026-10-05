@@ -113,6 +113,7 @@ from soundtouch_zonemaster.application.options import (
 from soundtouch_zonemaster.application.outcome import OptionsError
 from soundtouch_zonemaster.application.ports import ZoneServicePorts
 from soundtouch_zonemaster.application.zone_service import ZoneService
+from soundtouch_zonemaster.domain.alarm import AlarmBook
 from soundtouch_zonemaster.domain.channellist import (
     Channel,
     ChannelList,
@@ -134,9 +135,11 @@ from soundtouch_zonemaster.domain.station import StationRequest
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
+    from datetime import date
 
     from soundtouch_zonemaster.application.options import ChannelPolicy
     from soundtouch_zonemaster.application.ports import AddressOf, LocationResolver, MpdControlPort
+    from soundtouch_zonemaster.domain.alarm import Alarm, AlarmDay
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.mpd import MpdStatus
     from soundtouch_zonemaster.domain.preferences import PreferenceName, PreferenceSource, PreferenceValue
@@ -902,6 +905,18 @@ class FakeStore:
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         return self._preferences.pop(name, None)
+
+    def load_alarm_book(self, *, since: date) -> AlarmBook:
+        return AlarmBook(alarms=(), days=(), paused_through=None, rejected=())
+
+    def save_alarm(self, alarm: Alarm) -> None: ...
+
+    def remove_alarm(self, name: str) -> bool:
+        return False
+
+    def save_alarm_day(self, day: AlarmDay) -> None: ...
+
+    def set_alarm_pause(self, through: date | None) -> None: ...
 
 
 def wired_service(

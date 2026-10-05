@@ -22,10 +22,12 @@ from soundtouch_zonemaster.application.errors import StoreError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from datetime import date
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ChannelsExport
     from soundtouch_zonemaster.application.ports import HouseStore
+    from soundtouch_zonemaster.domain.alarm import Alarm, AlarmBook, AlarmDay
     from soundtouch_zonemaster.domain.channellist import ChannelList
     from soundtouch_zonemaster.domain.preferences import (
         PreferenceName,
@@ -145,3 +147,23 @@ class SlowStore:
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         self._called("unset_preference")
         return self._real.unset_preference(name)
+
+    def load_alarm_book(self, *, since: date) -> AlarmBook:
+        self._called("load_alarm_book")
+        return self._real.load_alarm_book(since=since)
+
+    def save_alarm(self, alarm: Alarm) -> None:
+        self._called("save_alarm")
+        self._real.save_alarm(alarm)
+
+    def remove_alarm(self, name: str) -> bool:
+        self._called("remove_alarm")
+        return self._real.remove_alarm(name)
+
+    def save_alarm_day(self, day: AlarmDay) -> None:
+        self._called("save_alarm_day")
+        self._real.save_alarm_day(day)
+
+    def set_alarm_pause(self, through: date | None) -> None:
+        self._called("set_alarm_pause")
+        self._real.set_alarm_pause(through)

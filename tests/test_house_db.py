@@ -990,12 +990,21 @@ def test_a_downgrade_refuses_a_window_row_that_is_not_a_json_number(house_databa
     mechanism ``test_a_downgrade_to_0001_puts_the_calibration_back_on_the_zone_row`` uses. A window
     row that is not a JSON number must refuse the downgrade before any DDL runs, leaving the
     database exactly as it was - a valid 0002 database - so a second attempt after fixing the row
-    succeeds instead of hitting a duplicate column from a half-applied downgrade."""
+    succeeds instead of hitting a duplicate column from a half-applied downgrade.
+
+    The move to ``0002`` happens first, in its own transaction: a single ``command.downgrade``
+    call that spans more than one revision runs every step on the SAME connection the caller
+    opened, so a failure in the LAST step would roll back every step before it too, and the
+    database would land back at head rather than at ``0002``. Isolating the move to ``0002`` is
+    what keeps this a test of the ``0002`` -> ``0001`` step alone, whatever the head revision is."""
     _database_at_0001(house_database, zone=("3", 0.7, 1.4))
     _after_the_migration(house_database)
     engine = create_engine(database_url(house_database))
     config = Config()
     config.set_main_option("script_location", str(MIGRATIONS))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.downgrade(config, "0002")
     with engine.begin() as connection:
         connection.execute(text("UPDATE preference SET value = :v WHERE name = 'dialling.window_s'"), {"v": bad_value})
 

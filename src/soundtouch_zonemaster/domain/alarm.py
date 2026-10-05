@@ -37,6 +37,7 @@ __all__ = [
     "VOLUME_CEILING",
     "WEEKDAYS",
     "Alarm",
+    "AlarmBook",
     "AlarmBox",
     "AlarmDay",
     "AlarmPress",
@@ -400,6 +401,17 @@ class AlarmDay:
     snoozed_until: datetime | None = None
     give_back: str | None = None
     volumes_before: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AlarmBook:
+    """Everything the scheduler reads in one go: the alarms, recent days, the pause, and what was unusable."""
+
+    alarms: tuple[Alarm, ...]
+    days: tuple[AlarmDay, ...]
+    paused_through: date | None
+    rejected: tuple[tuple[str, str], ...]
+    """``(alarm name, why)`` for every stored alarm or day the rule refused: never dropped silently."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

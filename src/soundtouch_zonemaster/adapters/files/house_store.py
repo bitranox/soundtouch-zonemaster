@@ -28,6 +28,7 @@ from ...domain.database_url import masked
 from ...domain.state import ZoneState
 from .atomicfile import write_atomic
 from .channel_file import ChannelFileError, channels_json, load_channels
+from .house_alarms import delete_alarm, read_alarm_book, write_alarm, write_alarm_day, write_alarm_pause
 from .house_channels import read_channels, write_channels
 from .house_db import HouseDatabase, reason_for
 from .house_preferences import delete_preference, read_preferences, write_preference
@@ -36,8 +37,10 @@ from .house_switch import read_switch, write_switch
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping
+    from datetime import date
     from pathlib import Path
 
+    from ...domain.alarm import Alarm, AlarmBook, AlarmDay
     from ...domain.channellist import ChannelList
     from ...domain.logfn import LogFn
     from ...domain.preferences import PreferenceName, PreferenceRow, PreferenceSource, PreferenceValue
@@ -47,7 +50,8 @@ __all__ = ["SqlHouseStore"]
 
 
 class SqlHouseStore:
-    """The state, the channel list, the switch and the preferences, in one SQLite file or PostgreSQL database."""
+    """The state, the channel list, the switch, the preferences and the alarms, in one SQLite file
+    or PostgreSQL database."""
 
     def __init__(self, database: str, *, password: Secret | None = None, log: LogFn) -> None:
         self.database = database
@@ -174,6 +178,26 @@ class SqlHouseStore:
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         with self._guarded(), self._db.writing() as connection:
             return delete_preference(connection, name)
+
+    def load_alarm_book(self, *, since: date) -> AlarmBook:
+        with self._guarded(), self._db.reading() as connection:
+            return read_alarm_book(connection, since=since)
+
+    def save_alarm(self, alarm: Alarm) -> None:
+        with self._guarded(), self._db.writing() as connection:
+            write_alarm(connection, alarm)
+
+    def remove_alarm(self, name: str) -> bool:
+        with self._guarded(), self._db.writing() as connection:
+            return delete_alarm(connection, name)
+
+    def save_alarm_day(self, day: AlarmDay) -> None:
+        with self._guarded(), self._db.writing() as connection:
+            write_alarm_day(connection, day)
+
+    def set_alarm_pause(self, through: date | None) -> None:
+        with self._guarded(), self._db.writing() as connection:
+            write_alarm_pause(connection, through)
 
     def _require_exclusive(self, *, what: str) -> None:
         """Refuse an action that writes over what an unrelated reader might be reading right now."""

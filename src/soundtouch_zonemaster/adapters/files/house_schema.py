@@ -18,6 +18,11 @@ from sqlalchemy import CheckConstraint, Column, Float, Integer, MetaData, Table,
 from sqlalchemy.dialects.sqlite import REAL
 
 __all__ = [
+    "ALARM",
+    "ALARM_BOX",
+    "ALARM_DAY",
+    "ALARM_PAUSE",
+    "ALARM_TIME",
     "CHANNEL",
     "MEMBER",
     "METADATA",
@@ -134,3 +139,67 @@ PREFERENCE = Table(
 ``value`` is JSON text, because four of the five hold a number and one a list, and a column per
 preference would make every new one a migration. ``changed_at`` is ISO 8601 text, or empty for a
 calibration carried over from before the table existed, whose time was never recorded."""
+
+ALARM = Table(
+    "alarm",
+    METADATA,
+    Column("name", Text, primary_key=True),
+    Column("enabled", Integer, nullable=False),
+    Column("channel", Text, nullable=False),
+    Column("ramp_s", _REAL, nullable=False),
+    Column("snooze_s", _REAL, nullable=False),
+    Column("ring_limit_s", _REAL, nullable=False),
+    Column("off_sequence", Text),
+    Column("set_at", Text, nullable=False),
+    CheckConstraint("enabled IN (0, 1)", name="alarm_enabled_flag"),
+    sqlite_strict=True,
+)
+"""One row per alarm (``domain/alarm.py``). ``set_at`` is ISO 8601 text, like ``switch.changed_at``."""
+
+ALARM_TIME = Table(
+    "alarm_time",
+    METADATA,
+    Column("alarm", Text, primary_key=True),
+    Column("weekday", Integer, primary_key=True, autoincrement=False),
+    Column("at", Text, nullable=False),
+    CheckConstraint("weekday BETWEEN 0 AND 6", name="alarm_time_weekday"),
+    sqlite_strict=True,
+)
+"""One row per day the alarm wakes, Monday 0; a day with no row has no wake. ``at`` is ``HH:MM``."""
+
+ALARM_BOX = Table(
+    "alarm_box",
+    METADATA,
+    Column("alarm", Text, primary_key=True),
+    Column("device_id", Text, primary_key=True),
+    Column("position", Integer, nullable=False),
+    Column("start_volume", Integer, nullable=False),
+    Column("max_volume", Integer, nullable=False),
+    sqlite_strict=True,
+)
+
+ALARM_DAY = Table(
+    "alarm_day",
+    METADATA,
+    Column("alarm", Text, primary_key=True),
+    Column("day", Text, primary_key=True),
+    Column("state", Text, nullable=False),
+    Column("due", Text),
+    Column("snoozed_until", Text),
+    Column("give_back", Text),
+    Column("volumes_before", Text, nullable=False),
+    CheckConstraint("state IN ('ringing', 'snoozed', 'done', 'skipped')", name="alarm_day_state"),
+    sqlite_strict=True,
+)
+"""One alarm's progress on one local day, so a restart carries on from it. ``volumes_before`` is
+JSON text, a list of ``[device_id, volume]`` pairs; the times are ISO 8601 text."""
+
+ALARM_PAUSE = Table(
+    "alarm_pause",
+    METADATA,
+    Column("id", Integer, primary_key=True, autoincrement=False),
+    Column("through", Text, nullable=False),
+    CheckConstraint("id = 1", name="alarm_pause_one_row"),
+    sqlite_strict=True,
+)
+"""The house-wide pause: no alarm fires on any day up to and including ``through``. No row, no pause."""

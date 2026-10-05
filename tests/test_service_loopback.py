@@ -87,6 +87,7 @@ from soundtouch_zonemaster.domain.zonexml import station_content_item
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping
+    from datetime import date
     from pathlib import Path
 
     from soundtouch_zonemaster.application.options import ChannelsExport
@@ -98,6 +99,7 @@ if TYPE_CHECKING:
         ZoneMasterPort,
         ZoneServicePorts,
     )
+    from soundtouch_zonemaster.domain.alarm import Alarm, AlarmBook, AlarmDay
     from soundtouch_zonemaster.domain.logfn import LogFn
     from soundtouch_zonemaster.domain.preferences import PreferenceRow, PreferenceValue
     from soundtouch_zonemaster.domain.secret import Secret
@@ -4752,6 +4754,21 @@ class _StoreThatCanFail:
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None:
         return self._real.unset_preference(name)
+
+    def load_alarm_book(self, *, since: date) -> AlarmBook:
+        return self._real.load_alarm_book(since=since)
+
+    def save_alarm(self, alarm: Alarm) -> None:
+        self._real.save_alarm(alarm)
+
+    def remove_alarm(self, name: str) -> bool:
+        return self._real.remove_alarm(name)
+
+    def save_alarm_day(self, day: AlarmDay) -> None:
+        self._real.save_alarm_day(day)
+
+    def set_alarm_pause(self, through: date | None) -> None:
+        self._real.set_alarm_pause(through)
 
 
 def _ports_with_a_store_that_can_fail(

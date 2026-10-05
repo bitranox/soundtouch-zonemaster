@@ -33,8 +33,10 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     import asyncio
     from collections.abc import AsyncGenerator, Mapping, Sequence
+    from datetime import date
     from pathlib import Path
 
+    from ..domain.alarm import Alarm, AlarmBook, AlarmDay
     from ..domain.channellist import ChannelList
     from ..domain.enums import ChannelEnd
     from ..domain.events import SpeakerEvent
@@ -95,8 +97,8 @@ class SwitchReader(Protocol):
 
 
 class HouseStore(Protocol):
-    """The house database: the state, the channel list, the switch and the preferences, in one
-    database - a SQLite file, or PostgreSQL.
+    """The house database: the state, the channel list, the switch, the preferences and the alarms,
+    in one database - a SQLite file, or PostgreSQL.
 
     ``open`` comes first and ``close`` last. ``exclusive`` takes the one-writer lock: the service
     and a channel import take it, a switch flip, an export and a preference change do not. Every
@@ -150,6 +152,16 @@ class HouseStore(Protocol):
 
     def unset_preference(self, name: PreferenceName) -> PreferenceRow | None: ...
 
+    def load_alarm_book(self, *, since: date) -> AlarmBook: ...
+
+    def save_alarm(self, alarm: Alarm) -> None: ...
+
+    def remove_alarm(self, name: str) -> bool: ...
+
+    def save_alarm_day(self, day: AlarmDay) -> None: ...
+
+    def set_alarm_pause(self, through: date | None) -> None: ...
+
 
 class OpenHouseStore(Protocol):
     """A store over one database, not yet opened. Opening it is the first thing that touches it.
@@ -172,7 +184,7 @@ class ServiceStore(Protocol):
     Only what the service calls is here; the CLI's verbs are one-shot processes with no zone to
     time and keep the plain :class:`HouseStore`. ``where`` is that store's, unchanged.
 
-    **The three writes are queued when they are CALLED, not when they are awaited**, in call order,
+    **The four writes are queued when they are CALLED, not when they are awaited**, in call order,
     and each runs after everything queued before it. That is what lets a caller that may not wait -
     the reader, which a person's key press reaches - still have its save written in its place: it
     asks and goes on, and the next save cannot overtake it. A write once asked for stays queued even
@@ -213,6 +225,12 @@ class ServiceStore(Protocol):
         self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource
     ) -> Awaitable[None]:
         """:meth:`HouseStore.set_preferences`, queued like the other two writes: all or none."""
+        ...
+
+    async def load_alarm_book(self, *, since: date) -> AlarmBook: ...
+
+    def save_alarm_day(self, day: AlarmDay) -> Awaitable[None]:
+        """:meth:`HouseStore.save_alarm_day`, queued when it is called like the other writes."""
         ...
 
     def switch(self, *, poll_s: float) -> SwitchReader: ...
