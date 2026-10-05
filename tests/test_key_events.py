@@ -19,7 +19,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
-from speaker_double import key_bodies, key_body
+from speaker_double import RecordingMaster, key_bodies, key_body
 
 from soundtouch_zonemaster.adapters.soundtouch.http_api import HttpApi, Request
 from soundtouch_zonemaster.domain.enums import KeyName, KeyState
@@ -36,33 +36,8 @@ SELECT_BODY = (
 )
 
 
-class FakeMaster:
-    """MasterPort, remembering what it was asked to do."""
-
-    device_id = "5EB0CE000001"
-
-    def __init__(self) -> None:
-        self.selected: list[tuple[str, str]] = []
-        self.left: list[str] = []
-
-    def info_xml(self) -> str:
-        return "<info/>"
-
-    def now_playing_xml(self) -> str:
-        return "<nowPlaying/>"
-
-    def zone_xml(self) -> str:
-        return "<zone/>"
-
-    async def select(self, content_item_xml: str, *, origin: str) -> None:
-        self.selected.append((content_item_xml, origin))
-
-    async def slave_left(self, ip: str) -> None:
-        self.left.append(ip)
-
-
-def _api(*, with_queue: bool = True) -> tuple[HttpApi, FakeMaster, asyncio.Queue[SpeakerEvent] | None]:
-    master = FakeMaster()
+def _api(*, with_queue: bool = True) -> tuple[HttpApi, RecordingMaster, asyncio.Queue[SpeakerEvent] | None]:
+    master = RecordingMaster()
     events: asyncio.Queue[SpeakerEvent] | None = asyncio.Queue() if with_queue else None
     return HttpApi(master, lambda _kind, _text: None, events=events), master, events
 

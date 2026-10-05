@@ -85,6 +85,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from pydantic import BaseModel, ValidationError
 from registry_double import FakeRegistry
+from speaker_double import RecordingMaster
 
 from soundtouch_zonemaster.__init__conf__ import LAYEREDCONF_SLUG, service_command, shell_command
 from soundtouch_zonemaster.adapters.aftertouch.registry import fetch_speakers
@@ -536,39 +537,14 @@ def test_the_observer_parses_what_the_old_code_parsed(case: dict[str, Any]) -> N
     assert got == {"type": recorded["type"], "fields": fields}
 
 
-class StandInMaster:
-    """What the HTTP face needs from a master, with the values the corpus was recorded against.
-
-    The three documents are fixed strings rather than a real master's output: what this corpus
-    pins is the FACE - which path returns which document, which body causes a select, what the
-    log says - and a real master would make every case depend on the zone it happened to hold.
-    """
-
-    device_id = "5EB0CE000001"
-
-    def __init__(self) -> None:
-        self.selected: list[tuple[str, str]] = []
-        self.left: list[str] = []
-
-    def info_xml(self) -> str:
-        return "<info/>"
-
-    def now_playing_xml(self) -> str:
-        return "<nowPlaying/>"
-
-    def zone_xml(self) -> str:
-        return '<?xml version="1.0" encoding="UTF-8" ?><zone master="5EB0CE000001" />'
-
-    async def select(self, content_item_xml: str, *, origin: str) -> None:
-        self.selected.append((content_item_xml, origin))
-
-    async def slave_left(self, ip: str) -> None:
-        self.left.append(ip)
+RECORDED_ZONE_XML = '<?xml version="1.0" encoding="UTF-8" ?><zone master="5EB0CE000001" />'
+"""The zone document the HTTP-face corpus was recorded against."""
 
 
 async def drive_the_face(given: dict[str, Any], lines: list[tuple[str, str]]) -> dict[str, Any]:
     """Replay one recorded sequence of requests through a real ``HttpApi``."""
-    master = StandInMaster()
+    # The corpus was recorded against this exact zone document; the other two are the defaults.
+    master = RecordingMaster(zone_xml=RECORDED_ZONE_XML)
     events: asyncio.Queue[Any] | None = asyncio.Queue() if given["listening"] else None
     api = HttpApi(master, logged(lines), events=events)
 

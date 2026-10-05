@@ -546,17 +546,17 @@ class RecordingMaster:
     """A ``MasterPort`` that answers fixed documents and remembers what it was asked to do.
 
     The HTTP face needs a master behind it, and a test of the face itself must not depend on the
-    zone a real one happens to hold. Three test files already carry a copy of this shape; this one
-    is the shared home for the next caller, and merging the three is OPEN-WORK rather than a change
-    smuggled in here - the golden corpus was recorded against the exact documents one of them
-    returns.
+    zone a real one happens to hold. Every test of the face uses this one. The zone document is the
+    one thing they differ in: the golden corpus was recorded against a full ``<zone master=...>``
+    document, so a caller that pins bytes passes the document it was recorded against.
     """
 
     device_id = "5EB0CE000001"
 
-    def __init__(self) -> None:
+    def __init__(self, *, zone_xml: str = "<zone/>") -> None:
         self.selected: list[tuple[str, str]] = []
         self.left: list[str] = []
+        self._zone_xml = zone_xml
 
     def info_xml(self) -> str:
         return "<info/>"
@@ -565,7 +565,7 @@ class RecordingMaster:
         return "<nowPlaying/>"
 
     def zone_xml(self) -> str:
-        return "<zone/>"
+        return self._zone_xml
 
     async def select(self, content_item_xml: str, *, origin: str) -> None:
         self.selected.append((content_item_xml, origin))

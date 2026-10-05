@@ -9,39 +9,16 @@ from __future__ import annotations
 
 import asyncio
 
+from speaker_double import RecordingMaster
+
 from soundtouch_zonemaster.adapters.soundtouch.http_api import HttpApi, Request, parse_request, status_xml
 
 ZONE_XML = '<?xml version="1.0" encoding="UTF-8" ?><zone master="5EB0CE000001" />'
 
 
-class FakeMaster:
-    """Implements MasterPort and remembers the calls, so a route can be checked without a zone."""
-
-    device_id = "5EB0CE000001"
-
-    def __init__(self) -> None:
-        self.selected: list[tuple[str, str]] = []
-        self.left: list[str] = []
-
-    def info_xml(self) -> str:
-        return "<info/>"
-
-    def now_playing_xml(self) -> str:
-        return "<nowPlaying/>"
-
-    def zone_xml(self) -> str:
-        return ZONE_XML
-
-    async def select(self, content_item_xml: str, *, origin: str) -> None:
-        self.selected.append((content_item_xml, origin))
-
-    async def slave_left(self, ip: str) -> None:
-        self.left.append(ip)
-
-
-def _api() -> tuple[HttpApi, FakeMaster, list[str]]:
+def _api() -> tuple[HttpApi, RecordingMaster, list[str]]:
     logs: list[str] = []
-    master = FakeMaster()
+    master = RecordingMaster(zone_xml=ZONE_XML)
     return HttpApi(master, lambda kind, text: logs.append(f"{kind} {text}")), master, logs
 
 
