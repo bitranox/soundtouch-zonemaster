@@ -24,10 +24,10 @@ disagreement, and what this corpus is for is knowing WHICH frames a change moved
 
 **Where old and new differ, this file states the difference rather than hiding it.** Each delta is
 named in the test that meets it, with what the old code did and why the new answer is the same
-decision reached a different way. There are thirteen, numbered to fifteen: 10 and 12 were the
-state-file corpus's and left with it. Deltas 6 to 9 are the options corpus's and are written out
-where that corpus is replayed; deltas 11, 13 and 14 are a different species from all the others and
-the comment at each one says so - every delta from 1 to 9, and 15, is the SAME behaviour reached
+decision reached a different way. There are fourteen, numbered to fifteen: 12 was the state-file
+corpus's and left with it. Deltas 6 to 10 are the options corpus's and are written out where that
+corpus is replayed; deltas 11, 13 and 14 are a different species from all the others and the
+comment at each one says so - every delta from 1 to 10, and 15, is the SAME behaviour reached
 another way, while 11, 13 and 14 are deliberate REPAIRS that supersede what the old code did. The
 recorded case keeps the old answer, because that is what a corpus is for; the assertion beside it
 is what the code does now, and why:

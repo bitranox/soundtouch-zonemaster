@@ -269,7 +269,7 @@ def seed_switch(*, default: Path, legacy_switch_file: Path | None) -> SeedReport
     existed = house_schema_exists(setting, password)
     legacy = None
     if legacy_switch_file is not None and legacy_switch_file.exists():
-        legacy = Switch(legacy_switch_file, log=_narrate).is_on()
+        legacy = Switch(legacy_switch_file).is_on()
     word = seed_word(schema_existed=existed, legacy_switch=legacy)
     written = False
     seed: Callable[[Connection], None] | None = None

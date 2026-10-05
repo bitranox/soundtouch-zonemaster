@@ -1,51 +1,31 @@
 """The old switch file's word, and a remembered place as the house comes back to it.
 
-The switch file is read by the installer's switch seed and can be WATCHED, so the tests here also
-write it while a watcher runs. The case that matters is not the obvious one: most editors do not
-modify a file in place, they write a new one and rename it over the old, so anything holding on to
-what it opened at start never sees the change and reports the old value forever.
+The switch file has one reader left, the installer's switch seed, which reads it once.
 """
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
-
-import pytest
 
 from soundtouch_zonemaster.adapters.files.switch_file import Switch
 from soundtouch_zonemaster.domain.state import Place
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
     from pathlib import Path
-
-
-def _quiet(_kind: str, _text: str) -> None:
-    return
-
-
-async def _next_value(watcher: AsyncGenerator[bool, None], timeout: float = 2.0) -> bool:
-    """The next value the watcher reports, or TimeoutError if it reports none.
-
-    Asking for the NEXT value rather than collecting into a list is what lets a test assert that
-    the watcher said nothing at all, which a list of what it happened to say cannot.
-    """
-    return await asyncio.wait_for(anext(watcher), timeout)
 
 
 def test_a_switch_file_that_says_off_is_off(tmp_path: Path) -> None:
     path = tmp_path / "switch"
     path.write_text("off\n", encoding="utf-8")
 
-    assert Switch(path, log=_quiet).is_on() is False
+    assert Switch(path).is_on() is False
 
 
 def test_a_switch_file_that_says_on_is_on(tmp_path: Path) -> None:
     path = tmp_path / "switch"
     path.write_text("on\n", encoding="utf-8")
 
-    assert Switch(path, log=_quiet).is_on() is True
+    assert Switch(path).is_on() is True
 
 
 def test_the_switch_is_off_only_when_the_file_says_so(tmp_path: Path) -> None:
@@ -53,20 +33,20 @@ def test_the_switch_is_off_only_when_the_file_says_so(tmp_path: Path) -> None:
     house working, and the switch is a deliberate act rather than an accident of a lost file."""
     path = tmp_path / "switch"
 
-    assert Switch(path, log=_quiet).is_on() is True
+    assert Switch(path).is_on() is True
 
     path.write_text("", encoding="utf-8")
-    assert Switch(path, log=_quiet).is_on() is True
+    assert Switch(path).is_on() is True
 
     path.write_text("banana", encoding="utf-8")
-    assert Switch(path, log=_quiet).is_on() is True
+    assert Switch(path).is_on() is True
 
 
 def test_off_is_read_however_it_is_spelled_and_spaced(tmp_path: Path) -> None:
     path = tmp_path / "switch"
     for written in ("off", "OFF", " Off \n", "off\r\n"):
         path.write_text(written, encoding="utf-8")
-        assert Switch(path, log=_quiet).is_on() is False, written
+        assert Switch(path).is_on() is False, written
 
 
 def test_off_written_with_a_byte_order_mark_is_still_off(tmp_path: Path) -> None:
@@ -79,7 +59,7 @@ def test_off_written_with_a_byte_order_mark_is_still_off(tmp_path: Path) -> None
     path = tmp_path / "switch"
     path.write_bytes(b"\xef\xbb\xbfoff\n")
 
-    assert Switch(path, log=_quiet).is_on() is False
+    assert Switch(path).is_on() is False
 
 
 def test_a_switch_file_that_is_not_utf_8_is_on_rather_than_fatal(tmp_path: Path) -> None:
@@ -92,64 +72,7 @@ def test_a_switch_file_that_is_not_utf_8_is_on_rather_than_fatal(tmp_path: Path)
     path = tmp_path / "switch"
     path.write_bytes(b"off\xff")
 
-    assert Switch(path, log=_quiet).is_on() is True
-
-
-async def test_the_watcher_reports_a_change_written_while_it_runs(tmp_path: Path) -> None:
-    path = tmp_path / "switch"
-    path.write_text("on", encoding="utf-8")
-    watcher = Switch(path, log=_quiet, poll_s=0.01).watch()
-
-    assert await _next_value(watcher) is True
-    path.write_text("off", encoding="utf-8")
-
-    assert await _next_value(watcher) is False
-    await watcher.aclose()
-
-
-async def test_the_watcher_survives_the_file_being_replaced_rather_than_edited(tmp_path: Path) -> None:
-    """What an editor really does: write a new file and rename it over the old one.
-
-    A watcher holding the file it opened at start keeps reporting the old value forever, and
-    nothing about it looks broken.
-    """
-    path = tmp_path / "switch"
-    path.write_text("on", encoding="utf-8")
-    watcher = Switch(path, log=_quiet, poll_s=0.01).watch()
-    assert await _next_value(watcher) is True
-
-    replacement = tmp_path / "switch.new"
-    replacement.write_text("off", encoding="utf-8")
-    replacement.replace(path)
-
-    assert await _next_value(watcher) is False
-    await watcher.aclose()
-
-
-async def test_the_watcher_reports_a_file_that_appears_later(tmp_path: Path) -> None:
-    """It is normal for the file not to exist yet: nobody has turned anything off."""
-    path = tmp_path / "switch"
-    watcher = Switch(path, log=_quiet, poll_s=0.01).watch()
-    assert await _next_value(watcher) is True
-
-    path.write_text("off", encoding="utf-8")
-
-    assert await _next_value(watcher) is False
-    await watcher.aclose()
-
-
-async def test_the_watcher_says_nothing_while_nothing_changes(tmp_path: Path) -> None:
-    """A watcher that re-reports its value every poll makes a log nobody can read, and would put
-    the service through a dissolve or a rejoin once a second."""
-    path = tmp_path / "switch"
-    path.write_text("on", encoding="utf-8")
-    watcher = Switch(path, log=_quiet, poll_s=0.01).watch()
-    assert await _next_value(watcher) is True
-
-    with pytest.raises(TimeoutError):
-        await _next_value(watcher, timeout=0.2)
-
-    await watcher.aclose()
+    assert Switch(path).is_on() is True
 
 
 def test_coming_back_to_a_place_starts_a_little_before_it() -> None:

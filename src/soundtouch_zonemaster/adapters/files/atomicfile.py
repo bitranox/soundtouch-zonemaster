@@ -5,11 +5,12 @@ in the middle of a write. So it may not be written in place: the document goes t
 beside the real one, is flushed to the disk, and is then renamed over it. A rename is atomic, so a
 reader sees the old document or the new one and never half of either.
 
-It lives in its own module because two callers need exactly this (``channel_file.save_channels``
-and the store's ``channels export``) and the rule has a part that is easy to leave out. Writing and
-fsyncing the temporary file makes its CONTENT durable; the rename that publishes it is a change to
-the DIRECTORY, and a power cut can lose that separately. One of the two callers having the
-directory fsync and the other not would be invisible until the day it mattered.
+It lives in its own module because the rule has a part that is easy to leave out, and more than one
+writer needs it: the store's ``channels export`` in the program, and ``channel_file.save_channels``,
+which the channel-file corpus and its tests still write through. Writing and fsyncing the temporary
+file makes its CONTENT durable; the rename that publishes it is a change to the DIRECTORY, and a
+power cut can lose that separately. A writer with the directory fsync and one without would look
+the same until the day it mattered.
 """
 
 from __future__ import annotations
