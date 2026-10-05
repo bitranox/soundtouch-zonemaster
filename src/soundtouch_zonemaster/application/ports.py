@@ -224,7 +224,7 @@ class ServiceStore(Protocol):
     def set_preferences(
         self, values: Mapping[PreferenceName, PreferenceValue], *, source: PreferenceSource
     ) -> Awaitable[None]:
-        """:meth:`HouseStore.set_preferences`, queued like the other two writes: all or none."""
+        """:meth:`HouseStore.set_preferences`, queued like the other writes: all or none."""
         ...
 
     async def load_alarm_book(self, *, since: date) -> AlarmBook: ...

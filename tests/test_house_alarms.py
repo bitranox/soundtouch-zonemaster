@@ -6,11 +6,12 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, time
 from typing import Any
 
+import pytest
 from sqlalchemy import create_engine, text
 
 from soundtouch_zonemaster.adapters.files.house_db import database_url
 from soundtouch_zonemaster.adapters.files.house_store import SqlHouseStore
-from soundtouch_zonemaster.domain.alarm import Alarm, AlarmBox, AlarmDay, RingState
+from soundtouch_zonemaster.domain.alarm import Alarm, AlarmBox, AlarmDay, AlarmRefusedError, RingState
 
 SET_AT = datetime(2026, 10, 1, 5, 0, tzinfo=UTC)
 DUE = datetime(2026, 10, 2, 5, 0, tzinfo=UTC)
@@ -137,5 +138,104 @@ def test_a_hand_edited_alarm_costs_that_alarm_and_a_reason_never_the_book(house_
         assert [alarm.name for alarm in book.alarms] == ["good"]
         assert [name for name, _why in book.rejected] == ["bad"]
         assert "above the 3 it ramps to" in book.rejected[0][1]
+    finally:
+        store.close()
+
+
+def test_saving_an_alarm_the_rule_refuses_writes_nothing(house_database: str) -> None:
+    store = _store(house_database)
+    try:
+        with pytest.raises(AlarmRefusedError, match="needs at least one box"):
+            store.save_alarm(_alarm(boxes=()))
+        assert store.load_alarm_book(since=date(2026, 10, 1)).alarms == ()
+    finally:
+        store.close()
+
+
+def test_a_bad_wake_time_rejects_the_whole_alarm_with_a_reason(house_database: str) -> None:
+    store = _store(house_database)
+    try:
+        store.save_alarm(_alarm("bad_time"))
+    finally:
+        store.close()
+    engine = create_engine(database_url(house_database))
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE alarm_time SET at = '25:99' WHERE alarm = 'bad_time'"))
+    engine.dispose()
+    store = _store(house_database)
+    try:
+        book = store.load_alarm_book(since=date(2026, 10, 1))
+        assert book.alarms == ()
+        assert [name for name, _why in book.rejected] == ["bad_time"]
+        assert "not HH:MM" in book.rejected[0][1]
+    finally:
+        store.close()
+
+
+def test_a_day_with_unparsable_volumes_is_rejected_with_a_reason(house_database: str) -> None:
+    store = _store(house_database)
+    try:
+        store.save_alarm_day(AlarmDay(alarm="weekdays", day=date(2026, 10, 2), state=RingState.SKIPPED, due=DUE))
+    finally:
+        store.close()
+    engine = create_engine(database_url(house_database))
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE alarm_day SET volumes_before = '{' WHERE alarm = 'weekdays'"))
+    engine.dispose()
+    store = _store(house_database)
+    try:
+        book = store.load_alarm_book(since=date(2026, 10, 1))
+        assert book.days == ()
+        assert [alarm for alarm, _why in book.rejected] == ["weekdays"]
+    finally:
+        store.close()
+
+
+def test_a_naive_due_is_rejected_with_a_reason(house_database: str) -> None:
+    store = _store(house_database)
+    try:
+        store.save_alarm_day(AlarmDay(alarm="weekdays", day=date(2026, 10, 2), state=RingState.SKIPPED, due=DUE))
+    finally:
+        store.close()
+    engine = create_engine(database_url(house_database))
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE alarm_day SET due = '2026-10-02T05:00:00' WHERE alarm = 'weekdays'"))
+    engine.dispose()
+    store = _store(house_database)
+    try:
+        book = store.load_alarm_book(since=date(2026, 10, 1))
+        assert book.days == ()
+        assert [alarm for alarm, _why in book.rejected] == ["weekdays"]
+        assert "time zone" in book.rejected[0][1]
+    finally:
+        store.close()
+
+
+def test_an_out_of_range_volume_is_rejected_with_a_reason(house_database: str) -> None:
+    store = _store(house_database)
+    try:
+        store.save_alarm_day(
+            AlarmDay(
+                alarm="weekdays",
+                day=date(2026, 10, 2),
+                state=RingState.RINGING,
+                due=DUE,
+                volumes_before=(("AABBCC0000A1", 22),),
+            )
+        )
+    finally:
+        store.close()
+    engine = create_engine(database_url(house_database))
+    with engine.begin() as connection:
+        connection.execute(
+            text("""UPDATE alarm_day SET volumes_before = '[["AABBCC0000A1", 200]]' WHERE alarm = 'weekdays'""")
+        )
+    engine.dispose()
+    store = _store(house_database)
+    try:
+        book = store.load_alarm_book(since=date(2026, 10, 1))
+        assert book.days == ()
+        assert [alarm for alarm, _why in book.rejected] == ["weekdays"]
+        assert "a volume is a whole number between 0 and 100" in book.rejected[0][1]
     finally:
         store.close()

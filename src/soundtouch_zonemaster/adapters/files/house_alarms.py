@@ -18,7 +18,16 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Table, delete, insert, select
 from sqlalchemy.dialects import postgresql, sqlite
 
-from ...domain.alarm import Alarm, AlarmBook, AlarmBox, AlarmDay, AlarmRefusedError, RingState, validated
+from ...domain.alarm import (
+    VOLUME_CEILING,
+    Alarm,
+    AlarmBook,
+    AlarmBox,
+    AlarmDay,
+    AlarmRefusedError,
+    RingState,
+    validated,
+)
 from .house_schema import ALARM, ALARM_BOX, ALARM_DAY, ALARM_PAUSE, ALARM_TIME
 
 if TYPE_CHECKING:
@@ -46,7 +55,13 @@ def read_alarm_book(connection: Connection, *, since: date) -> AlarmBook:
 
 
 def write_alarm(connection: Connection, alarm: Alarm) -> None:
-    """Save one alarm whole: the parent row by UPSERT first, then its days and boxes replaced."""
+    """Save one alarm whole: the parent row by UPSERT first, then its days and boxes replaced.
+
+    Run through :func:`domain.alarm.validated` first, the same rule every read checks a row
+    against, so a write and a read can never disagree about what an alarm may be: a refused alarm
+    raises :class:`AlarmRefusedError` naming why, and nothing is written.
+    """
+    alarm = validated(alarm)
     row = {
         "name": alarm.name,
         "enabled": int(alarm.enabled),
@@ -76,7 +91,8 @@ def write_alarm(connection: Connection, alarm: Alarm) -> None:
         }
         for position, box in enumerate(alarm.boxes)
     ]
-    connection.execute(insert(ALARM_BOX), boxes)
+    if boxes:
+        connection.execute(insert(ALARM_BOX), boxes)
 
 
 def delete_alarm(connection: Connection, name: str) -> bool:
@@ -87,6 +103,7 @@ def delete_alarm(connection: Connection, name: str) -> bool:
 
 
 def write_alarm_day(connection: Connection, day: AlarmDay) -> None:
+    """Save one alarm's progress on one local day, upserted so a restart's first read carries on from it."""
     row = {
         "alarm": day.alarm,
         "day": day.day.isoformat(),
@@ -100,6 +117,7 @@ def write_alarm_day(connection: Connection, day: AlarmDay) -> None:
 
 
 def write_alarm_pause(connection: Connection, through: date | None) -> None:
+    """Set or clear the house-wide pause: one row through ``through``, or none at all for ``None``."""
     if through is None:
         connection.execute(delete(ALARM_PAUSE))
         return
@@ -181,15 +199,29 @@ def _as_day(found: RowMapping) -> AlarmDay:
         alarm=str(found["alarm"]),
         day=date.fromisoformat(str(found["day"])),
         state=RingState(str(found["state"])),
-        due=_moment(found["due"]),
-        snoozed_until=_moment(found["snoozed_until"]),
+        due=_aware_moment(found["due"]),
+        snoozed_until=_aware_moment(found["snoozed_until"]),
         give_back=None if found["give_back"] is None else str(found["give_back"]),
-        volumes_before=tuple((str(device_id), int(volume)) for device_id, volume in pairs),
+        volumes_before=tuple((str(device_id), _checked_volume(volume)) for device_id, volume in pairs),
     )
 
 
-def _moment(value: object) -> datetime | None:
-    return None if value is None else datetime.fromisoformat(str(value))
+def _aware_moment(value: object) -> datetime | None:
+    """A stored moment, with its time zone - never a naive one a later ``.astimezone(UTC)`` would misread."""
+    if value is None:
+        return None
+    moment = datetime.fromisoformat(str(value))
+    if moment.tzinfo is None:
+        raise ValueError(f"{value!r} has no time zone")
+    return moment
+
+
+def _checked_volume(value: object) -> int:
+    """A box's stored volume, the same bound ``domain.alarm`` checks a box's volume against."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= VOLUME_CEILING:
+        message = f"a volume is a whole number between 0 and {VOLUME_CEILING}, not {value!r}"
+        raise ValueError(message)
+    return value
 
 
 def _delete_children(connection: Connection, name: str, *, tables: tuple[Table, ...]) -> None:
