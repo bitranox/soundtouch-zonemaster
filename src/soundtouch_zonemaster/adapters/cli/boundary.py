@@ -375,11 +375,11 @@ def password_text_or_refuse(value: object) -> str | None:
 def _refuse_a_malformed_password(configured: Mapping[str, Any]) -> None:
     """Refuse (exit 2) a password setting that is present but is not a password: no value, or not text.
 
-    A ``null`` in a JSON or YAML file in a ``config.d`` directory is no value. Passed on, that
-    would mean "no password" while somebody plainly wrote one, and ``config`` would still list the
-    setting as coming from that file. Nothing else produces it for this setting: the environment,
-    a ``.env`` and ``--set`` all keep ``null`` and ``none`` as text for a sensitive key, so a
-    password spelled that way there is that password.
+    ``--set database.password=null`` (``none`` too, in any case) and a ``null`` in a JSON or YAML
+    file in a ``config.d`` directory are no value. Passed on, that would mean "no password" while
+    somebody plainly wrote one, and ``config`` would still list the setting as written there. The
+    environment and a ``.env`` never produce it for this setting: they keep ``null`` and ``none``
+    as text for a sensitive key, so a password spelled that way there is that password.
     A setting that is absent, or empty text, stays "no password": only the mapping can tell
     absent from present-but-nothing, which is why this reads the mapping rather than the value.
     Anything else that is not text is refused by :func:`password_text_or_refuse`, the one rule for
@@ -394,7 +394,7 @@ def _refuse_a_malformed_password(configured: Mapping[str, Any]) -> None:
     if configured[_CREDENTIAL_FIELD] is None:
         message = (
             f"refused: {config_path_of(_CREDENTIAL_FIELD)} arrived as no value, which is not the same as no password; "
-            "leave the setting out for no password, or write the password as text"
+            "leave the setting out (or drop the --set) for no password, or write the password as text"
         )
         raise OptionsError(message, exit_code=ExitCode.ERROR)
     password_text_or_refuse(configured[_CREDENTIAL_FIELD])

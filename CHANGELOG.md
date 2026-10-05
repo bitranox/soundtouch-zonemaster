@@ -23,9 +23,9 @@ All notable changes to this project are documented here. The format follows
   a JSON array or object, `true`/`false` in any case, `null`/`none` as no value (text on a
   secret's key), a number only where it reads back as the same text (`1.50` and `0640` stay
   text), and a quoted value as the text inside the quotes. It used to read the value as JSON,
-  so the two top layers could read one spelling two ways. `--set database.password=null` is
-  therefore the password `null` too; a password that arrives as no value (a `null` in a JSON or
-  YAML file in a `config.d` directory) is still refused, naming the ways out.
+  so the two top layers could read one spelling two ways. One difference stays on purpose:
+  `--set database.password=null` is no value rather than a password spelled `null`, and is
+  refused by name, as is a `null` password in a JSON or YAML file in a `config.d` directory.
 
 ### Removed
 

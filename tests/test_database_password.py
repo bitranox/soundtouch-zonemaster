@@ -262,8 +262,9 @@ def test_a_refused_password_type_is_reported_without_its_value(
 
 
 NULL_SPELLINGS = ["null", "NULL", "Null", "none", "None", "NONE"]
-"""The spellings the environment layer and ``--set`` read as no value for an ordinary key. For the
-password, a sensitive key, both keep every one of them as the text that was written."""
+"""The spellings the environment layer reads as no value for an ordinary key. For the password, a
+sensitive key, it keeps every one of them as the text that was written; ``--set`` reads them as no
+value on every key, which the boundary refuses for the password."""
 
 
 def _refused_start(
@@ -282,7 +283,7 @@ def _refuses_a_password_that_arrived_as_no_value(envelope: dict[str, object]) ->
     assert envelope["ok"] is False
     assert "database.password" in message
     assert "no value" in message
-    assert "leave the setting out for no password, or write the password as text" in message, (
+    assert "leave the setting out (or drop the --set) for no password, or write the password as text" in message, (
         "the two ways out, as alternatives"
     )
     assert "null" not in message, "what was written is not echoed"
@@ -306,12 +307,22 @@ def test_a_password_spelled_null_in_the_environment_is_that_text(
 
 
 @pytest.mark.parametrize("spelling", NULL_SPELLINGS)
-def test_a_password_set_to_null_on_the_command_line_is_that_text(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, spelling: str
+def test_a_password_set_to_null_on_the_command_line_refuses_the_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path, spelling: str
 ) -> None:
-    """``--set`` reads a value the way the environment layer does, secret keys included."""
-    options = _run_with(monkeypatch, tmp_path, "--set", f"database.password={spelling}")
-    assert options.database_password == Secret(spelling)
+    """``--set database.password=null`` was typed by somebody who plainly wrote the setting: it must
+    not quietly mean "no password", and it is not a password spelled null either (user, 2026-10-05)."""
+    envelope = _refused_start(
+        monkeypatch,
+        capsys,
+        "--set",
+        f"database.password={spelling}",
+        "--bind-ip",
+        "10.0.0.1",
+        "--database",
+        str(tmp_path / "z.sqlite"),
+    )
+    _refuses_a_password_that_arrived_as_no_value(envelope)
 
 
 def test_a_quoted_password_on_the_command_line_is_the_text_inside_the_quotes(

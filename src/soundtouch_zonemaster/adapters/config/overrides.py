@@ -17,7 +17,6 @@ import re
 from typing import TYPE_CHECKING, Any, Final, NamedTuple, cast
 
 from lib_layered_config import ConfigError as LayeredConfigError
-from lib_layered_config import is_sensitive
 
 from .errors import ConfigInputError
 
@@ -48,7 +47,7 @@ def parse_set_override(raw: str) -> tuple[tuple[str, ...], Any]:
     ``=1.2`` is a number, ``=true`` a boolean and ``=["A","B"]`` a list; ``=1.50`` and ``=0640``
     stay text because a number is taken only where it reads back as the same text; anything else
     stays the text that was typed, which is what makes ``--set zone.bind_ip=203.0.113.190`` do the
-    obvious thing. ``=null`` is no value, except on a secret's key, where it is the text it spells.
+    obvious thing. ``=null`` is no value, on every key.
     """
     if "=" not in raw:
         message = f"refused: --set {raw!r} must be SECTION.KEY=VALUE"
@@ -58,7 +57,7 @@ def parse_set_override(raw: str) -> tuple[tuple[str, ...], Any]:
     if len(parts) < 2 or not all(parts):  # noqa: PLR2004 - a section and at least one key
         message = f"refused: --set {raw!r} needs a section and a key, as SECTION.KEY=VALUE"
         raise ConfigInputError(message)
-    return parts, _coerce(parts[-1], value_text)
+    return parts, _coerce(value_text)
 
 
 _QUOTES: Final = ('"', "'")
@@ -68,14 +67,19 @@ _INT_TEXT: Final = re.compile(r"0|-?[1-9][0-9]{0,18}")
 _MAX_FLOAT_TEXT: Final = 32
 
 
-def _coerce(key: str, text: str) -> Any:
-    """The value lib_layered_config's ``.env`` layer would make of this text on this key.
+def _coerce(text: str) -> Any:
+    """The value lib_layered_config's ``.env`` layer would make of this text.
 
     Mirrored rather than imported, because the library keeps the rule in a private module; what
     keeps the copy honest is tests/test_config.py, which feeds every spelling through the
     library's own dotenv layer and requires the same value back. Quoting is the dotenv layer's way
     to keep text (the environment layer has no quotes to strip), and a command line needs it for
     the same reason: ``--set database.password='"8675309"'`` is a password, not a number.
+
+    One deliberate difference: the library keeps ``null``/``none`` as TEXT on a secret's key, and
+    this reads them as no value on every key. Somebody who types ``--set database.password=null``
+    did not mean a password spelled null, so the boundary refuses it by name instead of handing
+    the driver a wrong password that fails only at login (user decision, 2026-10-05).
     """
     if len(text) >= 2 and text[0] == text[-1] and text[0] in _QUOTES:  # noqa: PLR2004 - two quotes
         return text[1:-1]
@@ -88,9 +92,7 @@ def _coerce(key: str, text: str) -> Any:
     if lowered in {"true", "false"}:
         return lowered == "true"
     if lowered in _NO_VALUE:
-        # A secret spelled null is that secret: None would read as "no credential", and a login
-        # would then proceed without one instead of failing on the wrong one.
-        return text if is_sensitive(key.lower()) else None
+        return None
     return _number(text)
 
 

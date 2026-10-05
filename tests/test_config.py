@@ -344,10 +344,27 @@ def test_a_set_override_reads_every_spelling_as_the_library_s_own_layers_do(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, key: str, spelling: str
 ) -> None:
     """One rule for the two top layers (OPEN-WORK 231): ``--set`` and a ``.env`` line read the same
-    text as the same value, on an ordinary key and on a sensitive one, where ``null`` stays text."""
-    expected = _through_the_library(monkeypatch, tmp_path, key, spelling)
+    text as the same value, on an ordinary key and on a sensitive one - with ONE deliberate
+    difference, pinned by the test below: a secret's ``null``/``none``."""
     got = parse_set_override(f"{key}={spelling}")[1]
+    if key == "database.password" and spelling.lower() in {"null", "none"}:
+        assert got is None, "the deliberate difference: no value, which the boundary refuses"
+        return
+    expected = _through_the_library(monkeypatch, tmp_path, key, spelling)
     assert (got, type(got)) == (expected, type(expected))
+
+
+@pytest.mark.usefixtures("isolated_config_layers")
+@pytest.mark.parametrize("spelling", ["null", "None", "NULL", "none"])
+def test_a_set_null_on_a_secret_is_no_value_where_the_library_keeps_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, spelling: str
+) -> None:
+    """The one place ``--set`` departs from the library (user decision, 2026-10-05): a typed null on
+    a secret is no value, so the boundary refuses it rather than using a password spelled null."""
+    assert _through_the_library(monkeypatch, tmp_path, "database.password", spelling) == spelling, (
+        "the control: the library keeps it as text"
+    )
+    assert parse_set_override(f"database.password={spelling}")[1] is None
 
 
 @pytest.mark.usefixtures("isolated_config_layers")
