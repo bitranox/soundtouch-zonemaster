@@ -210,6 +210,23 @@ def texts_of(logs: list[list[str]], *, kind: str) -> list[str]:
     return [entry[1] for entry in logs]
 
 
+PYDANTIC_DOC_VERSION = re.compile(r"errors\.pydantic\.dev/\d+\.\d+/v/")
+"""Where pydantic's own error-documentation URL names ITS version, inside a ``str(ValidationError)``.
+
+The corpus was recorded against pydantic 2.13; the version segment is the installed library's, not
+a decision this project made, so a golden comparison must not re-record the whole fixture every
+time pydantic ships a new one."""
+
+
+def without_pydantic_doc_version(text: str) -> str:
+    """``text`` with the pydantic error-doc URL's version segment folded to one constant spelling.
+
+    Applied to BOTH sides of a ``str(ValidationError)`` comparison against a recorded corpus
+    message, so the two always agree on that segment and the comparison is free to still fail on
+    anything else in the message."""
+    return PYDANTIC_DOC_VERSION.sub("errors.pydantic.dev/X.Y/v/", text)
+
+
 @pytest.mark.parametrize("name", sorted(CASE_COUNTS))
 def test_the_corpus_is_the_one_this_contract_was_written_against(name: str) -> None:
     """Provenance, before anything is replayed against it."""
@@ -217,6 +234,37 @@ def test_the_corpus_is_the_one_this_contract_was_written_against(name: str) -> N
     assert meta["source_head"] == SOURCE_HEAD
     assert meta["corpus"] == name
     assert len(corpus(name)["cases"]) == CASE_COUNTS[name]
+
+
+def test_the_pydantic_doc_version_normaliser_touches_only_that_segment() -> None:
+    """The normaliser must fold 2.13 and 2.14 to the same text, and change nothing else.
+
+    A normaliser that is too EAGER (stripping the whole "For further information" line, or any
+    digit pair) would also quietly swallow a real difference elsewhere in the message - which is
+    exactly what the golden comparison must still catch. So this pins both directions: two
+    messages differing ONLY in that segment agree after normalising, and a message differing
+    somewhere else still disagrees.
+    """
+    recorded_213 = (
+        "1 validation error for OptionsInput\nduration\n  Input should be a valid number"
+        " [type=float_parsing, input_value='x', input_type=str]\n"
+        "    For further information visit https://errors.pydantic.dev/2.13/v/float_parsing"
+    )
+    produced_214 = (
+        "1 validation error for OptionsInput\nduration\n  Input should be a valid number"
+        " [type=float_parsing, input_value='x', input_type=str]\n"
+        "    For further information visit https://errors.pydantic.dev/2.14/v/float_parsing"
+    )
+    assert without_pydantic_doc_version(recorded_213) == without_pydantic_doc_version(produced_214)
+
+    # The RED this proves: an unfixed comparison (the plain strings, with no normaliser) must
+    # still disagree, or the fixture pair above would be too similar to say anything.
+    assert recorded_213 != produced_214
+
+    # A genuinely different message - wrong error type, same doc version - must stay different
+    # after normalising: the normaliser may not swallow a real disagreement elsewhere in the text.
+    produced_wrong_type = produced_214.replace("float_parsing", "int_parsing")
+    assert without_pydantic_doc_version(recorded_213) != without_pydantic_doc_version(produced_wrong_type)
 
 
 def presets_of(recorded: list[list[Any]]) -> dict[int, PresetStation | None]:
@@ -1414,7 +1462,9 @@ def replay_prototype_options(case: dict[str, Any], work: Path) -> None:
         if recorded["type"] == "ValidationError":
             # Delta 8: the model is named for what it is at this edge. Only the name is substituted,
             # so the field, the type, the input value and the URL stay under test.
-            assert str(caught.value) == recorded["message"].replace("for Options", "for OptionsInput")
+            assert without_pydantic_doc_version(str(caught.value)) == without_pydantic_doc_version(
+                recorded["message"].replace("for Options", "for OptionsInput")
+            )
             return
         refusal_matches(caught.value, recorded, work)
         if "envelopes" in expect:

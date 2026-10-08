@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from lib_layered_config import Config
+    from typing_extensions import TypeForm
 
     from ...domain.logfn import LogFn
 
@@ -617,9 +618,24 @@ def configured_settings(config: Config, *, narrate: LogFn = log) -> dict[str, An
     return found
 
 
+def _declared_annotation_of(field_name: str) -> TypeForm[Any]:
+    """The field's own declared type, refusing the one shape pydantic leaves room for and we do not.
+
+    :class:`~pydantic.fields.FieldInfo.annotation` is typed ``TypeForm[Any] | None`` because pydantic
+    also models a field built with no annotation at all - a case this record never produces, every
+    field here is declared with a real type. Reading ``None`` back would be a programming error, not
+    a value to pass on, so it is refused by name here rather than reaching :class:`TypeAdapter` as an
+    untyped ``None`` the type checker cannot narrow.
+    """
+    annotation = ServiceOptionsInput.model_fields[field_name].annotation
+    if annotation is None:
+        message = f"{field_name!r} on ServiceOptionsInput has no declared annotation"
+        raise AssertionError(message)
+    return annotation
+
+
 _AS_THE_RUN_READS_THEM: Mapping[str, TypeAdapter[Any]] = {
-    field_name: TypeAdapter[Any](ServiceOptionsInput.model_fields[field_name].annotation)
-    for field_name in _PREFERENCE_FIELDS
+    field_name: TypeAdapter[Any](_declared_annotation_of(field_name)) for field_name in _PREFERENCE_FIELDS
 }
 """Each preference field's own pydantic type, taken off :class:`ServiceOptionsInput` rather than
 written out again, so ``prefs`` coerces a layered value exactly as the service run does."""
