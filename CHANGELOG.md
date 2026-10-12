@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.2] 2026-10-12 19:39:02
+
 ### Fixed
 
 - A digit-only `.env` value no longer stops the service at startup. lib_layered_config 7.1 reads
