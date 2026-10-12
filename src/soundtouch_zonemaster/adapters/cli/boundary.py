@@ -23,7 +23,16 @@ import dataclasses
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, SecretStr, TypeAdapter, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from ...__init__conf__ import service_command
 from ...application.options import (
@@ -115,7 +124,11 @@ class ServiceOptionsInput(BaseModel):
     produces it.
     """
 
-    model_config = ConfigDict(frozen=True)
+    # lib_layered_config reads an unquoted all-digit value (a device id with no letter in it, a host
+    # label) as an int; the conversion is lossless, so turning it back into text restores what the
+    # operator wrote. The database and password fields refuse a number in their own validators,
+    # which run before this coercion and stay as they were.
+    model_config = ConfigDict(frozen=True, coerce_numbers_to_str=True)
 
     bind_ip: str
     device_id: str
@@ -124,7 +137,9 @@ class ServiceOptionsInput(BaseModel):
     database_password: SecretStr | None = None
     """The PostgreSQL password. pydantic's ``SecretStr`` while it is parsed here, so a validation
     error or a repr of this model cannot show it; the record receives the domain's ``Secret``."""
-    registry_url: str = DEFAULT_BASE_URL
+    # A number is never a registry URL, and the golden corpus pins that refusal, so the model-wide
+    # coercion is switched off for this one field.
+    registry_url: str = Field(default=DEFAULT_BASE_URL, coerce_numbers_to_str=False)
     consoles_allowed: tuple[str, ...] = ()
     """Device ids of consoles that may be taken into the zone anyway.
 

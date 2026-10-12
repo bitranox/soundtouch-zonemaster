@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A digit-only `.env` value no longer stops the service at startup. lib_layered_config 7.1 reads
+  an unquoted `.env` or environment value that spells a number losslessly as an int, so
+  `ZONE__DEVICE_ID=123456789012` (a device id with no letter in it) or `MPD__HOST=127` reached a
+  text setting as a number and failed with `Input should be a valid string`. The service options
+  now turn such a number back into the text the operator wrote.
+  Numeric settings still read as numbers, a malformed device id is still refused, and the database
+  password and URL and the registry URL still refuse a number on purpose.
+
 ### Added
 
 - `examples/systemd/soundtouch-zonemaster.service`, a sample unit for the service, and
