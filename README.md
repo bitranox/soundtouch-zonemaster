@@ -7,7 +7,7 @@
 [![Open in Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?logo=github&logoColor=white&style=flat-square)](https://codespaces.new/bitranox/soundtouch-zonemaster?quickstart=1)
 [![PyPI](https://img.shields.io/pypi/v/soundtouch-zonemaster.svg)](https://pypi.org/project/soundtouch-zonemaster/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/soundtouch-zonemaster.svg)](https://pypi.org/project/soundtouch-zonemaster/)
-[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14%20%7C%203.15-blue.svg)](https://www.python.org/)
 [![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-46A3FF?logo=ruff&labelColor=000)](https://docs.astral.sh/ruff/)
 [![Types: pyright strict](https://img.shields.io/badge/types-pyright%20strict-2A6DB2.svg)](https://microsoft.github.io/pyright/)
 [![codecov](https://codecov.io/gh/bitranox/soundtouch-zonemaster/branch/main/graph/badge.svg?token=e6FXPF11l5)](https://codecov.io/gh/bitranox/soundtouch-zonemaster)
@@ -109,6 +109,32 @@ make test
 
 Nothing has to be installed on the speakers, and no firmware is modified. The master needs to be on
 the same LAN as them.
+
+### Why we recommend uv: supply-chain protection
+
+This repository commits a `uv.lock`. It pins every package the project needs, transitive
+dependencies included, to an exact version and to the hashes of that version's files. The
+`exclude-newer` setting under `[tool.uv]` in `pyproject.toml` adds a cooldown: uv leaves any
+release younger than that out of the lock. CI installs from the lock, so a hijacked release that
+gets pulled again within the cooldown never reaches our builds, and a file whose hash does not
+match is refused.
+
+That protection stays in this repository. The installable package declares only lower bounds
+(`>=`) for its dependencies, so a plain `pip install` takes the newest release of every transitive
+dependency at the moment you run it. If one of them was hijacked an hour earlier, you get the
+hijacked version. `pipx install` and `uv tool install` without options do the same.
+
+To install the command line tool with a cooldown of your own (uv then skips any release younger
+than 7 days, transitive ones included), or to run the exact tree our CI tests:
+
+```bash
+# the command line tool, with a cooldown of your own
+uv tool install --exclude-newer "7 days" soundtouch-zonemaster
+
+# or the exact tree our CI tests
+git clone https://github.com/bitranox/soundtouch-zonemaster.git
+cd soundtouch-zonemaster && uv sync --locked && uv run soundtouch-zonemaster --help
+```
 
 ## Configuration
 

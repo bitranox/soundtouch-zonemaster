@@ -12,6 +12,7 @@ The journal assertion pins the record format: a later reader greps events.jsonl 
 from __future__ import annotations
 
 import json
+import socket
 import sys
 from pathlib import Path
 
@@ -27,9 +28,12 @@ from capture_zone import (
     Options,
     SourceName,
     Step,
+    WsFrame,
+    WsListener,
     ZoneMember,
     device_id_in,
     key_body,
+    next_ws_frame,
     parse_options,
     preset_item_in,
     refused_speaker,
@@ -189,3 +193,56 @@ def test_the_speaker_shell_logs_in_as_the_configured_user() -> None:
     assert argv[0] == "ssh"
     assert argv[-2:] == ["admin@203.0.113.33", "netstat -tunap"]
     assert "BatchMode=yes" in argv
+
+
+def _ws(opcode: int, payload: bytes, *, mask: bytes = b"") -> bytes:
+    """One server frame, FIN set; a mask key, when given, is carried but the payload is left as is."""
+    flag = 0x80 if mask else 0
+    n = len(payload)
+    if n < 126:
+        header = bytes([0x80 | opcode, flag | n])
+    elif n < 65536:
+        header = bytes([0x80 | opcode, flag | 126]) + n.to_bytes(2, "big")
+    else:
+        header = bytes([0x80 | opcode, flag | 127]) + n.to_bytes(8, "big")
+    return header + mask + payload
+
+
+@pytest.mark.os_agnostic
+@pytest.mark.parametrize("size", [0, 125, 126, 65535, 65536])
+def test_a_websocket_frame_is_read_across_every_length_encoding(size: int) -> None:
+    payload = bytes(range(256)) * (size // 256) + bytes(range(size % 256))
+    frame = _ws(0x1, payload)
+
+    assert next_ws_frame(frame + b"\x81") == (WsFrame(0x1, payload), b"\x81")
+
+
+@pytest.mark.os_agnostic
+def test_a_masked_frame_skips_its_mask_key() -> None:
+    assert next_ws_frame(_ws(0x1, b"hello", mask=b"\x01\x02\x03\x04")) == (WsFrame(0x1, b"hello"), b"")
+
+
+@pytest.mark.os_agnostic
+@pytest.mark.parametrize("cut", [0, 1, 3, 9, 13])
+def test_an_incomplete_frame_waits_for_more(cut: int) -> None:
+    """Short of the 2-byte header, the 16- or 64-bit length, or the payload itself: no frame yet."""
+    whole = _ws(0x1, b"x" * 70000)
+    assert next_ws_frame(whole[:cut]) is None
+    assert next_ws_frame(_ws(0x1, b"x" * 300)[:cut]) is None
+
+
+@pytest.mark.os_agnostic
+def test_the_listener_answers_a_ping_journals_text_and_close_and_keeps_the_rest(tmp_path: Path) -> None:
+    j = Journal(tmp_path / "events.jsonl")
+    listener = WsListener("192.0.2.40", j)
+    stream = _ws(0x9, b"pp") + _ws(0x1, b"<updates/>") + _ws(0x8, b"") + _ws(0x1, b"partial")[:4]
+    ours, theirs = socket.socketpair()
+    with ours, theirs:
+        rest = listener.drain(stream, ours)
+        theirs.settimeout(1.0)
+        pong = theirs.recv(64)
+
+    assert rest == _ws(0x1, b"partial")[:4]
+    assert pong == b"\x8a\x80\x00\x00\x00\x00pp"
+    records = [json.loads(line) for line in (tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [(r["kind"], r.get("frame")) for r in records] == [(EventKind.WS, "<updates/>"), (EventKind.WS_CLOSE, None)]

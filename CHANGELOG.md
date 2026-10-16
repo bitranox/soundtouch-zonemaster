@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Python 3.15 is a supported version: declared in the classifiers, so CI and `make test-all` run it.
+- `uv.lock` is committed, and `[tool.uv] exclude-newer` sets a cooldown that keeps releases younger
+  than it out of the lock. CI installs exactly the locked tree on push and pull request; the nightly
+  scheduled run still resolves afresh to catch upstream breakage early.
+
+### Changed
+- The install section explains why installing with uv protects against supply-chain attacks and why
+  a plain `pip install` from PyPI does not.
+- ruff selects C90, so a function above cyclomatic complexity 10 fails the gate. The four that were
+  above it are split with their behaviour unchanged: the capture driver's `run` and its WebSocket
+  frame reader, the late-join analyser's `collect`, and the golden corpus's service wiring.
+- The sdist is built from an include list, so a local build no longer ships files a checkout hides
+  through `.git/info/exclude` or a nested `.gitignore`; `tests/test_packaging.py` builds one beside
+  planted decoys and refuses any other top-level entry.
+
+### Fixed
+- The `os_windows`, `os_macos`, `os_linux` and `os_posix` test markers skip a test off its platform.
+  Registered alone they skipped nothing, so a marked test ran everywhere.
+
 ## [0.6.2] 2026-10-12 19:39:02
 
 ### Fixed

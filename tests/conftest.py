@@ -39,6 +39,7 @@ from __future__ import annotations
 import os
 import shutil
 import socket
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -56,7 +57,7 @@ from soundtouch_zonemaster.domain.database_url import masked
 from soundtouch_zonemaster.domain.secret import Secret
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
     from sqlalchemy.engine import Engine
 
@@ -71,6 +72,15 @@ _LAYER_ROOTS = (
     ("LIB_LAYERED_CONFIG_APPDATA", "appdata"),
     ("LIB_LAYERED_CONFIG_LOCALAPPDATA", "localappdata"),
 )
+
+#: Which platforms each ``os_*`` marker lets a test run on. Registering a marker in pyproject only
+#: silences pytest's unknown-marker warning; without this table a marked test runs everywhere.
+_PLATFORM_MARKERS: dict[str, Callable[[str], bool]] = {
+    "os_windows": lambda platform: platform == "win32",
+    "os_macos": lambda platform: platform == "darwin",
+    "os_linux": lambda platform: platform.startswith("linux"),
+    "os_posix": lambda platform: platform != "win32",
+}
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -246,6 +256,13 @@ def _empty_postgres(url: str, *, password: Secret | None = None) -> None:
         METADATA.drop_all(connection)
         connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
     engine.dispose()
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Skip a test whose ``os_*`` marker names a platform other than the running one."""
+    for name, runs_on in _PLATFORM_MARKERS.items():
+        if item.get_closest_marker(name) is not None and not runs_on(sys.platform):
+            pytest.skip(f"marked {name}; this is {sys.platform}")
 
 
 @pytest.hookimpl(trylast=True)

@@ -21,8 +21,6 @@ docs/plans/
 research/REPORT.md
 OPEN-WORK.md
 handover.md
-# uv resolves from pyproject on every bmk gate; a lock nothing installs from would only rot
-uv.lock
 
 # ====================================
 # APP

@@ -22,14 +22,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Multimedia :: Sound/Audio",
     "Typing :: Typed",
 ]
 dependencies = [
     "alembic>=1.20.0",
     "httpx>=0.28.1",
-    "lib_cli_exit_tools>=2.4.0",
-    "lib_layered_config>=7.1.6",
+    "lib_cli_exit_tools>=2.4.1",
+    "lib_layered_config>=7.1.9",
     "protobuf>=7.36.2",
     "pydantic>=2.14.1",
     "pydantic-xml>=2.21.1",
@@ -94,6 +95,28 @@ include = [
     "src/soundtouch_zonemaster/adapters/soundtouch/pb/**/*.pyi",
 ]
 
+# An allowlist, never a denylist: hatchling reads only the root .gitignore, so files a checkout
+# hides through .git/info/exclude or a nested .gitignore (session records, review notes, local
+# tool state) would ship from a local build. tests/test_packaging.py builds the sdist from a copy
+# of the tree with such decoys planted and refuses any other top-level entry. The tests need
+# research/ and tools/, whose scripts they import.
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src/soundtouch_zonemaster",
+    "/tests",
+    "/research",
+    "/tools",
+    "/docs",
+    "/examples",
+    "/notebooks",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/keymappings.md",
+    "/.env.example",
+    "/pyproject.toml",
+]
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
@@ -116,6 +139,7 @@ select = [
     "B",          # bugbear
     "A",          # builtins shadowing
     "C4",         # comprehension simplification
+    "C90",        # mccabe: cyclomatic complexity <= 10 (the house hard limit)
     "SIM",        # simplification
     "TCH",        # type-checking imports
     "RUF",        # ruff-specific
@@ -147,9 +171,9 @@ convention = "google"
 # The research scripts and the export tool are operator tools run by hand: they print, and they
 # shell out to protoc and git on purpose. The complexity rules used to be waived here too; the
 # blanket covered a handful of functions and blinded every other file under these two globs, so it
-# is gone and each of those functions carries its own noqa saying why. Count them before quoting a
-# number: grep -h 'noqa: PLR09' research/*.py tools/*.py | wc -l - five on 2026-09-18, all under
-# research/, because tools/ still fires none of the three.
+# is gone. What still fires carries its own noqa saying why - count them before quoting a number:
+# grep -h 'noqa: PLR09' research/*.py tools/*.py | wc -l. C901 carries none: a function over the
+# limit is split, here as everywhere else.
 "research/*.py" = ["T20", "S404", "S603", "S607"]
 "tools/*.py" = ["T20", "S404", "S603", "S607"]
 "src/soundtouch_zonemaster/__main__.py" = ["T20"]
@@ -490,4 +514,4 @@ os = ["ubuntu-latest"] # the service runs on Linux only (asyncio signal handling
 
 [tool.uv]
 exclude-newer = "1 day"
-exclude-newer-package = {lib-cli-exit-tools = false, lib-layered-config = false, pydantic = "2026-10-11T18:37:56Z", pydantic-core = "2026-10-11T18:35:45Z", rtoml = "2026-10-12T00:17:16Z"}
+exclude-newer-package = {lib-cli-exit-tools = false, lib-layered-config = false}

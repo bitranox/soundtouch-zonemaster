@@ -83,8 +83,9 @@ COMMAND = "analyze_late_join"
 EXIT_CONTRACT = "Exit 0 report written, 2 error."
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
+    from capture_model import DirectedSegments
     from google.protobuf import descriptor_pool
     from google.protobuf.message import Message
     from scapy.packet import Packet
@@ -218,70 +219,88 @@ def _frames_in(track_data: str) -> int:
     return int(m.group(1)) if m else 0
 
 
-def collect(  # noqa: PLR0912 - one pass over one capture; splitting it would re-walk the packets
-    pool: descriptor_pool.DescriptorPool, cap: Capture
-) -> dict[StreamKey, StreamFacts]:
+class _FactBook:
+    """The facts of one capture, filed under (join, url_id) in the order the walk meets them.
+
+    The walk is one pass over each conversation; each method files one channel direction's frames,
+    and ``collect`` calls them in the order that pass always had, so the report's order is the same.
+    """
+
+    def __init__(self, pool: descriptor_pool.DescriptorPool, t0: float) -> None:
+        self.pool = pool
+        self.t0 = t0
+        self.facts: dict[StreamKey, StreamFacts] = {}
+
+    def of(self, join: int, url_id: int) -> StreamFacts:
+        return self.facts.setdefault(StreamKey(join, url_id), StreamFacts(url_id))
+
+    def _payloads(self, streams: DirectedSegments, direction: Direction) -> Iterator[tuple[float, Message]]:
+        """Each decodable frame of one direction, as (capture second, payload)."""
+        for frame in frames_of(streams.of(direction)):
+            payload = decode_envelope(self.pool, frame.body).payload
+            if payload is not None:
+                yield frame.at - self.t0, payload
+
+    def file_commands(self, join: int, streams: DirectedSegments) -> None:
+        """The master's SetURL and PLAY on one transport connection."""
+        for at, payload in self._payloads(streams, Direction.MASTER_TO_SLAVE):
+            name = payload.DESCRIPTOR.name
+            if name == MsgTypeName.SET_URL:
+                set_url = cast("SetUrl", payload)
+                s = self.of(join, set_url.url_id)
+                s.set_url_fields, s.set_url_at = _set_fields(payload), at
+            elif name == MsgTypeName.TRANSPORT_CONTROL:
+                control = cast("TransportControl", payload)
+                if control.control == TransportAction.PLAY:
+                    s = self.of(join, control.url_id)
+                    s.play_at_us, s.play_sent_at = control.at_microseconds, at
+
+    def file_reports(self, join: int, streams: DirectedSegments) -> None:
+        """The slave's PLAYING state reports on one transport connection."""
+        for at, payload in self._payloads(streams, Direction.SLAVE_TO_MASTER):
+            if payload.DESCRIPTOR.name != MsgTypeName.SERVER_STATE:
+                continue
+            report_msg = cast("ServerState", payload)
+            if report_msg.state == SlaveState.PLAYING:
+                self.of(join, report_msg.url_id).reports.append(
+                    PlayingReport(at, report_msg.milliseconds, report_msg.byte_offset, _frames_in(report_msg.trackData))
+                )
+
+    def file_audio(self, join: int, streams: DirectedSegments) -> None:
+        """The audio the master served on one data connection: its first chunk and the running total."""
+        for at, payload in self._payloads(streams, Direction.MASTER_TO_SLAVE):
+            if payload.DESCRIPTOR.name != MsgTypeName.ACCEPT_AUDIO_DATA:
+                continue
+            chunk = cast("AudioData", payload)
+            s = self.of(join, chunk.stream_id)
+            if s.first_data_at is None:
+                s.first_data_at = at
+                s.first_data_offset, s.first_data_len = chunk.byte_offset, len(chunk.data)
+            served = (s.pulled[-1].total if s.pulled else 0) + len(chunk.data)
+            s.pulled.append(CumulativePoint(at, served))
+
+
+def collect(pool: descriptor_pool.DescriptorPool, cap: Capture) -> dict[StreamKey, StreamFacts]:
     """Walk the transport and data channels; file every relevant frame under (join, url_id).
 
     A slave that leaves and comes back opens new connections, and its second join of a running
     stream is exactly the late-join case, so joins are numbered in transport-connection order.
     """
     master, t0 = cap.master, cap.t0
-    facts: dict[StreamKey, StreamFacts] = {}
-
-    def of(join: int, url_id: int) -> StreamFacts:
-        return facts.setdefault(StreamKey(join, url_id), StreamFacts(url_id))
+    book = _FactBook(pool, t0)
 
     transport = _conversations(cap, TRANSPORT_PORT)
     join_started = [float(conv.packets[0].time) - t0 for conv in transport]
     for join, conv in enumerate(transport, start=1):
         streams = reassemble(conv.packets, conv.client, Endpoint(master, TRANSPORT_PORT))
-        for frame in frames_of(streams.of(Direction.MASTER_TO_SLAVE)):
-            payload = decode_envelope(pool, frame.body).payload
-            if payload is None:
-                continue
-            name = payload.DESCRIPTOR.name
-            if name == MsgTypeName.SET_URL:
-                set_url = cast("SetUrl", payload)
-                s = of(join, set_url.url_id)
-                s.set_url_fields, s.set_url_at = _set_fields(payload), frame.at - t0
-            elif name == MsgTypeName.TRANSPORT_CONTROL:
-                control = cast("TransportControl", payload)
-                if control.control != TransportAction.PLAY:
-                    continue
-                s = of(join, control.url_id)
-                s.play_at_us, s.play_sent_at = control.at_microseconds, frame.at - t0
-        for frame in frames_of(streams.of(Direction.SLAVE_TO_MASTER)):
-            payload = decode_envelope(pool, frame.body).payload
-            if payload is None or payload.DESCRIPTOR.name != MsgTypeName.SERVER_STATE:
-                continue
-            report_msg = cast("ServerState", payload)
-            if report_msg.state == SlaveState.PLAYING:
-                of(join, report_msg.url_id).reports.append(
-                    PlayingReport(
-                        frame.at - t0,
-                        report_msg.milliseconds,
-                        report_msg.byte_offset,
-                        _frames_in(report_msg.trackData),
-                    )
-                )
+        book.file_commands(join, streams)
+        book.file_reports(join, streams)
 
     for conv in _conversations(cap, DATA_PORT):
         opened = float(conv.packets[0].time) - t0
         join = max((i + 1 for i, ts in enumerate(join_started) if ts <= opened + 0.5), default=1)
-        streams = reassemble(conv.packets, conv.client, Endpoint(master, DATA_PORT))
-        for frame in frames_of(streams.of(Direction.MASTER_TO_SLAVE)):
-            payload = decode_envelope(pool, frame.body).payload
-            if payload is None or payload.DESCRIPTOR.name != MsgTypeName.ACCEPT_AUDIO_DATA:
-                continue
-            chunk = cast("AudioData", payload)
-            s = of(join, chunk.stream_id)
-            if s.first_data_at is None:
-                s.first_data_at = frame.at - t0
-                s.first_data_offset, s.first_data_len = chunk.byte_offset, len(chunk.data)
-            served = (s.pulled[-1].total if s.pulled else 0) + len(chunk.data)
-            s.pulled.append(CumulativePoint(frame.at - t0, served))
-    return facts
+        book.file_audio(join, reassemble(conv.packets, conv.client, Endpoint(master, DATA_PORT)))
+    return book.facts
 
 
 def fit_position_zero(reports: Sequence[PlayingReport]) -> PositionFit:

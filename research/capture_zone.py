@@ -61,7 +61,7 @@ from _settings import CaptureSettings, capture_settings, load
 COMMAND = "capture_zone"
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
 RUN_SCOPE = "run"  # the pseudo-box a record about the run itself is filed under
 
@@ -441,33 +441,48 @@ class WsListener(threading.Thread):
                 self.j.add(EventKind.WS_CLOSE, self.ip)
                 return
             buf += chunk
-            buf = self._drain(buf, s)
+            buf = self.drain(buf, s)
         s.close()
 
-    def _drain(self, buf: bytes, s: socket.socket) -> bytes:
-        while len(buf) >= _WS_MIN_HEADER_BYTES:
-            fin_op, b1 = buf[0], buf[1]
-            opcode, masked, length, pos = fin_op & 0x0F, b1 & 0x80, b1 & 0x7F, 2
-            if length == _WS_LEN_16BIT:
-                if len(buf) < _WS_HEADER_WITH_16BIT_LEN:
-                    return buf
-                length, pos = int.from_bytes(buf[2:4], "big"), 4
-            elif length == _WS_LEN_64BIT:
-                if len(buf) < _WS_HEADER_WITH_64BIT_LEN:
-                    return buf
-                length, pos = int.from_bytes(buf[2:10], "big"), 10
-            if masked:
-                pos += 4
-            if len(buf) < pos + length:
-                return buf
-            payload, buf = buf[pos : pos + length], buf[pos + length :]
-            if opcode == _WS_OPCODE_PING:  # ping -> pong (client frames must be masked)
-                s.sendall(b"\x8a\x80" + b"\x00\x00\x00\x00" + payload)
-            elif opcode == _WS_OPCODE_TEXT:
-                self.j.add(EventKind.WS, self.ip, frame=payload.decode(errors="replace"))
-            elif opcode == _WS_OPCODE_CLOSE:
+    def drain(self, buf: bytes, s: socket.socket) -> bytes:
+        """Act on every complete frame at the front of ``buf``; return what is left of it."""
+        while (got := next_ws_frame(buf)) is not None:
+            frame, buf = got
+            if frame.opcode == _WS_OPCODE_PING:  # ping -> pong (client frames must be masked)
+                s.sendall(b"\x8a\x80" + b"\x00\x00\x00\x00" + frame.payload)
+            elif frame.opcode == _WS_OPCODE_TEXT:
+                self.j.add(EventKind.WS, self.ip, frame=frame.payload.decode(errors="replace"))
+            elif frame.opcode == _WS_OPCODE_CLOSE:
                 self.j.add(EventKind.WS_CLOSE, self.ip)
         return buf
+
+
+class WsFrame(NamedTuple):
+    """One WebSocket frame as the listener reads it: the opcode and the payload, still masked if it was."""
+
+    opcode: int
+    payload: bytes
+
+
+def next_ws_frame(buf: bytes) -> tuple[WsFrame, bytes] | None:
+    """The first complete frame in ``buf`` and the bytes after it, or None while it is incomplete."""
+    if len(buf) < _WS_MIN_HEADER_BYTES:
+        return None
+    fin_op, b1 = buf[0], buf[1]
+    opcode, masked, length, pos = fin_op & 0x0F, b1 & 0x80, b1 & 0x7F, 2
+    if length == _WS_LEN_16BIT:
+        if len(buf) < _WS_HEADER_WITH_16BIT_LEN:
+            return None
+        length, pos = int.from_bytes(buf[2:4], "big"), 4
+    elif length == _WS_LEN_64BIT:
+        if len(buf) < _WS_HEADER_WITH_64BIT_LEN:
+            return None
+        length, pos = int.from_bytes(buf[2:10], "big"), 10
+    if masked:
+        pos += 4
+    if len(buf) < pos + length:
+        return None
+    return WsFrame(opcode, buf[pos : pos + length]), buf[pos + length :]
 
 
 # --- the experiment -----------------------------------------------------------------------------
@@ -483,137 +498,189 @@ def refused_speaker(speakers: Speakers, never_touch: Sequence[str]) -> str | Non
     return next((ip for ip in speakers if ip in never_touch), None)
 
 
-def run(options: Options, settings: CaptureSettings) -> int:  # noqa: PLR0912, PLR0915 - the experiment's steps in the order they happen
-    out = options.out
-    out.mkdir(parents=True, exist_ok=True)
-    j = Journal(out / "events.jsonl")
-    master, slave = options.master, options.slave
+@dataclass(frozen=True, slots=True)
+class Session:
+    """What every step of one run needs: the options, the speakers' device ids, the journal, the ssh user."""
+
+    options: Options
+    ids: Mapping[str, str]
+    j: Journal
+    user: str
+
+    def survey(self) -> None:
+        """Ask both speakers what zone they are in and what they play."""
+        for ip in self.options.speakers:
+            get_zone(ip, self.j)
+            now_playing(ip, self.j)
+
+    def form_zone(self) -> None:
+        """Make the master lead a zone with the slave in it."""
+        master, slave = self.options.master, self.options.slave
+        set_zone(master, self.ids[master], [ZoneMember(slave, self.ids[slave])], self.j)
+
+
+def _preflight(options: Options, settings: CaptureSettings) -> bool:
+    """Refuse a run that names a speaker the house said never to touch; say so when nothing is."""
     refused = refused_speaker(options.speakers, settings.never_touch)
     if refused is not None:
         print(f"refused: {refused} is in [capture] never_touch; a POWER over its API disturbs it", file=sys.stderr)
-        return 1
+        return False
     if not settings.never_touch:
         print("note: [capture] never_touch is empty, so no speaker is refused", file=sys.stderr)
-    user = settings.ssh_user
+    return True
 
+
+def _all_in_standby(options: Options, j: Journal) -> bool:
+    """Every speaker starts in STANDBY, unless --force; somebody may be listening otherwise."""
+    start_state = {ip: source_of(now_playing(ip, j)) for ip in options.speakers}
+    if not options.force and any(src != SourceName.STANDBY for src in start_state.values()):
+        print(f"refused: not all speakers in STANDBY ({start_state}); pass --force to override", file=sys.stderr)
+        return False
+    return True
+
+
+def _start_probes(session: Session, dumps: list[Tcpdump], listeners: list[WsListener]) -> None:
+    """A tcpdump and a WebSocket listener per speaker, each appended the moment it exists."""
+    options, j = session.options, session.j
+    for ip in options.speakers:
+        # A comprehension is what this used to be, and that was the defect: constructing a
+        # Tcpdump SPAWNS a remote process, so a failure partway through must leave the ones
+        # already started in the list for the cleanup to stop. PERF401 is carved here
+        # for that reason, and only here.
+        dumps.append(Tcpdump(ip, options.out / f"{ip}.pcap", user=session.user))  # noqa: PERF401
+    for ip in options.speakers:
+        listener = WsListener(ip, j)
+        listeners.append(listener)
+        listener.start()
+    wait(3, "tcpdump and websocket listeners settle")
+
+
+def _step_zone_on_preset1(session: Session) -> None:
+    """1. Both play preset 1, standalone; then a zone master -> slave."""
+    options, j = session.options, session.j
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.PRESET1_BOTH)
+    for ip in options.speakers:
+        key(ip, KeyName.PRESET_1, j)
+    wait(12, "both speakers start preset 1")
+    for ip in options.speakers:
+        set_volume(ip, options.volume, j)
+        now_playing(ip, j)
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.SET_ZONE)
+    session.form_zone()
+    wait(15, "zone forms, slave joins")
+    for ip in options.speakers:
+        get_zone(ip, j)  # E5: does the slave list itself? what does it report as master?
+        now_playing(ip, j)  # E5: slave's own nowPlaying while a slave
+        snapshot(ip, "in-zone", j, user=session.user)
+    wait(20, "steady state: audio + clock traffic")
+
+
+def _step_e1_preset_on_slave(session: Session) -> None:
+    """2. E1: preset pressed ON THE SLAVE."""
+    session.j.add(EventKind.STEP, RUN_SCOPE, name=Step.E1_PRESET2_ON_SLAVE)
+    key(session.options.slave, KeyName.PRESET_2, session.j)
+    wait(15, "E1: what does the zone do?")
+    session.survey()
+
+
+def _step_e2_select_on_master(session: Session) -> None:
+    """3. Restore the zone if it broke, then E2: /select on the master."""
+    master, j = session.options.master, session.j
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.RESTORE_ZONE)
+    session.form_zone()
+    wait(12, "zone re-formed")
+    item2 = preset_item(master, 2, j)
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.E2_SELECT_ON_MASTER)
+    select(master, item2, j)
+    wait(20, "E2: station change propagates")
+    session.survey()
+
+
+def _step_e6_power(session: Session) -> None:
+    """4. Slave leaves by POWER; then E6: master POWER with the slave back in the zone."""
+    options, j = session.options, session.j
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.SLAVE_POWER_OFF)
+    key(options.slave, KeyName.POWER, j)
+    wait(12, "slave leaves")
+    session.survey()
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.SLAVE_BACK)
+    key(options.slave, KeyName.PRESET_1, j)
+    wait(10, "slave back on")
+    session.form_zone()
+    wait(12, "zone re-formed")
+    vol_before = {ip: get_volume(ip, j) for ip in options.speakers}
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.E6_MASTER_POWER_OFF, volumes=vol_before)
+    key(options.master, KeyName.POWER, j)
+    wait(15, "E6: what happens to the slave?")
+    session.survey()
+
+
+def _clean_up(session: Session, volumes: Mapping[str, int], dumps: list[Tcpdump], listeners: list[WsListener]) -> None:
+    """Dissolve whatever zone exists, everyone to standby, volumes restored, probes stopped."""
+    options, j = session.options, session.j
+    j.add(EventKind.STEP, RUN_SCOPE, name=Step.CLEANUP)
+    for ip in options.speakers:
+        try:
+            set_zone(ip, session.ids[ip], [], j)
+        except Exception as exc:  # noqa: BLE001 - cleanup must continue
+            j.add(EventKind.CLEANUP_WARN, ip, error=repr(exc))
+    for ip in options.speakers:
+        try:
+            if source_of(now_playing(ip, j)) != SourceName.STANDBY:
+                key(ip, KeyName.POWER, j)
+            set_volume(ip, volumes[ip] if volumes[ip] > 0 else options.volume, j)
+        except Exception as exc:  # noqa: BLE001
+            j.add(EventKind.CLEANUP_WARN, ip, error=repr(exc))
+    wait(5, "let the last events arrive")
+    for ws in listeners:
+        ws.stop_flag.set()
+    for d in dumps:
+        j.add(EventKind.TCPDUMP, d.ip, result=d.stop())
+    for ip in options.speakers:
+        try:
+            j.add(EventKind.FINAL, ip, now_playing=now_playing(ip, j), zone=get_zone(ip, j))
+        except Exception as exc:  # noqa: BLE001
+            j.add(EventKind.CLEANUP_WARN, ip, error=repr(exc))
+
+
+def run(options: Options, settings: CaptureSettings) -> int:
+    """The experiment's steps in the order they happen; the cleanup runs whatever went wrong."""
+    out = options.out
+    out.mkdir(parents=True, exist_ok=True)
+    j = Journal(out / "events.jsonl")
+    if not _preflight(options, settings):
+        return 1
     ids = {ip: device_id(ip) for ip in options.speakers}
     j.add(
         EventKind.INFO,
         RUN_SCOPE,
-        master=master,
-        slave=slave,
+        master=options.master,
+        slave=options.slave,
         ids=ids,
         volume=options.volume,
         never_touch=list(settings.never_touch),
     )
-    start_state = {ip: source_of(now_playing(ip, j)) for ip in options.speakers}
-    if not options.force and any(src != SourceName.STANDBY for src in start_state.values()):
-        print(f"refused: not all speakers in STANDBY ({start_state}); pass --force to override", file=sys.stderr)
+    if not _all_in_standby(options, j):
         return 1
+    session = Session(options, ids, j, settings.ssh_user)
     volumes = {ip: get_volume(ip, j) for ip in options.speakers}
     for ip in options.speakers:
         get_zone(ip, j)
-        snapshot(ip, "baseline", j, user=user)
+        snapshot(ip, "baseline", j, user=session.user)
 
     # Built INSIDE the try: each Tcpdump spawns an ssh on a real speaker as it is constructed,
     # so one that started before a later one raised would otherwise keep running with nothing
-    # left holding a reference to stop it. The cleanup below iterates whatever got made.
+    # left holding a reference to stop it. The cleanup iterates whatever got made.
     dumps: list[Tcpdump] = []
     listeners: list[WsListener] = []
     try:
-        for ip in options.speakers:
-            # A comprehension is what this used to be, and that was the defect: constructing a
-            # Tcpdump SPAWNS a remote process, so a failure partway through must leave the ones
-            # already started in the list for the cleanup below to stop. PERF401 is carved here
-            # for that reason, and only here.
-            dumps.append(Tcpdump(ip, out / f"{ip}.pcap", user=user))  # noqa: PERF401
-        for ip in options.speakers:
-            listener = WsListener(ip, j)
-            listeners.append(listener)
-            listener.start()
-        wait(3, "tcpdump and websocket listeners settle")
-
-        # 1. Both play preset 1, standalone; then a zone master -> slave.
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.PRESET1_BOTH)
-        for ip in options.speakers:
-            key(ip, KeyName.PRESET_1, j)
-        wait(12, "both speakers start preset 1")
-        for ip in options.speakers:
-            set_volume(ip, options.volume, j)
-            now_playing(ip, j)
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.SET_ZONE)
-        set_zone(master, ids[master], [ZoneMember(slave, ids[slave])], j)
-        wait(15, "zone forms, slave joins")
-        for ip in options.speakers:
-            get_zone(ip, j)  # E5: does the slave list itself? what does it report as master?
-            now_playing(ip, j)  # E5: slave's own nowPlaying while a slave
-            snapshot(ip, "in-zone", j, user=user)
-        wait(20, "steady state: audio + clock traffic")
-
-        # 2. E1: preset pressed ON THE SLAVE.
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.E1_PRESET2_ON_SLAVE)
-        key(slave, KeyName.PRESET_2, j)
-        wait(15, "E1: what does the zone do?")
-        for ip in options.speakers:
-            get_zone(ip, j)
-            now_playing(ip, j)
-
-        # 3. Restore the zone if it broke, then E2: /select on the master.
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.RESTORE_ZONE)
-        set_zone(master, ids[master], [ZoneMember(slave, ids[slave])], j)
-        wait(12, "zone re-formed")
-        item2 = preset_item(master, 2, j)
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.E2_SELECT_ON_MASTER)
-        select(master, item2, j)
-        wait(20, "E2: station change propagates")
-        for ip in options.speakers:
-            get_zone(ip, j)
-            now_playing(ip, j)
-
-        # 4. Slave leaves by POWER; then E6: master POWER with the slave back in the zone.
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.SLAVE_POWER_OFF)
-        key(slave, KeyName.POWER, j)
-        wait(12, "slave leaves")
-        for ip in options.speakers:
-            get_zone(ip, j)
-            now_playing(ip, j)
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.SLAVE_BACK)
-        key(slave, KeyName.PRESET_1, j)
-        wait(10, "slave back on")
-        set_zone(master, ids[master], [ZoneMember(slave, ids[slave])], j)
-        wait(12, "zone re-formed")
-        vol_before = {ip: get_volume(ip, j) for ip in options.speakers}
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.E6_MASTER_POWER_OFF, volumes=vol_before)
-        key(master, KeyName.POWER, j)
-        wait(15, "E6: what happens to the slave?")
-        for ip in options.speakers:
-            get_zone(ip, j)
-            now_playing(ip, j)
+        _start_probes(session, dumps, listeners)
+        _step_zone_on_preset1(session)
+        _step_e1_preset_on_slave(session)
+        _step_e2_select_on_master(session)
+        _step_e6_power(session)
     finally:
-        # Cleanup: dissolve whatever zone exists, everyone to standby, volumes restored.
-        j.add(EventKind.STEP, RUN_SCOPE, name=Step.CLEANUP)
-        for ip in options.speakers:
-            try:
-                set_zone(ip, ids[ip], [], j)
-            except Exception as exc:  # noqa: BLE001 - cleanup must continue
-                j.add(EventKind.CLEANUP_WARN, ip, error=repr(exc))
-        for ip in options.speakers:
-            try:
-                if source_of(now_playing(ip, j)) != SourceName.STANDBY:
-                    key(ip, KeyName.POWER, j)
-                set_volume(ip, volumes[ip] if volumes[ip] > 0 else options.volume, j)
-            except Exception as exc:  # noqa: BLE001
-                j.add(EventKind.CLEANUP_WARN, ip, error=repr(exc))
-        wait(5, "let the last events arrive")
-        for ws in listeners:
-            ws.stop_flag.set()
-        for d in dumps:
-            j.add(EventKind.TCPDUMP, d.ip, result=d.stop())
-        for ip in options.speakers:
-            try:
-                j.add(EventKind.FINAL, ip, now_playing=now_playing(ip, j), zone=get_zone(ip, j))
-            except Exception as exc:  # noqa: BLE001
-                j.add(EventKind.CLEANUP_WARN, ip, error=repr(exc))
+        _clean_up(session, volumes, dumps, listeners)
     return 0
 
 

@@ -967,22 +967,25 @@ class FakeStore:
     def set_alarm_pause(self, through: date | None) -> None: ...
 
 
-def wired_service(
-    tmp_path: Path, *, speaker: Speaker, presets: dict[int, PresetStation | None]
-) -> tuple[ZoneService, list[tuple[str, str]]]:
-    """A whole service over fake ports, and the list its narration lands in."""
-    lines: list[tuple[str, str]] = []
+class FakeHouse:
+    """The speaker side of a whole service: each method is one port, and the narration lands in ``lines``."""
 
-    def log(kind: str, text: str) -> None:
-        lines.append((kind, text))
+    def __init__(self, *, speaker: Speaker, presets: dict[int, PresetStation | None]) -> None:
+        self.speaker = speaker
+        self.presets = presets
+        self.lines: list[tuple[str, str]] = []
 
-    def open_store(database: str, *, password: Secret | None, log: LogFn) -> FakeStore:
+    def log(self, kind: str, text: str) -> None:
+        self.lines.append((kind, text))
+
+    def open_store(self, database: str, *, password: Secret | None, log: LogFn) -> FakeStore:
         return FakeStore()
 
-    async def fetch_speakers(base_url: str = "", *, log: LogFn | None = None) -> tuple[Speaker, ...]:
-        return (speaker,)
+    async def fetch_speakers(self, base_url: str = "", *, log: LogFn | None = None) -> tuple[Speaker, ...]:
+        return (self.speaker,)
 
     def watch_speaker(
+        self,
         device_id: str,
         /,
         *,
@@ -994,6 +997,7 @@ def wired_service(
         return FakeWatch()
 
     def open_zone_master(
+        self,
         *,
         bind_ip: str,
         device_id: str,
@@ -1005,49 +1009,55 @@ def wired_service(
     ) -> FakeMaster:
         return FakeMaster()
 
-    async def read_volume(ip: str) -> int:
+    async def read_volume(self, ip: str) -> int:
         return 0
 
-    async def set_volume(ip: str, level: int) -> None: ...
+    async def set_volume(self, ip: str, level: int) -> None: ...
 
-    async def select_station(ip: str, *, url: str, name: str) -> None: ...
+    async def select_station(self, ip: str, *, url: str, name: str) -> None: ...
 
-    async def ask_now_playing(ip: str, device_id: str) -> SpeakerEvent | None:
-        return playing_its_own_radio(speaker)
+    async def ask_now_playing(self, ip: str, device_id: str) -> SpeakerEvent | None:
+        return playing_its_own_radio(self.speaker)
 
-    async def read_preset(ip: str, number: int) -> StationRequest:
-        station = presets.get(number)
+    async def read_preset(self, ip: str, number: int) -> StationRequest:
+        station = self.presets.get(number)
         if station is None:
             raise PresetNotSetError("no preset there")
         return StationRequest(playback_url=station.url, name=station.name, content_item_xml="")
 
-    def open_mpd(host: str, port: int, log: LogFn) -> MpdControlPort:
+    def open_mpd(self, host: str, port: int, log: LogFn) -> MpdControlPort:
         """The corpus has no MPD channel, so reaching this is the test lying about what it ran."""
         return _NoMpd()
 
+
+def wired_service(
+    tmp_path: Path, *, speaker: Speaker, presets: dict[int, PresetStation | None]
+) -> tuple[ZoneService, list[tuple[str, str]]]:
+    """A whole service over fake ports, and the list its narration lands in."""
+    house = FakeHouse(speaker=speaker, presets=presets)
     options = ServiceOptions(
         bind_ip="127.0.0.1",
         device_id=MASTER_ID,
         database=str(tmp_path / "zonemaster.sqlite"),
     )
     ports = ZoneServicePorts(
-        open_store=open_store,
+        open_store=house.open_store,
         off_the_loop=StoreWorker,
-        fetch_speakers=fetch_speakers,
-        watch_speaker=watch_speaker,
-        open_zone_master=open_zone_master,
+        fetch_speakers=house.fetch_speakers,
+        watch_speaker=house.watch_speaker,
+        open_zone_master=house.open_zone_master,
         # The real resolver: the corpus has no relative channel, so it answers every url as given.
         # The start still reads the registry once in the background; that says only lines of the
         # kind "source", and the comparisons below read the kinds the corpus recorded, one by one.
         open_locations=OrionBase,
-        read_volume=read_volume,
-        set_volume=set_volume,
-        select_station=select_station,
-        ask_now_playing=ask_now_playing,
-        read_preset=read_preset,
-        open_mpd=open_mpd,
+        read_volume=house.read_volume,
+        set_volume=house.set_volume,
+        select_station=house.select_station,
+        ask_now_playing=house.ask_now_playing,
+        read_preset=house.read_preset,
+        open_mpd=house.open_mpd,
     )
-    return ZoneService(options, log=log, ports=ports), lines
+    return ZoneService(options, log=house.log, ports=ports), house.lines
 
 
 async def until(condition: Callable[[], bool], what: str, *, timeout: float = 5.0) -> None:
