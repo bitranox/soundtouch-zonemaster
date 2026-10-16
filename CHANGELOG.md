@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.3] 2026-10-16 15:52:47
+
 ### Added
 - Python 3.15 is a supported version: declared in the classifiers, so CI and `make test-all` run it.
 - `uv.lock` is committed, and `[tool.uv] exclude-newer` sets a cooldown that keeps releases younger
