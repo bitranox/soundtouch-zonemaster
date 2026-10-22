@@ -30,14 +30,14 @@ dependencies = [
     "alembic>=1.20.0",
     "httpx>=0.28.1",
     "lib_cli_exit_tools>=2.4.1",
-    "lib_layered_config>=7.1.9",
+    "lib_layered_config>=7.3.0",
     "protobuf>=7.36.2",
     "pydantic>=2.14.1",
-    "pydantic-xml>=2.21.1",
+    "pydantic-xml>=2.22.0",
     "rich-click>=1.9.9",
-    "sqlalchemy>=2.1.4",
+    "sqlalchemy>=2.1.5",
     "typing-extensions>=4.16.0",
-    "websockets>=17.2",
+    "websockets>=17.3",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +54,7 @@ dev = [
     # The gate's own tools, declared so `uv run <tool>` in this venv matches what
     # bmk runs. bmk resolves them from its own pinned toolchain either way, so a
     # floor here documents the version this project was proven against.
-    "ruff>=0.17.0",
+    "ruff>=0.17.1",
     "pyright[nodejs]>=1.1.414",
     "bandit>=1.9.4",
     "pip-audit>=2.10.1",
@@ -67,6 +67,8 @@ dev = [
     # The build backend, imported by tests/test_wheel_contents.py to build the wheel and sdist
     # in-process and check that no private file ships.
     "hatchling>=1.32.4",
+    # Transitive CVE pins
+    "certifi>=2026.10.19", # PYSEC-2026-4320
 ]
 
 [project.scripts]
