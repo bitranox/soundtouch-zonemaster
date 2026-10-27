@@ -21,7 +21,9 @@ import pytest
 from registry_double import FakeRegistry, devices_at
 from speaker_double import SPEAKER_PORT, FakeSpeaker
 
-pytestmark = pytest.mark.asyncio
+# The master's and the speaker doubles' ports are fixed (udp/40005, tcp/40002, tcp/40003, tcp/8090),
+# so every test that binds them runs on one xdist worker, one after another.
+pytestmark = [pytest.mark.asyncio, pytest.mark.xdist_group("fixed-loopback-ports")]
 
 HOST = "127.0.0.9"
 """Its own loopback address, so this test cannot collide with a suite that uses .1 to .4."""

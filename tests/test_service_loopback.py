@@ -105,6 +105,10 @@ if TYPE_CHECKING:
     from soundtouch_zonemaster.domain.secret import Secret
     from soundtouch_zonemaster.domain.station import Station, StationRequest
 
+# The master's and the speaker doubles' ports are fixed (udp/40005, tcp/40002, tcp/40003, tcp/8090),
+# so every test that binds them runs on one xdist worker, one after another.
+pytestmark = pytest.mark.xdist_group("fixed-loopback-ports")
+
 MASTER = "127.0.0.10"
 """An address of the master's own, which nothing else in this file binds or connects from.
 

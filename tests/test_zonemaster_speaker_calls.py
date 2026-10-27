@@ -35,7 +35,9 @@ from soundtouch_zonemaster.domain.station import StationRequest
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-pytestmark = pytest.mark.asyncio
+# The master's and the speaker doubles' ports are fixed (udp/40005, tcp/40002, tcp/40003, tcp/8090),
+# so every test that binds them runs on one xdist worker, one after another.
+pytestmark = [pytest.mark.asyncio, pytest.mark.xdist_group("fixed-loopback-ports")]
 
 SPEAKER = "127.0.0.1"
 DEVICE_ID = "AABBCC000002"

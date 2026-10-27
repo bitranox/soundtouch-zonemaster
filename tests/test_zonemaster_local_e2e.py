@@ -26,7 +26,9 @@ from soundtouch_zonemaster.domain.station import Station, StationRequest
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-pytestmark = pytest.mark.asyncio
+# The master's and the speaker doubles' ports are fixed (udp/40005, tcp/40002, tcp/40003, tcp/8090),
+# so every test that binds them runs on one xdist worker, one after another.
+pytestmark = [pytest.mark.asyncio, pytest.mark.xdist_group("fixed-loopback-ports")]
 
 # Module scope, so the CapWords alias of a generated enum class is a constant rather than a
 # local variable that has to be spelled in lower case.

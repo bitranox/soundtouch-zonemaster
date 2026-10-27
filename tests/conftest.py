@@ -265,6 +265,18 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
             pytest.skip(f"marked {name}; this is {sys.platform}")
 
 
+def pytest_itemcollected(item: pytest.Item) -> None:
+    """Put every PostgreSQL case into one xdist group.
+
+    They all empty and refill the same throwaway database before and after, so two of them on
+    different workers would drop each other's tables. Marked here, as each item is collected,
+    because pytest-xdist reads the group mark in its own ``pytest_collection_modifyitems``, which
+    runs before the ``trylast`` one below.
+    """
+    if _uses_postgres(item):
+        item.add_marker(pytest.mark.xdist_group("postgres-test-database"))
+
+
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Refuse the whole run ONCE when the configured PostgreSQL server cannot be reached.

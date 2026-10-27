@@ -56,9 +56,12 @@ def _binds(host: str) -> bool:
     return True
 
 
-pytestmark = pytest.mark.skipif(
-    not _binds(MASTER), reason=f"this host does not hand out {MASTER}: no second loopback address"
-)
+# The master's and the speaker doubles' ports are fixed (udp/40005, tcp/40002, tcp/40003, tcp/8090),
+# so every test that binds them runs on one xdist worker, one after another.
+pytestmark = [
+    pytest.mark.skipif(not _binds(MASTER), reason=f"this host does not hand out {MASTER}: no second loopback address"),
+    pytest.mark.xdist_group("fixed-loopback-ports"),
+]
 
 
 async def _station_server(payload: bytes) -> tuple[asyncio.AbstractServer, str]:

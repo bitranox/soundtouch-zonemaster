@@ -24,7 +24,9 @@ from soundtouch_zonemaster.adapters.soundtouch.zone_master import ZoneMaster
 from soundtouch_zonemaster.application.errors import PortsBusyError
 from soundtouch_zonemaster.application.zone_service.constants import PORTS_BUSY_RETRY_S, wait_for_the_next_pass_s
 
-pytestmark = pytest.mark.asyncio
+# The master's and the speaker doubles' ports are fixed (udp/40005, tcp/40002, tcp/40003, tcp/8090),
+# so every test that binds them runs on one xdist worker, one after another.
+pytestmark = [pytest.mark.asyncio, pytest.mark.xdist_group("fixed-loopback-ports")]
 
 BIND = "127.0.0.1"
 TRANSPORT_PORT = 40002
