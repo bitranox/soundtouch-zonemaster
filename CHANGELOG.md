@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.6.3] 2026-10-16 15:52:47
+## [0.6.3] - 2026-10-16
 
 ### Added
 - Python 3.15 is a supported version: declared in the classifiers, so CI and `make test-all` run it.
@@ -28,7 +28,7 @@ All notable changes to this project are documented here. The format follows
 - The `os_windows`, `os_macos`, `os_linux` and `os_posix` test markers skip a test off its platform.
   Registered alone they skipped nothing, so a marked test ran everywhere.
 
-## [0.6.2] 2026-10-12 19:39:02
+## [0.6.2] - 2026-10-12
 
 ### Fixed
 
@@ -113,7 +113,7 @@ All notable changes to this project are documented here. The format follows
   a second time. A STANDBY answer followed by a frame naming internet radio now counts as the
   wake it is, at start and when the registry lists a speaker for the first time.
 
-## [0.6.1] 2026-10-01 18:27:58
+## [0.6.1] - 2026-10-01
 
 ### Changed
 
@@ -141,7 +141,7 @@ All notable changes to this project are documented here. The format follows
   `database.password` is set to an unquoted `null` in the environment and caps a `.env` file at
   10 MiB.
 
-## [0.6.0] 2026-10-01 12:31:14
+## [0.6.0] - 2026-10-01
 
 ### Added
 
@@ -290,7 +290,7 @@ All notable changes to this project are documented here. The format follows
 - A house database that fails to open or migrate is refused with its own error again; a lock release
   that failed while closing it could replace that error with an unrelated one.
 
-## [0.5.2] 2026-09-28 21:03:10
+## [0.5.2] - 2026-09-28
 
 ### Fixed
 
@@ -306,7 +306,7 @@ All notable changes to this project are documented here. The format follows
 - The rare stop that waits for ever on a station fetch, listed under 0.5.1, is still open: it has
   not recurred since, in CI or locally, and its cause is not yet known.
 
-## [0.5.1] 2026-09-28 15:08:20
+## [0.5.1] - 2026-09-28
 
 ### Changed
 
@@ -338,7 +338,7 @@ All notable changes to this project are documented here. The format follows
   above (one of fifteen test runs) and has not been reproduced locally, so its cause is not yet
   known. A service with no station playing is not affected.
 
-## [0.5.0] 2026-09-28 01:25:05
+## [0.5.0] - 2026-09-28
 
 ### Added
 
@@ -378,7 +378,7 @@ All notable changes to this project are documented here. The format follows
   name the database's location. The JSON envelope of `config` gains a `database_note` field (null
   when there is nothing to say).
 
-## [0.4.10] 2026-09-27 10:33:50
+## [0.4.10] - 2026-09-27
 
 ### Changed
 
@@ -386,7 +386,7 @@ All notable changes to this project are documented here. The format follows
   now refused (exit 2) even beside a typed `--database` that would not use it, as a password that
   arrives as no value already was. It used to be left out there with the "not used" line.
 
-## [0.4.9] 2026-09-27 09:54:21
+## [0.4.9] - 2026-09-27
 
 ### Added
 
@@ -419,7 +419,7 @@ All notable changes to this project are documented here. The format follows
 - `config` masks every key under `[database]` except `url`, so a misspelled password key is not
   printed; a `url` that is not text is masked whole, and a null one is shown as null.
 
-## [0.4.8] 2026-09-25 19:53:39
+## [0.4.8] - 2026-09-25
 
 ### Changed
 
@@ -450,7 +450,7 @@ All notable changes to this project are documented here. The format follows
   when any tracked file holds a literal from the private name list in any case. It skips with its
   reason where the list is absent, as in CI and a fresh clone.
 
-## [0.4.7] 2026-09-25 16:22:49
+## [0.4.7] - 2026-09-25
 
 ### Changed
 
@@ -462,7 +462,7 @@ All notable changes to this project are documented here. The format follows
   volume keys at that box then step every box in the zone, as a held thumbs up used to. The
   journal says `thumbed up once` or `thumbed down twice`.
 
-## [0.4.6] 2026-09-25 13:52:03
+## [0.4.6] - 2026-09-25
 
 ### Added
 
@@ -483,7 +483,7 @@ All notable changes to this project are documented here. The format follows
 - The journal names what a step moved by: `stepped +1 file inside 12` or `stepped +1 directory
   inside 12` (was `stepped +1 inside 12`).
 
-## [0.4.5] 2026-09-24 23:26:09
+## [0.4.5] - 2026-09-24
 
 ### Added
 
@@ -502,7 +502,7 @@ All notable changes to this project are documented here. The format follows
 
 - The channel file now writes `"end": "wrap"` for every channel, radio ones included.
 
-## [0.4.4] 2026-09-24 21:54:39
+## [0.4.4] - 2026-09-24
 
 ### Added
 
@@ -519,7 +519,7 @@ All notable changes to this project are documented here. The format follows
   "already in multiroom" and do nothing. At a box still attached but out of multiroom it still
   brings the box back in.
 
-## [0.4.3] 2026-09-24 19:51:09
+## [0.4.3] - 2026-09-24
 
 ### Fixed
 
@@ -538,7 +538,7 @@ All notable changes to this project are documented here. The format follows
   from the same presses as the window and writes both to the state file; a state file from before
   this carries a window and no threshold, and gets the default.
 
-## [0.4.2] 2026-09-24 16:17:13
+## [0.4.2] - 2026-09-24
 
 ### Fixed
 
@@ -548,7 +548,7 @@ All notable changes to this project are documented here. The format follows
   exited and was restarted, and the house had no zone for about ten seconds. Such a box is now
   logged as gone and the rest of the zone carries on.
 
-## [0.4.1] 2026-09-24 15:20:52
+## [0.4.1] - 2026-09-24
 
 ### Fixed
 
@@ -570,7 +570,7 @@ All notable changes to this project are documented here. The format follows
   it cannot reach the master; it still brings back a box the release did not reach.
 - `keymappings.md` documents what every remote key does, state by state.
 
-## [0.4.0] 2026-09-22 23:54:56
+## [0.4.0] - 2026-09-22
 
 ### Security
 
@@ -598,7 +598,7 @@ All notable changes to this project are documented here. The format follows
   scripts and the tools included. It still exits 2; without either flag it is still click's prose
   on stderr.
 
-## [0.3.11] 2026-09-22 15:39:51
+## [0.3.11] - 2026-09-22
 
 ### Fixed
 
@@ -623,7 +623,7 @@ All notable changes to this project are documented here. The format follows
   rather than on every pass or poll: measured eleven identical lines in 0.9 s for the first and
   about 120 an hour for the second.
 
-## [0.3.10] 2026-09-21 07:06:53
+## [0.3.10] - 2026-09-21
 
 ### Fixed
 
@@ -644,7 +644,7 @@ All notable changes to this project are documented here. The format follows
   doing the job rather than merely surviving - `seek 2 300.000` leaves MPD playing entry 2 at
   302.9 s.
 
-## [0.3.9] 2026-09-21 05:49:01
+## [0.3.9] - 2026-09-21
 
 ### Fixed
 
@@ -683,7 +683,7 @@ All notable changes to this project are documented here. The format follows
   presets pressed in a row in the second live run. The fix those notes describe is real and was
   confirmed in the house; the mechanism attributed to the speaker was ours.
 
-## [0.3.8] 2026-09-21 04:27:38
+## [0.3.8] - 2026-09-21
 
 ### Fixed
 
@@ -702,7 +702,7 @@ All notable changes to this project are documented here. The format follows
   complete as four separate one-digit numbers. The calibration still measures the key going down,
   because what it measures is how fast a hand presses.
 
-## [0.3.7] 2026-09-21 02:45:21
+## [0.3.7] - 2026-09-21
 
 ### Fixed
 
@@ -723,7 +723,7 @@ All notable changes to this project are documented here. The format follows
   number was the only line either half wrote, so nothing said whether a press had been counted
   twice or a forward dropped.
 
-## [0.3.6] 2026-09-20 23:26:33
+## [0.3.6] - 2026-09-20
 
 ### Fixed
 
@@ -737,7 +737,7 @@ All notable changes to this project are documented here. The format follows
   had dispatched, so no other deadline could be seen meanwhile. Now the newest press begins
   fetching at once and the older one stands down. How long a channel takes to arrive is unchanged.
 
-## [0.3.5] 2026-09-20 23:09:28
+## [0.3.5] - 2026-09-20
 
 ### Fixed
 
@@ -749,7 +749,7 @@ All notable changes to this project are documented here. The format follows
   there the input was wrong and the program said so. The traceback goes to stderr and never into
   the envelope, so machine mode still puts one parseable line on stdout and nothing else.
 
-## [0.3.4] 2026-09-20 22:28:39
+## [0.3.4] - 2026-09-20
 
 ### Changed
 
@@ -773,7 +773,7 @@ All notable changes to this project are documented here. The format follows
   acting during one was swallowing that press's RELEASE, leaving a key the service believed was
   still down; it fired half a second later and moved the house. A release is now always read.
 
-## [0.3.3] 2026-09-20 16:09:20
+## [0.3.3] - 2026-09-20
 
 ### Fixed
 
@@ -793,7 +793,7 @@ All notable changes to this project are documented here. The format follows
   is applied when a place is read and never when one is written, so the overlap can be changed, or
   set to zero for music, without anything already recorded meaning something else.
 
-## [0.3.2] 2026-09-20 15:28:48
+## [0.3.2] - 2026-09-20
 
 ### Fixed
 
@@ -807,7 +807,7 @@ All notable changes to this project are documented here. The format follows
   box that is ASLEEP now marks a wake whatever it selected; a press at an AWAKE box still does
   not, because the same preset 0 is what a box reports when somebody switches it to Bluetooth.
 
-## [0.3.1] 2026-09-20 07:51:44
+## [0.3.1] - 2026-09-20
 
 ### Fixed
 
@@ -825,7 +825,7 @@ All notable changes to this project are documented here. The format follows
   connection MPD closed now costs nothing at all, and a daemon that is genuinely gone is still
   said by name once and still costs no zone.
 
-## [0.3.0] 2026-09-20 06:56:02
+## [0.3.0] - 2026-09-20
 
 ### Added
 
