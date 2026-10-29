@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.32.4"]
+requires = ["hatchling>=1.33.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -67,7 +67,7 @@ dev = [
     "scapy>=2.8.0",
     # The build backend, imported by tests/test_wheel_contents.py to build the wheel and sdist
     # in-process and check that no private file ships.
-    "hatchling>=1.32.4",
+    "hatchling>=1.33.0",
     # Transitive CVE pins
     "certifi>=2026.10.23", # PYSEC-2026-4320
 ]

@@ -2,9 +2,10 @@
 
 CI's command line belongs to the CI template, so the watchdog is armed from ``conftest.py`` when
 ``CI=true`` (GitHub sets it), and it writes its dump to stderr, because a file on the runner dies
-with the runner. Each test here runs a real pytest in a subprocess over :func:`test_hangs_on_purpose`
-or :func:`test_reports_whether_it_is_armed`, which skip unless the subprocess asks for them. The
-subprocess is bounded by its own timeout, never by the watchdog it is testing.
+with the runner. Each test here runs a real pytest in a subprocess over :func:`test_hangs_on_purpose`,
+:func:`test_reports_whether_it_is_armed`, or the quick and long shares two xdist workers split, all
+of which skip unless the subprocess asks for them. The subprocess is bounded by its own timeout,
+never by the watchdog it is testing.
 """
 
 from __future__ import annotations
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[1]
 SELFTEST = "WATCHDOG_SELFTEST"
 SECTIONS = ("thread stacks", "loops and tasks", "servers", "transports", "httpx clients", "sockets")
+IDLE_STALL_S = 2.0
+LONG_SHARE_STEPS = 8
+LONG_SHARE_STEP_S = 0.8
 
 
 @pytest.mark.skipif(os.environ.get(SELFTEST) != "hang", reason="the stalled test a subprocess runs on purpose")
@@ -52,16 +56,34 @@ def test_reports_whether_it_is_armed(request: pytest.FixtureRequest) -> None:
     print(f"ARMED={request.config.pluginmanager.has_plugin('hang_watchdog')}")
 
 
+@pytest.mark.skipif(os.environ.get(SELFTEST) != "idle", reason="the quick share a subprocess runs on purpose")
+def test_a_quick_share() -> None:
+    """Done at once, so its worker then waits for the controller while the other one works."""
+
+
+@pytest.mark.skipif(os.environ.get(SELFTEST) != "idle", reason="the long share a subprocess runs on purpose")
+class TestALongShare:
+    """A class, because ``--dist loadscope`` keeps a class on one worker by its node id alone;
+    ``xdist_group`` marks are not read under every pytest this suite runs on."""
+
+    @pytest.mark.parametrize("step", range(LONG_SHARE_STEPS))
+    def test_one_step(self, step: int) -> None:
+        """Each step well inside the stall budget, all of them together far outside it."""
+        del step
+        time.sleep(LONG_SHARE_STEP_S)
+
+
 def _pytest(
-    test: str, *, selftest: str, ci: bool, extra: dict[str, str] | None = None
+    *tests: str, selftest: str, ci: bool, extra: dict[str, str] | None = None, args: tuple[str, ...] = ()
 ) -> subprocess.CompletedProcess[str]:
     env = {key: value for key, value in os.environ.items() if key not in {"CI", "WATCHDOG_STALL_S", "WATCHDOG_OUT"}}
     env[SELFTEST] = selftest
     if ci:
         env["CI"] = "true"
     env.update(extra or {})
+    nodeids = [f"tests/test_hang_watchdog.py::{test}" for test in tests]
     return subprocess.run(  # noqa: S603 - argv list, this interpreter and pytest
-        [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-q", f"tests/test_hang_watchdog.py::{test}"],
+        [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-q", *args, *nodeids],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -89,6 +111,26 @@ def test_the_watchdog_is_armed_in_ci_and_only_there(*, ci: bool, armed: bool) ->
     done = _pytest("test_reports_whether_it_is_armed", selftest="report", ci=ci, extra={"PYTEST_ADDOPTS": "-s"})
     assert done.returncode == 0, done.stdout + done.stderr
     assert f"ARMED={armed}" in done.stdout
+
+
+def test_a_worker_that_has_finished_waits_for_the_others_without_a_dump() -> None:
+    """Under xdist a worker whose share is done sends its results and then waits, idle, until the
+    controller tears every worker down - which is when the SLOWEST one finishes. That wait is the
+    controller's, and in CI a long ``xdist_group`` makes it minutes: counted as a stall, it printed
+    an empty dump and killed a worker with nothing wrong. The long share here stays inside the
+    budget step by step and outlasts it in total, so the quick worker's wait is several budgets."""
+    pytest.importorskip("xdist")
+    done = _pytest(
+        "test_a_quick_share",
+        "TestALongShare",
+        selftest="idle",
+        ci=True,
+        extra={"WATCHDOG_STALL_S": str(IDLE_STALL_S)},
+        args=("-n", "2", "--dist", "loadscope"),
+    )
+    assert done.returncode == 0, f"stdout:\n{done.stdout}\nstderr:\n{done.stderr}"
+    assert f"{1 + LONG_SHARE_STEPS} passed" in done.stdout, done.stdout
+    assert "WATCHDOG" not in done.stderr, f"a finished worker was reported as a hang:\n{done.stderr}"
 
 
 @pytest.mark.os_linux

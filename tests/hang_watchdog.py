@@ -344,6 +344,17 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 @pytest.hookimpl(hookwrapper=True)
+def pytest_sessionfinish(session: pytest.Session):
+    _mark("sessionfinish")
+    yield
+    # An xdist worker that has finished has sent its results and now waits, idle, for the
+    # controller to tear every worker down, which happens only once the slowest one is done -
+    # minutes behind a long xdist_group. That wait is the controller's, so the clock stops here.
+    # Anywhere else the process is about to exit, and a hang there is still a hang.
+    _mark("session" if hasattr(session.config, "workerinput") else "exiting")
+
+
+@pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_setup(item: pytest.Item):
     _mark(f"setup {item.nodeid}")
     yield
