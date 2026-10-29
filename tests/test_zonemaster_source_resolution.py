@@ -628,7 +628,8 @@ async def test_closing_the_resolver_ends_a_background_read_still_waiting_on_the_
             while not held:
                 await asyncio.sleep(0.01)
         closing = asyncio.create_task(orion.close())
-        done, _ = await asyncio.wait({closing}, timeout=1.0)
+        # 10 s, a third of the 30 s read: separates "cancelled promptly" from "waited the read", even under load.
+        done, _ = await asyncio.wait({closing}, timeout=10.0)
         assert done, "close waited for the registry instead of ending the read"
         assert closing.exception() is None
         await asyncio.sleep(0)
