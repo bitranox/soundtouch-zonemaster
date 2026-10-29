@@ -30,7 +30,7 @@ dependencies = [
     "alembic>=1.20.1",
     "httpx>=0.28.1",
     "lib_cli_exit_tools>=2.4.1",
-    "lib_layered_config>=7.4.1",
+    "lib_layered_config>=7.5.0",
     "protobuf>=7.36.2",
     "pydantic>=2.14.1",
     "pydantic-xml>=2.22.0",
@@ -516,5 +516,5 @@ system-dependencies-windows-choco = []
 os = ["ubuntu-latest"] # the service runs on Linux only (asyncio signal handling, fixed ports)
 
 [tool.uv]
-exclude-newer = "1 day"
-exclude-newer-package = {lib-cli-exit-tools = false, lib-layered-config = false}
+exclude-newer = "7 days"
+exclude-newer-package = {lib-cli-exit-tools = false, lib-layered-config = false, certifi = "2026-10-23T11:36:17Z", grpcio = "2026-10-26T06:20:18Z", grpcio-tools = "2026-10-26T06:22:22Z", hatchling = "2026-10-28T02:27:31Z", pytest = "2026-10-27T21:30:21Z", pytest-asyncio = "2026-10-25T21:05:38Z", ruff = "2026-10-27T00:34:06Z", tzdata = "2026-10-28T09:57:10Z"}
