@@ -30,7 +30,7 @@ dependencies = [
     "alembic>=1.20.1",
     "httpx>=0.28.1",
     "lib_cli_exit_tools>=2.4.1",
-    "lib_layered_config>=7.3.0",
+    "lib_layered_config>=7.4.1",
     "protobuf>=7.36.2",
     "pydantic>=2.14.1",
     "pydantic-xml>=2.22.0",
@@ -46,7 +46,7 @@ postgres = [
 ]
 dev = [
     "pytest>=9.2.0",
-    "tzdata>=2026.5; sys_platform == 'win32'",
+    "tzdata>=2026.6; sys_platform == 'win32'",
     "pytest-asyncio>=1.4.1",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
