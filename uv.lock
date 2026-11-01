@@ -11,7 +11,6 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
-certifi = "2026-10-23T11:36:17Z"
 grpcio = "2026-10-26T06:20:18Z"
 grpcio-tools = "2026-10-26T06:22:22Z"
 hatchling = "2026-10-28T02:27:31Z"
@@ -696,7 +695,7 @@ wheels = [
 
 [[package]]
 name = "lib-layered-config"
-version = "7.5.0"
+version = "7.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lib-cli-exit-tools" },
@@ -705,9 +704,9 @@ dependencies = [
     { name = "rtoml", marker = "python_full_version < '3.14'" },
     { name = "tomli", marker = "python_full_version == '3.14.*'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6f/3d/51848087230e346be8dd80fd908e1bb74c943d2fe6009b6e07ebea775931/lib_layered_config-7.5.0.tar.gz", hash = "sha256:86e95abda239ef3a33085a7e03f60b56120a8a99f723c4c5e73948942e5c22ba", size = 542191, upload-time = "2026-10-29T22:44:36.531Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/58/b4299ad29b6c1f732c8974713705f0a1445b3387a7bf8b4e95bf1b603880/lib_layered_config-7.7.0.tar.gz", hash = "sha256:f82c19972a5718c2f449a5690fc091828821402af8dee4012fe54a17f238c054", size = 550689, upload-time = "2026-11-01T17:30:33.306Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/e5/698cffb3bd8106d06617e5dd6b520388f550369ec2120e67d8bc7667ef6c/lib_layered_config-7.5.0-py3-none-any.whl", hash = "sha256:f49e106f3903d74b5f6d826a99e9f639debece8a9b290103a6b52736cfa4ce17", size = 164624, upload-time = "2026-10-29T22:44:35.151Z" },
+    { url = "https://files.pythonhosted.org/packages/55/e0/1606a185b9800128c477b17f2eeb9dcc6f18f3cdbf07f47b6e563864c95e/lib_layered_config-7.7.0-py3-none-any.whl", hash = "sha256:087ff927bd24138228bfa3d601daefaca226946adc1148f5999a3d6e4ad15b80", size = 167755, upload-time = "2026-11-01T17:30:31.326Z" },
 ]
 
 [[package]]
@@ -1693,7 +1692,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.15" },
     { name = "lib-cli-exit-tools", specifier = ">=2.4.1" },
-    { name = "lib-layered-config", specifier = ">=7.5.0" },
+    { name = "lib-layered-config", specifier = ">=7.7.0" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.10.1" },
     { name = "protobuf", specifier = ">=7.36.2" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'dev'", specifier = ">=3.3.6" },
