@@ -33,14 +33,12 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
-from importlib.metadata import version
 from typing import TYPE_CHECKING
 
 import anyio
 import pytest
 from mpdfake import HOST as MPD_HOST
 from mpdfake import FakeMpd
-from packaging.version import Version
 from registry_double import FakeRegistry, devices_at
 from service_log import recording_into
 from slow_store import SlowStore
@@ -136,12 +134,6 @@ MOVED_IP = "127.0.0.5"
 AUX = "AUX"
 """What a box reports with somebody listening on the aux input. Never measured here, and nothing
 in the policy matches on it - that is the point: anything that is not our stream keeps a box out."""
-
-ANYIO_SWALLOWS_A_RACING_CANCEL = Version(version("anyio")) <= Version("4.15.1")
-"""Whether the installed anyio loses a native cancel landing in the turn after its own (anyio#1214).
-
-The fix is merged and in no release up to 4.15.1, so the first later release is the one to depend on.
-"""
 
 RADIO = SourceName.LOCAL_INTERNET_RADIO
 
@@ -1431,14 +1423,6 @@ async def test_the_switch_dissolves_the_zone_and_a_restart_takes_back_only_what_
         assert len(joins(world.hallway)) == hallway_joins, "a box that went to standby is not taken back"
 
 
-@pytest.mark.xfail(
-    ANYIO_SWALLOWS_A_RACING_CANCEL,
-    reason=(
-        "agronholm/anyio#1214, fixed by #1330 (5d3830d) and in no release up to 4.15.1. When this "
-        "XPASSes, raise the anyio floor in pyproject to the release that carries the fix and drop the mark."
-    ),
-    strict=True,
-)
 async def test_a_stop_in_the_turn_after_a_connect_still_stops_the_service(
     world: World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

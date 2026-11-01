@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- A stop that landed in the event-loop turn after anyio had cancelled one of its own scopes at a
+  speaker connect could leave the service running: anyio up to 4.15.1 took the stop's
+  cancellation for its own and swallowed it (anyio#1214). anyio is now a declared dependency with
+  a floor of 4.16.0, which carries the fix, and the loopback test that pinned the old behaviour as
+  an expected failure now has to pass.
+
 ## [0.6.3] - 2026-10-16
 
 ### Added
